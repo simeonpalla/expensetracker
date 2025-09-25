@@ -36,10 +36,9 @@ class ExpenseTracker {
         const statusText = document.getElementById('status-text')
         
         try {
-            const { data, error } = await supabaseClient
+            const { count, error } = await supabaseClient
                 .from('categories')
-                .select('count')
-                .limit(1)
+                .select('*', { count: 'exact', head: true })
             
             if (error) throw error
             
@@ -189,7 +188,7 @@ class ExpenseTracker {
     async handleTransactionSubmit(e) {
         e.preventDefault()
         
-        const formData = new FormData(e.target)
+        // const formData = new FormData(e.target)
         const transaction = {
             type: document.getElementById('type').value,
             amount: parseFloat(document.getElementById('amount').value),
@@ -494,7 +493,9 @@ class ExpenseTracker {
             }
             
             // Create new chart
-            const ctx = document.getElementById('chart').getContext('2d')
+            const chartEl = document.getElementById('chart')
+            if (!chartEl) return
+            const ctx = chartEl.getContext('2d')
             this.chart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -618,7 +619,7 @@ class ExpenseTracker {
 }
 
 // Global functions for navigation
-function showPage(pageId) {
+function showPage(pageId, event) {
     // Hide all pages
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active')
@@ -633,7 +634,9 @@ function showPage(pageId) {
     document.getElementById(pageId).classList.add('active')
     
     // Add active to clicked tab
-    event.target.classList.add('active')
+    if (event) {
+        event.target.classList.add('active')
+    }
     
     // Update dashboard if switching to dashboard
     if (pageId === 'dashboard' && window.expenseTracker) {
