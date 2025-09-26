@@ -5,18 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💰 Expense Tracker - Indian Rupees</title>
     
-    <!-- Supabase JavaScript SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js"></script>
     
-    <!-- Custom styles -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@supabase/auth-ui-shared@0/dist/style.css" />
+
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
+    <div id="auth-container"></div>
+
+    <div class="container" style="display: none;">
+        
         <header class="header">
             <h1>💰 Expense Tracker</h1>
             <p>Track your income and expenses in Indian Rupees</p>
@@ -26,7 +27,6 @@
             </div>
         </header>
 
-        <!-- Navigation Tabs -->
         <nav class="nav-tabs">
             <button class="nav-tab active" onclick="showPage('add-transaction', event)">
                 ➕ Add Transaction
@@ -39,7 +39,6 @@
             </button>
         </nav>
 
-        <!-- Add Transaction Page -->
         <div id="add-transaction" class="page active">
             <h2>Add New Transaction</h2>
             
@@ -89,7 +88,7 @@
                         <label for="source-details">Bank / Card</label>
                         <select id="source-details">
                             <option value="">Select Details</option>
-                            </select>
+                        </select>
                     </div>
                     
                     <div class="form-group">
@@ -114,11 +113,9 @@
             </form>
         </div>
 
-        <!-- Dashboard Page -->
         <div id="dashboard" class="page">
             <h2>Financial Dashboard</h2>
             
-            <!-- Summary Cards -->
             <div class="stats-grid">
                 <div class="stat-card income-card">
                     <div class="stat-icon">💰</div>
@@ -145,13 +142,11 @@
                 </div>
             </div>
 
-            <!-- Charts Section -->
             <div class="chart-container">
                 <h3>📈 Income vs Expenses (Last 7 Days)</h3>
                 <canvas id="chart"></canvas>
             </div>
 
-            <!-- Recent Transactions -->
             <div class="transactions-section">
                 <div class="section-header">
                     <h3>📋 Recent Transactions</h3>
@@ -177,7 +172,6 @@
             </div>
         </div>
 
-        <!-- Categories Page -->
         <div id="categories" class="page">
             <h2>📁 Manage Categories</h2>
             
@@ -213,13 +207,13 @@
         </div>
     </div>
 
-    <!-- Notification Toast -->
     <div id="notification" class="notification">
         <span id="notification-message"></span>
         <button id="notification-close" class="notification-close">&times;</button>
     </div>
 
-    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/auth-ui-react@0.4.7/dist/umd/supabase-auth-ui.min.js"></script>
     <script src="supabase-config.js"></script>
     <script src="script.js"></script>
 </body>
