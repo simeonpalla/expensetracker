@@ -7,12 +7,17 @@ class ExpenseTracker {
         this.chart = null
         this.loadOffset = 0
         this.loadLimit = 10
+        this.paymentSources = {
+            'upi': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
+            'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
+            'credit-card': ['ICICI Platinum', 'ICICI Amazon Pay', 'ICICI Coral', 'RBL Paisabazar', 'UBI CC']
+        };
         
         this.init()
     }
     
     async init() {
-        // Test Supabase connection
+        // Test Supabase connection 
         await this.testConnection()
         
         // Load initial data
@@ -157,6 +162,35 @@ class ExpenseTracker {
         
         // Real-time updates
         this.setupRealTimeSubscription()
+        document.getElementById('payment-source').addEventListener('change', () => {
+        this.updateSourceDetailsOptions();
+        });
+    }
+
+        updateSourceDetailsOptions() {
+        const source = document.getElementById('payment-source').value;
+        const detailsSelect = document.getElementById('source-details');
+        const detailsContainer = detailsSelect.parentElement; // The form-group div
+
+        // Clear previous options
+        detailsSelect.innerHTML = '<option value="">Select Details</option>';
+
+        if (this.paymentSources[source]) {
+            // If the selected source has details (e.g., UPI, Credit Card)
+            detailsContainer.style.display = 'block'; // Show the dropdown
+            detailsSelect.required = true;
+
+            this.paymentSources[source].forEach(optionText => {
+                const option = document.createElement('option');
+                option.value = optionText;
+                option.textContent = optionText;
+                detailsSelect.appendChild(option);
+            });
+        } else {
+            // If source has no details (e.g., Cash)
+            detailsContainer.style.display = 'none'; // Hide the dropdown
+            detailsSelect.required = false;
+        }
     }
     
     setupRealTimeSubscription() {
@@ -189,13 +223,25 @@ class ExpenseTracker {
         e.preventDefault()
         
         // const formData = new FormData(e.target)
+        // const transaction = {
+        //     type: document.getElementById('type').value,
+        //     amount: parseFloat(document.getElementById('amount').value),
+        //     category: document.getElementById('category').value,
+        //     description: document.getElementById('description').value,
+        //     transaction_date: document.getElementById('date').value
+        // }
+
         const transaction = {
             type: document.getElementById('type').value,
             amount: parseFloat(document.getElementById('amount').value),
             category: document.getElementById('category').value,
+            transaction_date: document.getElementById('date').value,
             description: document.getElementById('description').value,
-            transaction_date: document.getElementById('date').value
-        }
+            // New fields
+            payment_to: document.getElementById('payment-to').value,
+            payment_source: document.getElementById('payment-source').value,
+            source_details: document.getElementById('source-details').value
+        };
         
         // Validate data
         if (!this.validateTransaction(transaction)) {
@@ -361,9 +407,10 @@ class ExpenseTracker {
             return `
                 <div class="transaction-item">
                     <div class="transaction-details">
-                        <h4>${icon} ${transaction.category} - ${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}</h4>
+                        <h4>${icon} ${transaction.category}</h4>
+                        <p>Paid to: <strong>${transaction.payment_to || 'N/A'}</strong></p>
                         <p>${transaction.description || 'No description'}</p>
-                        <p>${date}</p>
+                        <small>${date} via ${transaction.source_details || transaction.payment_source}</small>
                     </div>
                     <div class="transaction-amount ${transaction.type}">
                         ${transaction.type === 'income' ? '+' : '-'}${amount}
