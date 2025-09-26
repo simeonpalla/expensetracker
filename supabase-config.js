@@ -3,7 +3,7 @@ const SUPABASE_URL = 'https://ygbgtjippnuznapohscs.supabase.co'  // Replace with
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnYmd0amlwcG51em5hcG9oc2NzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg3NzYzNzYsImV4cCI6MjA3NDM1MjM3Nn0.KELMR7mXoAYVhU_KienISuBTPLlbnhOxISEQLf7X9UY'  // Replace with your anon key
 
 // Initialize Supabase client
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Test connection
 async function testConnection() {
