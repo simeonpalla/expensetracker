@@ -124,31 +124,6 @@ body {
     font-size: 14px;
 }
 
-/* --- Footer and New Logout Button Styles --- */
-footer {
-    text-align: center;
-    margin-top: 40px;      /* Adds space above the button */
-    padding-bottom: 20px;  /* Adds space below the button */
-}
-
-.logout-btn {
-    /* These are the new, correct styles without 'position: absolute' */
-    background: rgba(0, 0, 0, 0.2);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 12px 30px;
-    border-radius: 10px;
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-
-.logout-btn:hover {
-    background: rgba(0, 0, 0, 0.3);
-    transform: translateY(-2px);
-}
-
 /* Header Styles */
 .header {
     position: relative;
@@ -372,6 +347,31 @@ textarea {
     gap: 15px;
     justify-content: center;
     flex-wrap: wrap;
+}
+
+/* --- Footer and New Logout Button Styles --- */
+footer {
+    text-align: center;
+    margin-top: 40px;      /* Adds space above the button */
+    padding-bottom: 20px;  /* Adds space below the button */
+}
+
+.logout-btn {
+    /* These are the new, correct styles without 'position: absolute' */
+    background: rgba(0, 0, 0, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px 30px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+    background: rgba(0, 0, 0, 0.3);
+    transform: translateY(-2px);
 }
 
 /* Stats Grid */
