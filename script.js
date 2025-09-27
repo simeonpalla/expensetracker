@@ -144,6 +144,11 @@ class ExpenseTracker {
         document.getElementById('type').addEventListener('change', () => {
             this.updateCategoryOptions()
         })
+
+        // 👇 ADD THIS NEW LISTENER for the category dropdown
+        document.getElementById('category').addEventListener('change', () => {
+            this.updateFormForSalary();
+        });
         
         // Filter controls
         document.getElementById('filter-type').addEventListener('change', () => {
@@ -694,6 +699,7 @@ class ExpenseTracker {
         document.getElementById('transaction-form').reset()
         this.setTodayDate()
         this.updateCategoryOptions()
+        this.updateFormForSalary()
     }
     
     showNotification(message, type = 'success') {
