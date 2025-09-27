@@ -58,23 +58,28 @@ class ExpenseTracker {
 
     async loadTransactions() {
         try {
-            // DEBUGGING STEP: Using a specific select instead of '*'
+            // FINAL TEST: A very simple query to see if ANY data can be loaded.
             const { data, error } = await supabaseClient
                 .from('transactions')
-                .select('id, transaction_date, type, amount, category, description, payment_to, payment_source, source_details')
-                .order('transaction_date', { ascending: false })
-                .order('created_at', { ascending: false })
-                .range(0, this.loadLimit - 1);
-            
-            if (error) throw error;
+                .select('id, amount, description'); // Select only the 3 safest columns
+
+            if (error) {
+                // If it still fails, throw the REAL database error
+                throw new Error(`Database Error: ${error.message}`);
+            }
+
+            // If it succeeds, we can see the data in the browser console
+            console.log("Successfully fetched transactions:", data);
 
             this.transactions = data;
             this.loadOffset = data.length;
             this.displayTransactions();
             this.updateLoadMoreButton();
+
         } catch (error) {
             console.error('Error loading transactions:', error);
-            this.showNotification('Failed to load transactions', 'error');
+            // This will now show the specific database error on the screen
+            this.showNotification(error.message, 'error');
         }
     }
     
