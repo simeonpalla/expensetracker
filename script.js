@@ -39,7 +39,7 @@ class ExpenseTracker {
         this.setTodayDate()
         
         // Update dashboard
-        this.updateDashboard()
+        // this.updateDashboard()
         
         console.log('✅ Expense Tracker initialized!')
     }
