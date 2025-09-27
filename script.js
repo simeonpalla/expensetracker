@@ -1,4 +1,5 @@
-// script.js
+// script.js - FINAL VERSION
+
 class ExpenseTracker {
     constructor() {
         this.transactions = [];
@@ -39,7 +40,6 @@ class ExpenseTracker {
             statusDot.className = 'status-dot error';
             statusText.textContent = 'Database connection failed';
             console.error('❌ Supabase connection failed:', error.message);
-            this.showNotification('Database connection failed.', 'error');
         }
     }
 
@@ -58,12 +58,16 @@ class ExpenseTracker {
 
     async loadTransactions() {
         try {
+            // DEBUGGING STEP: Using a specific select instead of '*'
             const { data, error } = await supabaseClient
-            .from('transactions')
-            .select('id, transaction_date, type, amount, category, description, payment_to, payment_source, source_details').order('transaction_date', { ascending: false })
-            .order('created_at', { ascending: false })
-            .range(0, this.loadLimit - 1);
+                .from('transactions')
+                .select('id, transaction_date, type, amount, category, description, payment_to, payment_source, source_details')
+                .order('transaction_date', { ascending: false })
+                .order('created_at', { ascending: false })
+                .range(0, this.loadLimit - 1);
+            
             if (error) throw error;
+
             this.transactions = data;
             this.loadOffset = data.length;
             this.displayTransactions();
@@ -149,7 +153,7 @@ class ExpenseTracker {
             if (error) throw error;
             this.showNotification('Transaction added!', 'success');
             this.resetForm();
-            this.loadTransactions().then(() => this.updateDashboard());
+            this.loadTransactions().then(() => { if (document.getElementById('dashboard').classList.contains('active')) { this.updateDashboard(); } });
         } catch (error) {
             this.showNotification('Failed to add transaction: ' + error.message, 'error');
         }
