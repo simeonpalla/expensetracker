@@ -7,6 +7,10 @@ class ExpenseTracker {
         this.chart = null
         this.loadOffset = 0
         this.loadLimit = 10
+
+        // Define your salary account here
+        this.salaryAccount = 'UBI';
+
         this.paymentSources = {
             'upi': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
             'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
@@ -168,6 +172,47 @@ class ExpenseTracker {
         });
     }
 
+    // In script.js, add this new function inside the ExpenseTracker class
+
+    updateFormForSalary() {
+        const typeSelect = document.getElementById('type');
+        const categorySelect = document.getElementById('category');
+        const paymentSourceSelect = document.getElementById('payment-source');
+        const sourceDetailsSelect = document.getElementById('source-details');
+        const sourceDetailsGroup = sourceDetailsSelect.parentElement;
+
+        // Check if the combination is Income + Salary
+        const isSalary = typeSelect.value === 'income' && categorySelect.value === 'Salary';
+
+        if (isSalary) {
+            // If it IS salary, lock the payment fields
+            paymentSourceSelect.innerHTML = `<option value="salary" selected>Salary Deposit</option>`;
+            sourceDetailsSelect.innerHTML = `<option value="${this.salaryAccount}" selected>${this.salaryAccount}</option>`;
+            
+            paymentSourceSelect.disabled = true;
+            sourceDetailsSelect.disabled = true;
+            sourceDetailsGroup.style.display = 'block'; // Ensure the bank/card field is visible
+
+        } else {
+            // If it's NOT salary, restore the fields to normal
+            if (paymentSourceSelect.disabled) {
+                // Only restore if it was previously disabled
+                paymentSourceSelect.innerHTML = `
+                    <option value="">Select Source</option>
+                    <option value="upi">UPI</option>
+                    <option value="credit-card">Credit Card</option>
+                    <option value="debit-card">Debit Card</option>
+                    <option value="cash">Cash</option>
+                `;
+            }
+            
+            paymentSourceSelect.disabled = false;
+            sourceDetailsSelect.disabled = false;
+
+            // Update the bank/card options based on the current selection
+            this.updateSourceDetailsOptions();
+        }
+    }
     updateSourceDetailsOptions() {
         const source = document.getElementById('payment-source').value;
         const detailsSelect = document.getElementById('source-details');
