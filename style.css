@@ -143,6 +143,7 @@ body {
 
 /* Header Styles */
 .header {
+    position: relative;
     text-align: center;
     color: white;
     margin-bottom: 30px;
@@ -684,8 +685,9 @@ textarea {
     }
 
     .logout-btn {
-        position: static;
-        margin-bottom: 20px;
+            top: 15px; /* Adjust for mobile header */
+            padding: 8px 12px;
+            font-size: 14px;
     }
 }
 
