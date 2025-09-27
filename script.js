@@ -222,6 +222,12 @@ class ExpenseTracker {
     
     async handleTransactionSubmit(e) {
         e.preventDefault()
+
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) {
+            this.showNotification('You must be logged in to add a transaction.', 'error');
+            return;
+        }
         
         const transaction = {
             type: document.getElementById('type').value,
@@ -232,7 +238,8 @@ class ExpenseTracker {
             // New fields
             payment_to: document.getElementById('payment-to').value,
             payment_source: document.getElementById('payment-source').value,
-            source_details: document.getElementById('source-details').value
+            source_details: document.getElementById('source-details').value,
+            user_id: user.id 
         };
         
         // Validate data
@@ -263,11 +270,17 @@ class ExpenseTracker {
     
     async handleCategorySubmit(e) {
         e.preventDefault()
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) {
+            this.showNotification('You must be logged in to add a category.', 'error');
+            return;
+        }
         
         const category = {
             name: document.getElementById('category-name').value.trim(),
             type: document.getElementById('category-type').value,
-            icon: document.getElementById('category-icon').value.trim() || '📁'
+            icon: document.getElementById('category-icon').value.trim() || '📁',
+            user_id: user.id
         }
         
         if (!category.name || !category.type) {
