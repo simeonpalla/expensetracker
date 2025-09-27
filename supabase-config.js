@@ -5,20 +5,28 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Initialize Supabase client
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Test connection (called by ExpenseTracker class)
+// Test connection
 async function testConnection() {
     try {
+        // Just check if we can fetch categories
         const { data, error } = await supabaseClient
             .from('categories')
             .select('*')
             .limit(1)
-        
+
         if (error) throw error
-        
+
         console.log('✅ Supabase connected successfully!')
+        document.getElementById('status-dot').className = 'status-dot connected'
+        document.getElementById('status-text').textContent = 'Connected to database'
         return true
     } catch (error) {
         console.error('❌ Supabase connection failed:', error.message)
+        document.getElementById('status-dot').className = 'status-dot error'
+        document.getElementById('status-text').textContent = 'Database connection failed'
         return false
     }
 }
+
+// Run test on load
+testConnection()

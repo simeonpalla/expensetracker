@@ -69,7 +69,7 @@ class ExpenseTracker {
             
             if (error) throw error
             
-            this.categories = data || []
+            this.categories = data
             this.populateCategoryDropdowns()
             this.displayCategories()
             
@@ -90,8 +90,8 @@ class ExpenseTracker {
             
             if (error) throw error
             
-            this.transactions = data || []
-            this.loadOffset = this.transactions.length
+            this.transactions = data
+            this.loadOffset = data.length
             
             this.displayTransactions()
             this.updateLoadMoreButton()
@@ -113,8 +113,8 @@ class ExpenseTracker {
             
             if (error) throw error
             
-            this.transactions.push(...(data || []))
-            this.loadOffset += (data || []).length
+            this.transactions.push(...data)
+            this.loadOffset += data.length
             
             this.displayTransactions()
             this.updateLoadMoreButton()
@@ -163,7 +163,6 @@ class ExpenseTracker {
         // Real-time updates
         this.setupRealTimeSubscription()
         
-        // Payment source change
         document.getElementById('payment-source').addEventListener('change', () => {
             this.updateSourceDetailsOptions();
         });
@@ -172,14 +171,14 @@ class ExpenseTracker {
     updateSourceDetailsOptions() {
         const source = document.getElementById('payment-source').value;
         const detailsSelect = document.getElementById('source-details');
-        const detailsContainer = detailsSelect.parentElement;
+        const detailsContainer = detailsSelect.parentElement; // The form-group div
 
         // Clear previous options
         detailsSelect.innerHTML = '<option value="">Select Details</option>';
 
         if (this.paymentSources[source]) {
             // If the selected source has details (e.g., UPI, Credit Card)
-            detailsContainer.style.display = 'block';
+            detailsContainer.style.display = 'block'; // Show the dropdown
             detailsSelect.required = true;
 
             this.paymentSources[source].forEach(optionText => {
@@ -190,7 +189,7 @@ class ExpenseTracker {
             });
         } else {
             // If source has no details (e.g., Cash)
-            detailsContainer.style.display = 'none';
+            detailsContainer.style.display = 'none'; // Hide the dropdown
             detailsSelect.required = false;
         }
     }
@@ -230,6 +229,7 @@ class ExpenseTracker {
             category: document.getElementById('category').value,
             transaction_date: document.getElementById('date').value,
             description: document.getElementById('description').value,
+            // New fields
             payment_to: document.getElementById('payment-to').value,
             payment_source: document.getElementById('payment-source').value,
             source_details: document.getElementById('source-details').value
@@ -435,7 +435,7 @@ class ExpenseTracker {
             
             if (error) throw error
             
-            this.transactions = data || []
+            this.transactions = data
             this.displayTransactions()
             
         } catch (error) {
@@ -480,13 +480,11 @@ class ExpenseTracker {
             
             if (error) throw error
             
-            const transactions = data || []
-            
-            const totalIncome = transactions
+            const totalIncome = data
                 .filter(t => t.type === 'income')
                 .reduce((sum, t) => sum + parseFloat(t.amount), 0)
             
-            const totalExpenses = transactions
+            const totalExpenses = data
                 .filter(t => t.type === 'expense')
                 .reduce((sum, t) => sum + parseFloat(t.amount), 0)
             
@@ -526,7 +524,7 @@ class ExpenseTracker {
             if (error) throw error
             
             // Process data for chart
-            const chartData = this.processChartData(data || [])
+            const chartData = this.processChartData(data)
             
             // Destroy existing chart
             if (this.chart) {
@@ -690,3 +688,32 @@ function resetForm() {
         window.expenseTracker.resetForm()
     }
 }
+
+// Initialize the app when authenticated
+document.addEventListener('DOMContentLoaded', () => {
+    // Listen for login/logout events to toggle UI
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        const mainAppContainer = document.querySelector('.container');
+        const authContainer = document.querySelector('#auth-container');
+
+        if (session) {
+            // User is signed in
+            authContainer.style.display = 'none';
+            mainAppContainer.style.display = 'block';
+
+            // Initialize the app only once, after login
+            if (!window.expenseTracker) {
+                window.expenseTracker = new ExpenseTracker();
+            }
+        } else {
+            // User is signed out
+            authContainer.style.display = 'flex';
+            mainAppContainer.style.display = 'none';
+            
+            // Clear the app instance on logout
+            if (window.expenseTracker) {
+                window.expenseTracker = null;
+            }
+        }
+    });
+});
