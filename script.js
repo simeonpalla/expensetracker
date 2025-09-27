@@ -58,7 +58,11 @@ class ExpenseTracker {
 
     async loadTransactions() {
         try {
-            const { data, error } = await supabaseClient.from('transactions').select('*').order('transaction_date', { ascending: false }).order('created_at', { ascending: false }).range(0, this.loadLimit - 1);
+            const { data, error } = await supabaseClient
+            .from('transactions')
+            .select('id, transaction_date, type, amount, category, description, payment_to, payment_source, source_details').order('transaction_date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .range(0, this.loadLimit - 1);
             if (error) throw error;
             this.transactions = data;
             this.loadOffset = data.length;
