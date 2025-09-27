@@ -189,6 +189,51 @@ class ExpenseTracker {
         }
     }
     
+    async loadMoreTransactions() {
+        try {
+            const { data, error } = await supabaseClient
+                .from('transactions')
+                .select('id, transaction_date, type, amount, category, description, payment_to, payment_source, source_details')
+                .order('transaction_date', { ascending: false })
+                .order('created_at', { ascending: false })
+                .range(this.loadOffset, this.loadOffset + this.loadLimit - 1);
+
+            if (error) throw error;
+            
+            this.transactions.push(...data);
+            this.loadOffset += data.length;
+            
+            this.displayTransactions();
+            this.updateLoadMoreButton();
+            
+        } catch (error) {
+            console.error('Error loading more transactions:', error);
+            this.showNotification('Failed to load more transactions', 'error');
+        }
+    }
+
+    async updateLoadMoreButton() {
+        const container = document.getElementById('load-more-container');
+        try {
+            // Get the total count of transactions for the user
+            const { count, error } = await supabaseClient
+                .from('transactions')
+                .select('*', { count: 'exact', head: true });
+            
+            if (error) throw error;
+            
+            // If the number of loaded transactions is less than the total count, show the button
+            if (this.transactions.length < count) {
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error checking transaction count:', error);
+            container.style.display = 'none'; // Hide button on error
+        }
+    }
+    
     validateTransaction(t){if(!t.type||!t.amount||t.amount<=0||!t.category||!t.transaction_date){this.showNotification('Please fill all required fields.','error');return false}return true}
     
     populateCategoryDropdowns(){const categorySelect=document.getElementById('category');const filterCategorySelect=document.getElementById('filter-category');categorySelect.innerHTML='<option value="">Select Category</option>';filterCategorySelect.innerHTML='<option value="">All Categories</option>';const selectedType=document.getElementById('type').value;const relevantCategories=selectedType?this.categories.filter(cat=>cat.type===selectedType):this.categories;relevantCategories.forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=`${c.icon} ${c.name}`;categorySelect.appendChild(o)});this.categories.forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=`${c.icon} ${c.name}`;filterCategorySelect.appendChild(o)})}
