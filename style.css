@@ -446,6 +446,10 @@ footer {
     text-align: center;
 }
 
+#donut-chart-container {
+    text-align: center;
+}
+
 /* Transactions Section */
 .transactions-section {
     background: white;

@@ -245,73 +245,11 @@ class ExpenseTracker {
         document.getElementById('payment-source').addEventListener('change', () => {
             this.updateSourceDetailsOptions();
         });
-    }
 
-    // In script.js, add this new function inside the ExpenseTracker class
-
-    updateFormForSalary() {
-        const typeSelect = document.getElementById('type');
-        const categorySelect = document.getElementById('category');
-        const paymentSourceSelect = document.getElementById('payment-source');
-        const sourceDetailsSelect = document.getElementById('source-details');
-        const sourceDetailsGroup = sourceDetailsSelect.parentElement;
-
-        // Check if the combination is Income + Salary
-        const isSalary = typeSelect.value === 'income' && categorySelect.value === 'Salary';
-
-        if (isSalary) {
-            // If it IS salary, lock the payment fields
-            paymentSourceSelect.innerHTML = `<option value="salary" selected>Salary Deposit</option>`;
-            sourceDetailsSelect.innerHTML = `<option value="${this.salaryAccount}" selected>${this.salaryAccount}</option>`;
-            
-            paymentSourceSelect.disabled = true;
-            sourceDetailsSelect.disabled = true;
-            sourceDetailsGroup.style.display = 'block'; // Ensure the bank/card field is visible
-
-        } else {
-            // If it's NOT salary, restore the fields to normal
-            if (paymentSourceSelect.disabled) {
-                // Only restore if it was previously disabled
-                paymentSourceSelect.innerHTML = `
-                    <option value="">Select Source</option>
-                    <option value="upi">UPI</option>
-                    <option value="credit-card">Credit Card</option>
-                    <option value="debit-card">Debit Card</option>
-                    <option value="cash">Cash</option>
-                `;
-            }
-            
-            paymentSourceSelect.disabled = false;
-            sourceDetailsSelect.disabled = false;
-
-            // Update the bank/card options based on the current selection
-            this.updateSourceDetailsOptions();
-        }
-    }
-    updateSourceDetailsOptions() {
-        const source = document.getElementById('payment-source').value;
-        const detailsSelect = document.getElementById('source-details');
-        const detailsContainer = detailsSelect.parentElement; // The form-group div
-
-        // Clear previous options
-        detailsSelect.innerHTML = '<option value="">Select Details</option>';
-
-        if (this.paymentSources[source]) {
-            // If the selected source has details (e.g., UPI, Credit Card)
-            detailsContainer.style.display = 'block'; // Show the dropdown
-            detailsSelect.required = true;
-
-            this.paymentSources[source].forEach(optionText => {
-                const option = document.createElement('option');
-                option.value = optionText;
-                option.textContent = optionText;
-                detailsSelect.appendChild(option);
-            });
-        } else {
-            // If source has no details (e.g., Cash)
-            detailsContainer.style.display = 'none'; // Hide the dropdown
-            detailsSelect.required = false;
-        }
+            // 👇 ADD THIS LISTENER FOR THE RESET BUTTON
+        document.getElementById('reset-chart-view-btn').addEventListener('click', () => {
+            this.renderChartBySource();
+        });
     }
     
     setupRealTimeSubscription() {
@@ -602,6 +540,7 @@ class ExpenseTracker {
     async updateDashboard() {
         await this.updateStats()
         await this.updateChart()
+        await this.updateExpenseDonutChart()
     }
     
     async updateStats() {
@@ -788,6 +727,119 @@ class ExpenseTracker {
     hideNotification() {
         const notification = document.getElementById('notification')
         notification.classList.remove('show')
+    }
+
+        // In script.js, add this new function inside the ExpenseTracker class
+
+    updateFormForSalary() {
+        const typeSelect = document.getElementById('type');
+        const categorySelect = document.getElementById('category');
+        const paymentSourceSelect = document.getElementById('payment-source');
+        const sourceDetailsSelect = document.getElementById('source-details');
+        const sourceDetailsGroup = sourceDetailsSelect.parentElement;
+
+        // Check if the combination is Income + Salary
+        const isSalary = typeSelect.value === 'income' && categorySelect.value === 'Salary';
+
+        if (isSalary) {
+            // If it IS salary, lock the payment fields
+            paymentSourceSelect.innerHTML = `<option value="salary" selected>Salary Deposit</option>`;
+            sourceDetailsSelect.innerHTML = `<option value="${this.salaryAccount}" selected>${this.salaryAccount}</option>`;
+            
+            paymentSourceSelect.disabled = true;
+            sourceDetailsSelect.disabled = true;
+            sourceDetailsGroup.style.display = 'block'; // Ensure the bank/card field is visible
+
+        } else {
+            // If it's NOT salary, restore the fields to normal
+            if (paymentSourceSelect.disabled) {
+                // Only restore if it was previously disabled
+                paymentSourceSelect.innerHTML = `
+                    <option value="">Select Source</option>
+                    <option value="upi">UPI</option>
+                    <option value="credit-card">Credit Card</option>
+                    <option value="debit-card">Debit Card</option>
+                    <option value="cash">Cash</option>
+                `;
+            }
+            
+            paymentSourceSelect.disabled = false;
+            sourceDetailsSelect.disabled = false;
+
+            // Update the bank/card options based on the current selection
+            this.updateSourceDetailsOptions();
+        }
+    }
+    updateSourceDetailsOptions() {
+        const source = document.getElementById('payment-source').value;
+        const detailsSelect = document.getElementById('source-details');
+        const detailsContainer = detailsSelect.parentElement; // The form-group div
+
+        // Clear previous options
+        detailsSelect.innerHTML = '<option value="">Select Details</option>';
+
+        if (this.paymentSources[source]) {
+            // If the selected source has details (e.g., UPI, Credit Card)
+            detailsContainer.style.display = 'block'; // Show the dropdown
+            detailsSelect.required = true;
+
+            this.paymentSources[source].forEach(optionText => {
+                const option = document.createElement('option');
+                option.value = optionText;
+                option.textContent = optionText;
+                detailsSelect.appendChild(option);
+            });
+        } else {
+            // If source has no details (e.g., Cash)
+            detailsContainer.style.display = 'none'; // Hide the dropdown
+            detailsSelect.required = false;
+        }
+    }
+
+    // In script.js, inside the ExpenseTracker class
+
+    renderDonutChart(labels, data, title) {
+        if (this.expenseDonutChart) {
+            this.expenseDonutChart.destroy(); // Clear old chart
+        }
+
+        const chartEl = document.getElementById('expense-donut-chart');
+        if (!chartEl) return;
+        const ctx = chartEl.getContext('2d');
+        
+        document.getElementById('donut-chart-title').textContent = title;
+
+        this.expenseDonutChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Amount (₹)',
+                    data: data,
+                    backgroundColor: [ // Add some nice colors
+                        '#4f46e5', '#10b981', '#f59e0b', '#ef4444',
+                        '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'
+                    ],
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                },
+                onClick: (event, elements) => {
+                    // Only allow clicking on the "source" view
+                    if (elements.length > 0 && this.currentChartView === 'source') {
+                        const clickedIndex = elements[0].index;
+                        const clickedSource = labels[clickedIndex];
+                        this.renderChartByCategory(clickedSource);
+                    }
+                }
+            }
+        });
     }
 }
 
