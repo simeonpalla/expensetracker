@@ -11,6 +11,10 @@ class ExpenseTracker {
         // Define your salary account here
         this.salaryAccount = 'UBI';
 
+        this.expenseDonutChart = null;
+        this.allExpenses = [];         // To store expense data
+        this.currentChartView = 'source'; // 'source' or 'category'
+
         this.paymentSources = {
             'upi': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
             'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
@@ -127,6 +131,72 @@ class ExpenseTracker {
             console.error('Error loading more transactions:', error)
             this.showNotification('Failed to load more transactions', 'error')
         }
+    }
+
+    async updateExpenseDonutChart() {
+        try {
+            // Fetch all expense transactions
+            const { data, error } = await supabaseClient
+                .from('transactions')
+                .select('payment_source, category, amount')
+                .eq('type', 'expense');
+
+            if (error) throw error;
+            this.allExpenses = data;
+
+            // Start by showing the chart grouped by source
+            this.renderChartBySource();
+
+        } catch (error) {
+            console.error('Error fetching data for donut chart:', error);
+            document.getElementById('donut-chart-container').innerHTML = '<p>Could not load expense chart.</p>';
+        }
+    }
+
+    // In script.js, inside the ExpenseTracker class
+
+    renderChartBySource() {
+        this.currentChartView = 'source';
+        document.getElementById('reset-chart-view-btn').style.display = 'none';
+
+        // Group expenses by payment_source and sum the amounts
+        const sourceData = this.allExpenses.reduce((acc, expense) => {
+            const source = expense.payment_source || 'Unknown';
+            if (!acc[source]) {
+                acc[source] = 0;
+            }
+            acc[source] += expense.amount;
+            return acc;
+        }, {});
+
+        const labels = Object.keys(sourceData);
+        const data = Object.values(sourceData);
+
+        const title = '📊 Expenses by Source';
+        this.renderDonutChart(labels, data, title);
+    }
+
+    renderChartByCategory(source) {
+        this.currentChartView = 'category';
+        document.getElementById('reset-chart-view-btn').style.display = 'inline-block';
+
+        // Filter for the selected source and group by category
+        const categoryData = this.allExpenses
+            .filter(expense => (expense.payment_source || 'Unknown') === source)
+            .reduce((acc, expense) => {
+                const category = expense.category || 'Uncategorized';
+                if (!acc[category]) {
+                    acc[category] = 0;
+                }
+                acc[category] += expense.amount;
+                return acc;
+            }, {});
+
+        const labels = Object.keys(categoryData);
+        const data = Object.values(categoryData);
+        
+        const title = `📂 Expenses from ${source}`;
+        this.renderDonutChart(labels, data, title);
     }
     
     setupEventListeners() {
