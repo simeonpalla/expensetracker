@@ -4,105 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💰 Expense Tracker - Indian Rupees</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="stylesheet" href="style.css">
-    <style>
-        /* Additional styles for custom auth */
-        .auth-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        .auth-form {
-            background: white;
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-        }
-
-        .auth-form h2 {
-            margin-bottom: 30px;
-            color: var(--text-color);
-        }
-
-        .auth-form .form-group {
-            margin-bottom: 20px;
-            text-align: left;
-        }
-
-        .auth-form label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: var(--text-color);
-        }
-
-        .auth-form input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid var(--border-color);
-            border-radius: 10px;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
-        }
-
-        .auth-form input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-        }
-
-        .auth-tabs {
-            display: flex;
-            margin-bottom: 30px;
-            background: #f3f4f6;
-            border-radius: 10px;
-            padding: 4px;
-        }
-
-        .auth-tab {
-            flex: 1;
-            padding: 10px;
-            background: transparent;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .auth-tab.active {
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .auth-error {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #dc2626;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-
-        .auth-success {
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            color: #166534;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-    </style>
 </head>
 <body>
-    <!-- Custom Auth Container -->
     <div id="auth-container" class="auth-container" style="display: none;">
         <div class="auth-form">
             <h2>💰 Expense Tracker</h2>
@@ -115,7 +20,6 @@
             <div id="auth-error" class="auth-error" style="display: none;"></div>
             <div id="auth-success" class="auth-success" style="display: none;"></div>
 
-            <!-- Login Form -->
             <form id="login-form" style="display: block;">
                 <div class="form-group">
                     <label for="login-email">Email</label>
@@ -125,12 +29,9 @@
                     <label for="login-password">Password</label>
                     <input type="password" id="login-password" required>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">
-                    Login
-                </button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
             </form>
 
-            <!-- Signup Form -->
             <form id="signup-form" style="display: none;">
                 <div class="form-group">
                     <label for="signup-email">Email</label>
@@ -144,36 +45,25 @@
                     <label for="signup-confirm">Confirm Password</label>
                     <input type="password" id="signup-confirm" required minlength="6">
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">
-                    Sign Up
-                </button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Sign Up</button>
             </form>
 
             <p style="margin-top: 20px; font-size: 14px; color: #6b7280;">
-                <a href="#" onclick="showAuthTab('reset')" style="color: var(--primary-color);">
-                    Forgot Password?
-                </a>
+                <a href="#" onclick="showAuthTab('reset')" style="color: var(--primary-color);">Forgot Password?</a>
             </p>
 
-            <!-- Reset Password Form -->
             <form id="reset-form" style="display: none;">
                 <div class="form-group">
                     <label for="reset-email">Email</label>
                     <input type="email" id="reset-email" required>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">
-                    Send Reset Link
-                </button>
-                <button type="button" class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="showAuthTab('login')">
-                    Back to Login
-                </button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Send Reset Link</button>
+                <button type="button" class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="showAuthTab('login')">Back to Login</button>
             </form>
         </div>
     </div>
 
-    <!-- Main App Container -->
-    <div class="container" style="display: none; position: relative;">
-        
+    <div class="container" style="display: none;">
         <header class="header">
             <h1>💰 Expense Tracker</h1>
             <p>Track your income and expenses in Indian Rupees</p>
@@ -184,20 +74,13 @@
         </header>
 
         <nav class="nav-tabs">
-            <button class="nav-tab active" onclick="showPage('add-transaction', event)">
-                ➕ Add Transaction
-            </button>
-            <button class="nav-tab" onclick="showPage('dashboard', event)">
-                📊 Dashboard
-            </button>
-            <button class="nav-tab" onclick="showPage('categories', event)">
-                📁 Categories
-            </button>
+            <button class="nav-tab active" onclick="showPage('add-transaction', event)">➕ Add Transaction</button>
+            <button class="nav-tab" onclick="showPage('dashboard', event)">📊 Dashboard</button>
+            <button class="nav-tab" onclick="showPage('categories', event)">📁 Categories</button>
         </nav>
 
         <div id="add-transaction" class="page active">
             <h2>Add New Transaction</h2>
-            
             <form id="transaction-form" class="transaction-form">
                 <div class="form-grid">
                     <div class="form-group">
@@ -208,7 +91,6 @@
                             <option value="expense">💸 Expense</option>
                         </select>
                     </div>
-                    
                     <div class="form-group">
                         <label for="amount">Amount (₹)</label>
                         <div class="amount-input">
@@ -216,19 +98,16 @@
                             <input type="number" id="amount" step="0.01" min="0.01" placeholder="0.00" required>
                         </div>
                     </div>
-                    
                     <div class="form-group">
                         <label for="category">Category</label>
                         <select id="category" required>
                             <option value="">Select Category</option>
                         </select>
                     </div>
-
                     <div class="form-group">
                         <label for="payment-to">Payment To</label>
                         <input type="text" id="payment-to" placeholder="e.g., Zomato, Local Store" required>
                     </div>
-
                     <div class="form-group">
                         <label for="payment-source">Payment Source</label>
                         <select id="payment-source" required>
@@ -239,39 +118,30 @@
                             <option value="cash">Cash</option>
                         </select>
                     </div>
-
                     <div class="form-group">
                         <label for="source-details">Bank / Card</label>
                         <select id="source-details">
                             <option value="">Select Details</option>
                         </select>
                     </div>
-                    
                     <div class="form-group">
                         <label for="date">Date</label>
                         <input type="date" id="date" required>
                     </div>
-                    
                     <div class="form-group full-width">
                         <label for="description">Description (Optional)</label>
                         <textarea id="description" placeholder="Enter transaction details..."></textarea>
                     </div>
                 </div>
-                
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">
-                        💾 Save Transaction
-                    </button>
-                    <button type="button" class="btn btn-secondary" onclick="resetForm()">
-                        🔄 Clear Form
-                    </button>
+                    <button type="submit" class="btn btn-primary">💾 Save Transaction</button>
+                    <button type="button" class="btn btn-secondary" onclick="resetForm()">🔄 Clear Form</button>
                 </div>
             </form>
         </div>
 
         <div id="dashboard" class="page">
             <h2>Financial Dashboard</h2>
-            
             <div class="stats-grid">
                 <div class="stat-card income-card">
                     <div class="stat-icon">💰</div>
@@ -280,7 +150,6 @@
                         <div class="stat-label">Total Income</div>
                     </div>
                 </div>
-                
                 <div class="stat-card expense-card">
                     <div class="stat-icon">💸</div>
                     <div class="stat-content">
@@ -288,7 +157,6 @@
                         <div class="stat-label">Total Expenses</div>
                     </div>
                 </div>
-                
                 <div class="stat-card balance-card" id="balance-card">
                     <div class="stat-icon">💵</div>
                     <div class="stat-content">
@@ -297,12 +165,10 @@
                     </div>
                 </div>
             </div>
-
             <div class="chart-container">
                 <h3>📈 Income vs Expenses (Last 7 Days)</h3>
                 <canvas id="chart"></canvas>
             </div>
-
             <div class="chart-container" id="donut-chart-container">
                 <h3 id="donut-chart-title">📊 Expenses by Source</h3>
                 <canvas id="expense-donut-chart"></canvas>
@@ -310,7 +176,6 @@
                     ⬅️ Back to Sources
                 </button>
             </div>
-
             <div class="transactions-section">
                 <div class="section-header">
                     <h3>📋 Recent Transactions</h3>
@@ -325,11 +190,9 @@
                         </select>
                     </div>
                 </div>
-                
                 <div id="transactions-list" class="transactions-list">
                     <div class="loading">Loading transactions...</div>
                 </div>
-                
                 <div id="load-more-container" class="load-more-container" style="display: none;">
                     <button id="load-more-btn" class="btn btn-secondary">Load More</button>
                 </div>
@@ -338,7 +201,6 @@
 
         <div id="categories" class="page">
             <h2>📁 Manage Categories</h2>
-            
             <div class="categories-section">
                 <div class="add-category-form">
                     <h3>Add New Category</h3>
@@ -355,13 +217,11 @@
                         </div>
                     </form>
                 </div>
-                
                 <div class="categories-display">
                     <div class="category-group">
                         <h4>💰 Income Categories</h4>
                         <div id="income-categories" class="category-grid"></div>
                     </div>
-                    
                     <div class="category-group">
                         <h4>💸 Expense Categories</h4>
                         <div id="expense-categories" class="category-grid"></div>
@@ -371,9 +231,7 @@
         </div>
 
         <footer>
-            <button id="logout-btn" class="logout-btn" onclick="handleLogout()">
-                Logout
-            </button>
+            <button id="logout-btn" class="logout-btn" onclick="handleLogout()">Logout</button>
         </footer>
     </div>
 
@@ -387,120 +245,8 @@
     <script src="supabase-config.js"></script>
     <script>
         // Custom Auth Functions
-        function showAuthTab(tab) {
-            // Hide all forms
-            document.getElementById('login-form').style.display = 'none';
-            document.getElementById('signup-form').style.display = 'none';
-            document.getElementById('reset-form').style.display = 'none';
-            
-            // Remove active class from all tabs
-            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-            
-            // Show selected form and activate tab
-            if (tab === 'login') {
-                document.getElementById('login-form').style.display = 'block';
-                document.querySelector('.auth-tab:first-child').classList.add('active');
-            } else if (tab === 'signup') {
-                document.getElementById('signup-form').style.display = 'block';
-                document.querySelector('.auth-tab:last-child').classList.add('active');
-            } else if (tab === 'reset') {
-                document.getElementById('reset-form').style.display = 'block';
-            }
-            
-            hideAuthMessage();
-        }
-
-        function showAuthError(message) {
-            const errorDiv = document.getElementById('auth-error');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            document.getElementById('auth-success').style.display = 'none';
-        }
-
-        function showAuthSuccess(message) {
-            const successDiv = document.getElementById('auth-success');
-            successDiv.textContent = message;
-            successDiv.style.display = 'block';
-            document.getElementById('auth-error').style.display = 'none';
-        }
-
-        function hideAuthMessage() {
-            document.getElementById('auth-error').style.display = 'none';
-            document.getElementById('auth-success').style.display = 'none';
-        }
-
-        async function handleLogin(e) {
-            e.preventDefault();
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-
-            try {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email,
-                    password
-                });
-
-                if (error) throw error;
-                
-                // Success handled by auth state change listener
-            } catch (error) {
-                showAuthError(error.message);
-            }
-        }
-
-        async function handleSignup(e) {
-            e.preventDefault();
-            const email = document.getElementById('signup-email').value;
-            const password = document.getElementById('signup-password').value;
-            const confirmPassword = document.getElementById('signup-confirm').value;
-
-            if (password !== confirmPassword) {
-                showAuthError('Passwords do not match');
-                return;
-            }
-
-            try {
-                const { data, error } = await supabaseClient.auth.signUp({
-                    email,
-                    password
-                });
-
-                if (error) throw error;
-                
-                showAuthSuccess('Check your email for verification link!');
-            } catch (error) {
-                showAuthError(error.message);
-            }
-        }
-
-        async function handleReset(e) {
-            e.preventDefault();
-            const email = document.getElementById('reset-email').value;
-
-            try {
-                const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
-                
-                if (error) throw error;
-                
-                showAuthSuccess('Password reset email sent!');
-            } catch (error) {
-                showAuthError(error.message);
-            }
-        }
-
-        async function handleLogout() {
-            try {
-                const { error } = await supabaseClient.auth.signOut();
-                if (error) throw error;
-            } catch (error) {
-                console.error('Logout error:', error);
-            }
-        }
-
-        // Initialize auth event listeners
-        document.getElementById('login-form').addEventListener('submit', handleLogin);
-        document.getElementById('signup-form').addEventListener('submit', handleSignup);
-        document.getElementById('reset-form').addEventListener('submit', handleReset);
+        function showAuthTab(tab){document.getElementById('login-form').style.display='none';document.getElementById('signup-form').style.display='none';document.getElementById('reset-form').style.display='none';document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('active'));if(tab==='login'){document.getElementById('login-form').style.display='block';document.querySelector('.auth-tab:first-child').classList.add('active')}else if(tab==='signup'){document.getElementById('signup-form').style.display='block';document.querySelector('.auth-tab:last-child').classList.add('active')}else if(tab==='reset'){document.getElementById('reset-form').style.display='block'}hideAuthMessage()}function showAuthError(message){const errorDiv=document.getElementById('auth-error');errorDiv.textContent=message;errorDiv.style.display='block';document.getElementById('auth-success').style.display='none'}function showAuthSuccess(message){const successDiv=document.getElementById('auth-success');successDiv.textContent=message;successDiv.style.display='block';document.getElementById('auth-error').style.display='none'}function hideAuthMessage(){document.getElementById('auth-error').style.display='none';document.getElementById('auth-success').style.display='none'}async function handleLogin(e){e.preventDefault();const email=document.getElementById('login-email').value;const password=document.getElementById('login-password').value;try{const{data,error}=await supabaseClient.auth.signInWithPassword({email,password});if(error)throw error}catch(error){showAuthError(error.message)}}async function handleSignup(e){e.preventDefault();const email=document.getElementById('signup-email').value;const password=document.getElementById('signup-password').value;const confirmPassword=document.getElementById('signup-confirm').value;if(password!==confirmPassword){showAuthError('Passwords do not match');return}try{const{data,error}=await supabaseClient.auth.signUp({email,password});if(error)throw error;showAuthSuccess('Check your email for verification link!')}catch(error){showAuthError(error.message)}}async function handleReset(e){e.preventDefault();const email=document.getElementById('reset-email').value;try{const{error}=await supabaseClient.auth.resetPasswordForEmail(email);if(error)throw error;showAuthSuccess('Password reset email sent!')}catch(error){showAuthError(error.message)}}async function handleLogout(){try{const{error}=await supabaseClient.auth.signOut();if(error)throw error}catch(error){console.error('Logout error:',error)}}
+        document.getElementById('login-form').addEventListener('submit',handleLogin);document.getElementById('signup-form').addEventListener('submit',handleSignup);document.getElementById('reset-form').addEventListener('submit',handleReset);
     </script>
     <script src="script.js"></script>
 </body>
