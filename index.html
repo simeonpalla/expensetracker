@@ -8,245 +8,548 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="auth-container" class="auth-container" style="display: none;">
+    <!-- Authentication Container -->
+    <div id="auth-container" class="auth-container" style="display: none;" role="main" aria-label="Authentication">
         <div class="auth-form">
             <h2>💰 Expense Tracker</h2>
             
-            <div class="auth-tabs">
-                <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
-                <button class="auth-tab" onclick="showAuthTab('signup')">Sign Up</button>
+            <div class="auth-tabs" role="tablist" aria-label="Authentication options">
+                <button class="auth-tab active" 
+                        role="tab" 
+                        aria-selected="true" 
+                        aria-controls="login-form"
+                        id="login-tab"
+                        onclick="showAuthTab('login')">Login</button>
+                <button class="auth-tab" 
+                        role="tab" 
+                        aria-selected="false" 
+                        aria-controls="signup-form"
+                        id="signup-tab"
+                        onclick="showAuthTab('signup')">Sign Up</button>
             </div>
 
-            <div id="auth-error" class="auth-error" style="display: none;"></div>
-            <div id="auth-success" class="auth-success" style="display: none;"></div>
+            <div id="auth-error" class="auth-error" style="display: none;" role="alert" aria-live="polite"></div>
+            <div id="auth-success" class="auth-success" style="display: none;" role="status" aria-live="polite"></div>
 
-            <form id="login-form" style="display: block;">
+            <form id="login-form" style="display: block;" role="tabpanel" aria-labelledby="login-tab">
                 <div class="form-group">
-                    <label for="login-email">Email</label>
-                    <input type="email" id="login-email" required>
+                    <label for="login-email">Email Address</label>
+                    <input type="email" 
+                           id="login-email" 
+                           required 
+                           autocomplete="email"
+                           aria-describedby="login-email-help">
+                    <small id="login-email-help" class="form-help">Enter your registered email address</small>
                 </div>
                 <div class="form-group">
                     <label for="login-password">Password</label>
-                    <input type="password" id="login-password" required>
+                    <input type="password" 
+                           id="login-password" 
+                           required 
+                           autocomplete="current-password"
+                           aria-describedby="login-password-help">
+                    <small id="login-password-help" class="form-help">Enter your account password</small>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <span aria-hidden="true">🔓</span> Login
+                </button>
             </form>
 
-            <form id="signup-form" style="display: none;">
+            <form id="signup-form" style="display: none;" role="tabpanel" aria-labelledby="signup-tab">
                 <div class="form-group">
-                    <label for="signup-email">Email</label>
-                    <input type="email" id="signup-email" required>
+                    <label for="signup-email">Email Address</label>
+                    <input type="email" 
+                           id="signup-email" 
+                           required 
+                           autocomplete="email"
+                           aria-describedby="signup-email-help">
+                    <small id="signup-email-help" class="form-help">We'll send a verification email to this address</small>
                 </div>
                 <div class="form-group">
                     <label for="signup-password">Password</label>
-                    <input type="password" id="signup-password" required minlength="6">
+                    <input type="password" 
+                           id="signup-password" 
+                           required 
+                           minlength="6" 
+                           autocomplete="new-password"
+                           aria-describedby="signup-password-help">
+                    <small id="signup-password-help" class="form-help">Minimum 6 characters required</small>
                 </div>
                 <div class="form-group">
                     <label for="signup-confirm">Confirm Password</label>
-                    <input type="password" id="signup-confirm" required minlength="6">
+                    <input type="password" 
+                           id="signup-confirm" 
+                           required 
+                           minlength="6" 
+                           autocomplete="new-password"
+                           aria-describedby="signup-confirm-help">
+                    <small id="signup-confirm-help" class="form-help">Re-enter your password</small>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Sign Up</button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <span aria-hidden="true">📝</span> Create Account
+                </button>
             </form>
 
             <p style="margin-top: 20px; font-size: 14px; color: #6b7280;">
-                <a href="#" onclick="showAuthTab('reset')" style="color: var(--primary-color);">Forgot Password?</a>
+                <a href="#" onclick="showAuthTab('reset')" style="color: var(--primary-color);">
+                    Forgot Password?
+                </a>
             </p>
 
             <form id="reset-form" style="display: none;">
                 <div class="form-group">
-                    <label for="reset-email">Email</label>
-                    <input type="email" id="reset-email" required>
+                    <label for="reset-email">Email Address</label>
+                    <input type="email" 
+                           id="reset-email" 
+                           required 
+                           autocomplete="email"
+                           aria-describedby="reset-email-help">
+                    <small id="reset-email-help" class="form-help">Enter your email to receive reset instructions</small>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Send Reset Link</button>
-                <button type="button" class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="showAuthTab('login')">Back to Login</button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <span aria-hidden="true">📧</span> Send Reset Link
+                </button>
+                <button type="button" 
+                        class="btn btn-secondary" 
+                        style="width: 100%; margin-top: 10px;" 
+                        onclick="showAuthTab('login')">
+                    <span aria-hidden="true">←</span> Back to Login
+                </button>
             </form>
         </div>
     </div>
 
-    <div class="container" style="display: none;">
+    <!-- Main Application -->
+    <div class="container" style="display: none;" role="main" aria-label="Expense Tracker Application">
         <header class="header">
             <h1>💰 Expense Tracker</h1>
             <p>Track your income and expenses in Indian Rupees</p>
-            <div id="connection-status" class="status-indicator">
-                <span id="status-dot" class="status-dot connecting"></span>
+            <div id="connection-status" class="status-indicator" role="status" aria-live="polite">
+                <span id="status-dot" class="status-dot connecting" aria-hidden="true"></span>
                 <span id="status-text">Connecting to database...</span>
             </div>
         </header>
 
-        <nav class="nav-tabs">
-            <button class="nav-tab active" onclick="showPage('add-transaction', event)">➕ Add Transaction</button>
-            <button class="nav-tab" onclick="showPage('dashboard', event)">📊 Dashboard</button>
-            <button class="nav-tab" onclick="showPage('categories', event)">📁 Categories</button>
+        <nav class="nav-tabs" role="navigation" aria-label="Main navigation">
+            <button class="nav-tab active" 
+                    onclick="showPage('add-transaction', event)"
+                    aria-pressed="true">
+                <span aria-hidden="true">➕</span> Add Transaction
+            </button>
+            <button class="nav-tab" 
+                    onclick="showPage('dashboard', event)"
+                    aria-pressed="false">
+                <span aria-hidden="true">📊</span> Dashboard
+            </button>
+            <button class="nav-tab" 
+                    onclick="showPage('categories', event)"
+                    aria-pressed="false">
+                <span aria-hidden="true">📁</span> Categories
+            </button>
         </nav>
 
-        <div id="add-transaction" class="page active">
+        <!-- Add Transaction Page -->
+        <div id="add-transaction" class="page active" role="tabpanel" aria-labelledby="add-transaction-tab">
             <h2>Add New Transaction</h2>
             <form id="transaction-form" class="transaction-form">
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="type">Transaction Type</label>
-                        <select id="type" required>
+                        <select id="type" required aria-describedby="type-help">
                             <option value="">Select Type</option>
                             <option value="income">💰 Income</option>
                             <option value="expense">💸 Expense</option>
                         </select>
+                        <small id="type-help" class="form-help">Choose whether this is money coming in or going out</small>
                     </div>
+
                     <div class="form-group">
                         <label for="amount">Amount (₹)</label>
                         <div class="amount-input">
-                            <span class="rupee-symbol">₹</span>
-                            <input type="number" id="amount" step="0.01" min="0.01" placeholder="0.00" required>
+                            <span class="rupee-symbol" aria-hidden="true">₹</span>
+                            <input type="number" 
+                                   id="amount" 
+                                   step="0.01" 
+                                   min="0.01" 
+                                   placeholder="0.00" 
+                                   required
+                                   aria-describedby="amount-help">
                         </div>
+                        <small id="amount-help" class="form-help">Enter the transaction amount in rupees</small>
                     </div>
+
                     <div class="form-group">
                         <label for="category">Category</label>
-                        <select id="category" required>
+                        <select id="category" required aria-describedby="category-help">
                             <option value="">Select Category</option>
                         </select>
+                        <small id="category-help" class="form-help">Choose a category that best describes this transaction</small>
                     </div>
+
                     <div class="form-group">
                         <label for="payment-to">Payment To</label>
-                        <input type="text" id="payment-to" placeholder="e.g., Zomato, Local Store" required>
+                        <input type="text" 
+                               id="payment-to" 
+                               placeholder="e.g., Zomato, Local Store" 
+                               required
+                               aria-describedby="payment-to-help">
+                        <small id="payment-to-help" class="form-help">Who or where did you pay?</small>
                     </div>
+
                     <div class="form-group">
                         <label for="payment-source">Payment Source</label>
-                        <select id="payment-source" required>
+                        <select id="payment-source" required aria-describedby="payment-source-help">
                             <option value="">Select Source</option>
                             <option value="upi">UPI</option>
                             <option value="credit-card">Credit Card</option>
                             <option value="debit-card">Debit Card</option>
                             <option value="cash">Cash</option>
                         </select>
+                        <small id="payment-source-help" class="form-help">How did you make this payment?</small>
                     </div>
+
                     <div class="form-group">
                         <label for="source-details">Bank / Card</label>
-                        <select id="source-details">
+                        <select id="source-details" aria-describedby="source-details-help">
                             <option value="">Select Details</option>
                         </select>
+                        <small id="source-details-help" class="form-help">Select the specific bank or card used</small>
                     </div>
+
                     <div class="form-group">
-                        <label for="date">Date</label>
-                        <input type="date" id="date" required>
+                        <label for="date">Transaction Date</label>
+                        <input type="date" 
+                               id="date" 
+                               required
+                               aria-describedby="date-help">
+                        <small id="date-help" class="form-help">When did this transaction occur?</small>
                     </div>
+
                     <div class="form-group full-width">
                         <label for="description">Description (Optional)</label>
-                        <textarea id="description" placeholder="Enter transaction details..."></textarea>
+                        <textarea id="description" 
+                                  placeholder="Enter transaction details..."
+                                  aria-describedby="description-help"></textarea>
+                        <small id="description-help" class="form-help">Add any additional notes about this transaction</small>
                     </div>
                 </div>
+                
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">💾 Save Transaction</button>
-                    <button type="button" class="btn btn-secondary" onclick="resetForm()">🔄 Clear Form</button>
+                    <button type="submit" class="btn btn-primary">
+                        <span aria-hidden="true">💾</span> Save Transaction
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                        <span aria-hidden="true">🔄</span> Clear Form
+                    </button>
                 </div>
             </form>
         </div>
 
-        <div id="dashboard" class="page">
+        <!-- Dashboard Page -->
+        <div id="dashboard" class="page" role="tabpanel" aria-labelledby="dashboard-tab">
             <h2>Financial Dashboard</h2>
-            <div class="stats-grid">
+            
+            <div class="stats-grid" role="region" aria-label="Financial summary">
                 <div class="stat-card income-card">
-                    <div class="stat-icon">💰</div>
+                    <div class="stat-icon" aria-hidden="true">💰</div>
                     <div class="stat-content">
-                        <div class="stat-value" id="total-income">₹0.00</div>
+                        <div class="stat-value" id="total-income" aria-label="Total income amount">₹0.00</div>
                         <div class="stat-label">Total Income</div>
                     </div>
                 </div>
                 <div class="stat-card expense-card">
-                    <div class="stat-icon">💸</div>
+                    <div class="stat-icon" aria-hidden="true">💸</div>
                     <div class="stat-content">
-                        <div class="stat-value" id="total-expenses">₹0.00</div>
+                        <div class="stat-value" id="total-expenses" aria-label="Total expenses amount">₹0.00</div>
                         <div class="stat-label">Total Expenses</div>
                     </div>
                 </div>
                 <div class="stat-card balance-card" id="balance-card">
-                    <div class="stat-icon">💵</div>
+                    <div class="stat-icon" aria-hidden="true">💵</div>
                     <div class="stat-content">
-                        <div class="stat-value" id="net-balance">₹0.00</div>
+                        <div class="stat-value" id="net-balance" aria-label="Net balance amount">₹0.00</div>
                         <div class="stat-label">Net Balance</div>
                     </div>
                 </div>
             </div>
-            <div class="chart-container">
-                <h3>📈 Income vs Expenses (Last 7 Days)</h3>
-                <canvas id="chart"></canvas>
+
+            <div class="chart-container" role="region" aria-label="Income vs expenses chart">
+                <h3><span aria-hidden="true">📈</span> Income vs Expenses (Last 7 Days)</h3>
+                <canvas id="chart" aria-label="Line chart showing income and expenses over the last 7 days"></canvas>
             </div>
-            <div class="chart-container" id="donut-chart-container">
-                <h3 id="donut-chart-title">📊 Expenses by Source</h3>
-                <canvas id="expense-donut-chart"></canvas>
-                <button id="reset-chart-view-btn" class="btn btn-secondary" style="display: none; margin-top: 15px;">
-                    ⬅️ Back to Sources
+
+            <div class="chart-container" id="donut-chart-container" role="region" aria-label="Expense breakdown chart">
+                <h3 id="donut-chart-title"><span aria-hidden="true">📊</span> Expenses by Source</h3>
+                <canvas id="expense-donut-chart" aria-label="Donut chart showing expense breakdown"></canvas>
+                <button id="reset-chart-view-btn" 
+                        class="btn btn-secondary" 
+                        style="display: none; margin-top: 15px;"
+                        aria-label="Return to expense sources view">
+                    <span aria-hidden="true">⬅️</span> Back to Sources
                 </button>
             </div>
-            <div class="transactions-section">
+
+            <div class="transactions-section" role="region" aria-label="Transaction history">
                 <div class="section-header">
-                    <h3>📋 Recent Transactions</h3>
-                    <div class="filter-controls">
-                        <select id="filter-type">
+                    <h3><span aria-hidden="true">📋</span> Recent Transactions</h3>
+                    <div class="filter-controls" role="group" aria-label="Transaction filters">
+                        <label for="filter-type" class="sr-only">Filter by transaction type</label>
+                        <select id="filter-type" aria-label="Filter transactions by type">
                             <option value="">All Types</option>
                             <option value="income">Income Only</option>
                             <option value="expense">Expenses Only</option>
                         </select>
-                        <select id="filter-category">
+                        <label for="filter-category" class="sr-only">Filter by category</label>
+                        <select id="filter-category" aria-label="Filter transactions by category">
                             <option value="">All Categories</option>
                         </select>
                     </div>
                 </div>
-                <div id="transactions-list" class="transactions-list">
+                <div id="transactions-list" 
+                     class="transactions-list" 
+                     role="region" 
+                     aria-label="Transaction list"
+                     aria-live="polite">
                     <div class="loading">Loading transactions...</div>
                 </div>
                 <div id="load-more-container" class="load-more-container" style="display: none;">
-                    <button id="load-more-btn" class="btn btn-secondary">Load More</button>
+                    <button id="load-more-btn" 
+                            class="btn btn-secondary"
+                            aria-label="Load more transactions">
+                        Load More
+                    </button>
                 </div>
             </div>
         </div>
 
-        <div id="categories" class="page">
-            <h2>📁 Manage Categories</h2>
+        <!-- Categories Page -->
+        <div id="categories" class="page" role="tabpanel" aria-labelledby="categories-tab">
+            <h2><span aria-hidden="true">📁</span> Manage Categories</h2>
+            
             <div class="categories-section">
-                <div class="add-category-form">
+                <div class="add-category-form" role="region" aria-label="Add new category">
                     <h3>Add New Category</h3>
                     <form id="category-form">
                         <div class="form-row">
-                            <input type="text" id="category-name" placeholder="Category name" required>
-                            <select id="category-type" required>
+                            <label for="category-name" class="sr-only">Category name</label>
+                            <input type="text" 
+                                   id="category-name" 
+                                   placeholder="Category name" 
+                                   required
+                                   aria-label="Category name">
+                            
+                            <label for="category-type" class="sr-only">Category type</label>
+                            <select id="category-type" required aria-label="Category type">
                                 <option value="">Type</option>
                                 <option value="income">Income</option>
                                 <option value="expense">Expense</option>
                             </select>
-                            <input type="text" id="category-icon" placeholder="Icon (emoji)" maxlength="2">
-                            <button type="submit" class="btn btn-primary">Add</button>
+                            
+                            <label for="category-icon" class="sr-only">Category icon</label>
+                            <input type="text" 
+                                   id="category-icon" 
+                                   placeholder="Icon (emoji)" 
+                                   maxlength="2"
+                                   aria-label="Category icon emoji">
+                            
+                            <button type="submit" class="btn btn-primary" aria-label="Add new category">
+                                Add
+                            </button>
                         </div>
                     </form>
                 </div>
-                <div class="categories-display">
+                
+                <div class="categories-display" role="region" aria-label="Category list">
                     <div class="category-group">
-                        <h4>💰 Income Categories</h4>
-                        <div id="income-categories" class="category-grid"></div>
+                        <h4><span aria-hidden="true">💰</span> Income Categories</h4>
+                        <div id="income-categories" 
+                             class="category-grid" 
+                             role="group" 
+                             aria-label="Income categories"></div>
                     </div>
                     <div class="category-group">
-                        <h4>💸 Expense Categories</h4>
-                        <div id="expense-categories" class="category-grid"></div>
+                        <h4><span aria-hidden="true">💸</span> Expense Categories</h4>
+                        <div id="expense-categories" 
+                             class="category-grid" 
+                             role="group" 
+                             aria-label="Expense categories"></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <footer>
-            <button id="logout-btn" class="logout-btn" onclick="handleLogout()">Logout</button>
+        <footer role="contentinfo">
+            <button id="logout-btn" 
+                    class="logout-btn" 
+                    onclick="handleLogout()"
+                    aria-label="Log out of application">
+                <span aria-hidden="true">🚪</span> Logout
+            </button>
         </footer>
     </div>
 
-    <div id="notification" class="notification">
+    <!-- Notification System -->
+    <div id="notification" 
+         class="notification" 
+         role="alert" 
+         aria-live="assertive"
+         aria-atomic="true">
         <span id="notification-message"></span>
-        <button id="notification-close" class="notification-close">&times;</button>
+        <button id="notification-close" 
+                class="notification-close"
+                aria-label="Close notification">
+            &times;
+        </button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js failed to load!');
+            // Try loading from backup CDN
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js';
+            script.onload = function() {
+                console.log('Chart.js loaded from backup CDN');
+            };
+            document.head.appendChild(script);
+        } else {
+            console.log('Chart.js loaded successfully');
+        }
+    });
+    </script>
+    <script>
         // Custom Auth Functions
-        function showAuthTab(tab){document.getElementById('login-form').style.display='none';document.getElementById('signup-form').style.display='none';document.getElementById('reset-form').style.display='none';document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('active'));if(tab==='login'){document.getElementById('login-form').style.display='block';document.querySelector('.auth-tab:first-child').classList.add('active')}else if(tab==='signup'){document.getElementById('signup-form').style.display='block';document.querySelector('.auth-tab:last-child').classList.add('active')}else if(tab==='reset'){document.getElementById('reset-form').style.display='block'}hideAuthMessage()}function showAuthError(message){const errorDiv=document.getElementById('auth-error');errorDiv.textContent=message;errorDiv.style.display='block';document.getElementById('auth-success').style.display='none'}function showAuthSuccess(message){const successDiv=document.getElementById('auth-success');successDiv.textContent=message;successDiv.style.display='block';document.getElementById('auth-error').style.display='none'}function hideAuthMessage(){document.getElementById('auth-error').style.display='none';document.getElementById('auth-success').style.display='none'}async function handleLogin(e){e.preventDefault();const email=document.getElementById('login-email').value;const password=document.getElementById('login-password').value;try{const{data,error}=await supabaseClient.auth.signInWithPassword({email,password});if(error)throw error}catch(error){showAuthError(error.message)}}async function handleSignup(e){e.preventDefault();const email=document.getElementById('signup-email').value;const password=document.getElementById('signup-password').value;const confirmPassword=document.getElementById('signup-confirm').value;if(password!==confirmPassword){showAuthError('Passwords do not match');return}try{const{data,error}=await supabaseClient.auth.signUp({email,password});if(error)throw error;showAuthSuccess('Check your email for verification link!')}catch(error){showAuthError(error.message)}}async function handleReset(e){e.preventDefault();const email=document.getElementById('reset-email').value;try{const{error}=await supabaseClient.auth.resetPasswordForEmail(email);if(error)throw error;showAuthSuccess('Password reset email sent!')}catch(error){showAuthError(error.message)}}async function handleLogout(){try{const{error}=await supabaseClient.auth.signOut();if(error)throw error}catch(error){console.error('Logout error:',error)}}
-        document.getElementById('login-form').addEventListener('submit',handleLogin);document.getElementById('signup-form').addEventListener('submit',handleSignup);document.getElementById('reset-form').addEventListener('submit',handleReset);
+        function showAuthTab(tab) {
+            // Hide all forms
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('signup-form').style.display = 'none';
+            document.getElementById('reset-form').style.display = 'none';
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.auth-tab').forEach(t => {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+            });
+            
+            // Show selected form and activate tab
+            if (tab === 'login') {
+                document.getElementById('login-form').style.display = 'block';
+                document.getElementById('login-tab').classList.add('active');
+                document.getElementById('login-tab').setAttribute('aria-selected', 'true');
+            } else if (tab === 'signup') {
+                document.getElementById('signup-form').style.display = 'block';
+                document.getElementById('signup-tab').classList.add('active');
+                document.getElementById('signup-tab').setAttribute('aria-selected', 'true');
+            } else if (tab === 'reset') {
+                document.getElementById('reset-form').style.display = 'block';
+            }
+            
+            hideAuthMessage();
+        }
+
+        function showAuthError(message) {
+            const errorDiv = document.getElementById('auth-error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('auth-success').style.display = 'none';
+        }
+
+        function showAuthSuccess(message) {
+            const successDiv = document.getElementById('auth-success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            document.getElementById('auth-error').style.display = 'none';
+        }
+
+        function hideAuthMessage() {
+            document.getElementById('auth-error').style.display = 'none';
+            document.getElementById('auth-success').style.display = 'none';
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email,
+                    password
+                });
+                if (error) throw error;
+            } catch (error) {
+                showAuthError(error.message);
+            }
+        }
+
+        async function handleSignup(e) {
+            e.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            const confirmPassword = document.getElementById('signup-confirm').value;
+            
+            if (password !== confirmPassword) {
+                showAuthError('Passwords do not match');
+                return;
+            }
+            
+            try {
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email,
+                    password
+                });
+                if (error) throw error;
+                showAuthSuccess('Check your email for verification link!');
+            } catch (error) {
+                showAuthError(error.message);
+            }
+        }
+
+        async function handleReset(e) {
+            e.preventDefault();
+            const email = document.getElementById('reset-email').value;
+            
+            try {
+                const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+                if (error) throw error;
+                showAuthSuccess('Password reset email sent!');
+            } catch (error) {
+                showAuthError(error.message);
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                const { error } = await supabaseClient.auth.signOut();
+                if (error) throw error;
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+
+        // Event listeners
+        document.getElementById('login-form').addEventListener('submit', handleLogin);
+        document.getElementById('signup-form').addEventListener('submit', handleSignup);
+        document.getElementById('reset-form').addEventListener('submit', handleReset);
+    </script>
+    <script>
+    // Wait for Chart.js to load
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js still not loaded, trying backup');
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js';
+                script.onload = () => console.log('Backup Chart.js loaded');
+                document.head.appendChild(script);
+            }
+        }, 2000);
+    });
     </script>
     <script src="script.js"></script>
 </body>
