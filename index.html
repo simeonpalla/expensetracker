@@ -4,14 +4,195 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💰 Expense Tracker - Indian Rupees</title>
-    
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@supabase/auth-ui-react@0.4.7/dist/style.css" />
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Additional styles for custom auth */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .auth-form {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .auth-form h2 {
+            margin-bottom: 30px;
+            color: var(--text-color);
+        }
+
+        .auth-form .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .auth-form label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .auth-form input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .auth-form input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 30px;
+            background: #f3f4f6;
+            border-radius: 10px;
+            padding: 4px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 10px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .auth-tab.active {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .auth-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .auth-success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+    </style>
 </head>
 <body>
-    <div id="auth-container"></div>
+    <!-- Custom Auth Container -->
+    <div id="auth-container" class="auth-container" style="display: none;">
+        <div class="auth-form">
+            <h2>💰 Expense Tracker</h2>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
+                <button class="auth-tab" onclick="showAuthTab('signup')">Sign Up</button>
+            </div>
 
-    <div class="container" style="display: none;">
+            <div id="auth-error" class="auth-error" style="display: none;"></div>
+            <div id="auth-success" class="auth-success" style="display: none;"></div>
+
+            <!-- Login Form -->
+            <form id="login-form" style="display: block;">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    Login
+                </button>
+            </form>
+
+            <!-- Signup Form -->
+            <form id="signup-form" style="display: none;">
+                <div class="form-group">
+                    <label for="signup-email">Email</label>
+                    <input type="email" id="signup-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="signup-confirm">Confirm Password</label>
+                    <input type="password" id="signup-confirm" required minlength="6">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    Sign Up
+                </button>
+            </form>
+
+            <p style="margin-top: 20px; font-size: 14px; color: #6b7280;">
+                <a href="#" onclick="showAuthTab('reset')" style="color: var(--primary-color);">
+                    Forgot Password?
+                </a>
+            </p>
+
+            <!-- Reset Password Form -->
+            <form id="reset-form" style="display: none;">
+                <div class="form-group">
+                    <label for="reset-email">Email</label>
+                    <input type="email" id="reset-email" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    Send Reset Link
+                </button>
+                <button type="button" class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="showAuthTab('login')">
+                    Back to Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="container" style="display: none; position: relative;">
+        <button id="logout-btn" class="logout-btn" onclick="handleLogout()">
+            Logout
+        </button>
         
         <header class="header">
             <h1>💰 Expense Tracker</h1>
@@ -208,9 +389,125 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/auth-ui-react@0.4.7/dist/index.umd.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js"></script>
     <script src="supabase-config.js"></script>
+    <script>
+        // Custom Auth Functions
+        function showAuthTab(tab) {
+            // Hide all forms
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('signup-form').style.display = 'none';
+            document.getElementById('reset-form').style.display = 'none';
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            
+            // Show selected form and activate tab
+            if (tab === 'login') {
+                document.getElementById('login-form').style.display = 'block';
+                document.querySelector('.auth-tab:first-child').classList.add('active');
+            } else if (tab === 'signup') {
+                document.getElementById('signup-form').style.display = 'block';
+                document.querySelector('.auth-tab:last-child').classList.add('active');
+            } else if (tab === 'reset') {
+                document.getElementById('reset-form').style.display = 'block';
+            }
+            
+            hideAuthMessage();
+        }
+
+        function showAuthError(message) {
+            const errorDiv = document.getElementById('auth-error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('auth-success').style.display = 'none';
+        }
+
+        function showAuthSuccess(message) {
+            const successDiv = document.getElementById('auth-success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            document.getElementById('auth-error').style.display = 'none';
+        }
+
+        function hideAuthMessage() {
+            document.getElementById('auth-error').style.display = 'none';
+            document.getElementById('auth-success').style.display = 'none';
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email,
+                    password
+                });
+
+                if (error) throw error;
+                
+                // Success handled by auth state change listener
+            } catch (error) {
+                showAuthError(error.message);
+            }
+        }
+
+        async function handleSignup(e) {
+            e.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            const confirmPassword = document.getElementById('signup-confirm').value;
+
+            if (password !== confirmPassword) {
+                showAuthError('Passwords do not match');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email,
+                    password
+                });
+
+                if (error) throw error;
+                
+                showAuthSuccess('Check your email for verification link!');
+            } catch (error) {
+                showAuthError(error.message);
+            }
+        }
+
+        async function handleReset(e) {
+            e.preventDefault();
+            const email = document.getElementById('reset-email').value;
+
+            try {
+                const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+                
+                if (error) throw error;
+                
+                showAuthSuccess('Password reset email sent!');
+            } catch (error) {
+                showAuthError(error.message);
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                const { error } = await supabaseClient.auth.signOut();
+                if (error) throw error;
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+
+        // Initialize auth event listeners
+        document.getElementById('login-form').addEventListener('submit', handleLogin);
+        document.getElementById('signup-form').addEventListener('submit', handleSignup);
+        document.getElementById('reset-form').addEventListener('submit', handleReset);
+    </script>
     <script src="script.js"></script>
 </body>
 </html>

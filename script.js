@@ -162,12 +162,13 @@ class ExpenseTracker {
         
         // Real-time updates
         this.setupRealTimeSubscription()
+        
         document.getElementById('payment-source').addEventListener('change', () => {
-        this.updateSourceDetailsOptions();
+            this.updateSourceDetailsOptions();
         });
     }
 
-        updateSourceDetailsOptions() {
+    updateSourceDetailsOptions() {
         const source = document.getElementById('payment-source').value;
         const detailsSelect = document.getElementById('source-details');
         const detailsContainer = detailsSelect.parentElement; // The form-group div
@@ -222,15 +223,6 @@ class ExpenseTracker {
     async handleTransactionSubmit(e) {
         e.preventDefault()
         
-        // const formData = new FormData(e.target)
-        // const transaction = {
-        //     type: document.getElementById('type').value,
-        //     amount: parseFloat(document.getElementById('amount').value),
-        //     category: document.getElementById('category').value,
-        //     description: document.getElementById('description').value,
-        //     transaction_date: document.getElementById('date').value
-        // }
-
         const transaction = {
             type: document.getElementById('type').value,
             amount: parseFloat(document.getElementById('amount').value),
@@ -697,37 +689,8 @@ function resetForm() {
     }
 }
 
-// Initialize the app when DOM is loaded
-// document.addEventListener('DOMContentLoaded', () => {
-//     window.expenseTracker = new ExpenseTracker()
-// })
-
+// Initialize the app when authenticated
 document.addEventListener('DOMContentLoaded', () => {
-    // Note: The Auth helper is available as `supabase.auth.ui` from the CDN
-    const { Auth } = supabase.auth.ui;
-
-    const authUI = new Auth(supabaseClient, {
-        container: '#auth-container',
-        providers: [], // Leave empty for email/password only
-        appearance: {
-            theme: 'dark', // Supabase theme, can be 'dark' or 'default'
-            variables: {
-                default: {
-                    colors: {
-                        brand: 'var(--primary-color)',
-                        brandAccent: '#4338ca', // A darker shade for hover, matches your CSS
-                        inputText: 'var(--text-color)',
-                    },
-                    radii: {
-                        borderRadius: '10px',
-                        buttonBorderRadius: '10px',
-                    },
-                    // You can customize fonts, borders, etc. here
-                },
-            },
-        },
-    });
-
     // Listen for login/logout events to toggle UI
     supabaseClient.auth.onAuthStateChange((event, session) => {
         const mainAppContainer = document.querySelector('.container');
@@ -744,17 +707,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             // User is signed out
-            authContainer.style.display = 'flex'; // Use flex to center the form
-            authContainer.style.justifyContent = 'center';
-            authContainer.style.alignItems = 'center';
-            authContainer.style.minHeight = '100vh';
+            authContainer.style.display = 'flex';
             mainAppContainer.style.display = 'none';
-            window.expenseTracker = null; // Clear the app instance on logout
+            
+            // Clear the app instance on logout
+            if (window.expenseTracker) {
+                window.expenseTracker = null;
+            }
         }
     });
 });
-
-// Remove the old initialization code:
-// document.addEventListener('DOMContentLoaded', () => {
-//   window.expenseTracker = new ExpenseTracker()
-// })
