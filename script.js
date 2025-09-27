@@ -149,7 +149,12 @@ class ExpenseTracker {
 
         } catch (error) {
             console.error('Error fetching data for donut chart:', error);
-            document.getElementById('donut-chart-container').innerHTML = '<p>Could not load expense chart.</p>';
+            // Temporarily display the actual error on the page for debugging
+            document.getElementById('donut-chart-container').innerHTML = 
+                `<p style="color: red; font-family: monospace; word-break: break-all;">
+                    <strong>Error:</strong> Could not load chart.<br>
+                    <strong>Reason:</strong> ${error.message}
+                </p>`;
         }
     }
 
