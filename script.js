@@ -10,7 +10,7 @@ class ExpenseTracker {
         this.currentChartView = 'source';
         this.loadOffset = 0;
         this.loadLimit = 10;
-        this.salaryAccount = 'ICICI Bank';
+        this.salaryAccount = 'UBI';
         
         // Payment source mapping
         this.paymentSources = {
