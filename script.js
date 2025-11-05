@@ -364,7 +364,7 @@ class ExpenseTracker {
         const transaction = {
             type: document.getElementById('type').value,
             amount: parseFloat(document.getElementById('amount').value),
-            category: document.getElementById('category').value,
+            category: document.getElementById('category').value.trim(), // Trim whitespace on save
             transaction_date: document.getElementById('date').value,
             description: document.getElementById('description').value || null,
             payment_to: document.getElementById('payment-to').value,
@@ -428,7 +428,7 @@ class ExpenseTracker {
         }
 
         const category = {
-            name: document.getElementById('category-name').value.trim(),
+            name: document.getElementById('category-name').value.trim(), // Trim whitespace on save
             type: document.getElementById('category-type').value,
             icon: document.getElementById('category-icon').value.trim() || '📁',
             user_id: this.currentUser.id
@@ -1063,8 +1063,8 @@ class ExpenseTracker {
                 .eq('user_id', this.currentUser.id)
                 .eq('type', 'income')
                 // *** THIS IS THE FIX ***
-                // .eq('category', 'Salary') // Old, strict, and failing
-                .ilike('category', '%salary%') // New, flexible, and works
+                // This is now case-insensitive and will match "Salary"
+                .ilike('category', 'Salary') 
                 .gte('transaction_date', startDate) // e.g., >= '2025-10-25'
                 .lte('transaction_date', endDate);   // e.g., <= '2025-10-31'
 
