@@ -1052,9 +1052,16 @@ class ExpenseTracker {
     // *** PAYCHECK CYCLE FIX ***
     // Updated function to use the new pay period helper
     async getPreviousMonthSalary() {
+        // --- NEW DIAGNOSTIC LOG ---
+        console.log("--- RUNNING getPreviousMonthSalary ---");
+
         try {
             // Get the date range for the last week of the previous month
             const { startDate, endDate } = this.getPreviousMonthPayPeriod();
+            
+            // --- NEW DIAGNOSTIC LOG ---
+            console.log(`Querying for salary between: ${startDate} and ${endDate}`);
+
             
             // Query for "Salary" in that range
             const { data, error } = await supabaseClient
@@ -1063,8 +1070,8 @@ class ExpenseTracker {
                 .eq('user_id', this.currentUser.id)
                 .eq('type', 'income')
                 // *** THIS IS THE FIX ***
-                // This is now case-insensitive and will match "Salary"
-                .ilike('category', 'Salary') 
+                // This is now case-insensitive AND checks for "Salary" or "Salary "
+                .ilike('category', 'Salary%') 
                 .gte('transaction_date', startDate) // e.g., >= '2025-10-25'
                 .lte('transaction_date', endDate);   // e.g., <= '2025-10-31'
 
@@ -1076,7 +1083,10 @@ class ExpenseTracker {
                 prevMonthSalary = data.reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
             }
             
-            console.log(`Found previous month salary: ${prevMonthSalary}`);
+            // --- NEW DIAGNOSTIC LOG ---
+            console.log(`Found data:`, data);
+            console.log(`Calculated previous month salary: ${prevMonthSalary}`);
+            
             return prevMonthSalary;
 
         } catch (error) {
