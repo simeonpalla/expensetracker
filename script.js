@@ -384,23 +384,29 @@ class ExpenseTracker {
 
             this.showNotification('Transaction added successfully!', 'success');
             
-            // Check if the added transaction belongs to the currently viewed month
-            const transactionMonth = transaction.transaction_date.slice(0, 7);
+            // --- PAYCHECK CYCLE FIX ---
+            // Check if the transaction affects the current dashboard
             
-            // *** PAYCHECK CYCLE FIX ***
-            // We also need to check if the transaction date is the *last working day*
-            // of the *previous* month, because that also affects the current dashboard.
-            const prevMonthSalaryDate = this.getPreviousMonthSalaryDateString();
+            // 1. Does it fall within the selected month?
+            const transactionMonth = transaction.transaction_date.slice(0, 7);
+            const affectsCurrentMonth = (transactionMonth === this.selectedMonth);
 
-            if (transactionMonth === this.selectedMonth || transaction.transaction_date === prevMonthSalaryDate) {
+            // 2. Is it a "Salary" in the last week of the *previous* month?
+            const { startDate: prevMonthStartDate, endDate: prevMonthEndDate } = this.getPreviousMonthPayPeriod();
+            const isPreviousMonthSalary = (
+                transaction.type === 'income' &&
+                transaction.category === 'Salary' &&
+                transaction.transaction_date >= prevMonthStartDate &&
+                transaction.transaction_date <= prevMonthEndDate
+            );
+
+            if (affectsCurrentMonth || isPreviousMonthSalary) {
                 // Refresh the entire dashboard for this month
                 await this.updateDashboardForSelectedMonth();
             } else {
-                // Just log it
                 console.log('Transaction added for a different month.');
             }
 
-            // Reset form *after* checking dates
             this.resetForm();
             
         } catch (error) {
@@ -796,7 +802,9 @@ class ExpenseTracker {
             
             if (error) throw error;
             
-            this.allExpenses = expenses || []; // Data is already grouped by the RPC
+            // *** PAYCHECK CYCLE FIX ***
+            // We do NOT add the salary to the *expense* chart, so this is correct.
+            this.allExpenses = expenses || []; 
             this.renderChartBySource();
         } catch (error) {
             console.error('Error updating donut chart:', error);
@@ -1016,42 +1024,46 @@ class ExpenseTracker {
 
     // --- Salary Helper Methods ---
     
-    getPreviousMonthSalaryDateString() {
-        // Get the last working day of the *previous* month
+    // *** PAYCHECK CYCLE FIX ***
+    // New helper to get the "pay period" (last 7 days) of the previous month
+    getPreviousMonthPayPeriod() {
         const year = parseInt(this.selectedMonth.split('-')[0]);
-        const month_1_based = parseInt(this.selectedMonth.split('-')[1]); // e.g., 11 for November
+        const month_1_based = parseInt(this.selectedMonth.split('-')[1]);
+        
+        // 1. Get previous month's end date (day 0 of current month)
+        const prevMonthEndDate = new Date(year, month_1_based - 1, 0);
+        const endDate = this.formatDateToYYYYMMDD(prevMonthEndDate);
 
-        // To get previous month, we pass the *current* month_1_based into new Date(year, month, 0)
-        // e.g., for Nov (11), new Date(2025, 10, 0) gives last day of Oct (month 9)
-        // No, that's wrong. new Date(year, month_index, 0). month_index for Nov is 10.
-        // new Date(2025, 10, 0) is last day of Oct.
-        // So we need month_1_based - 1 as the month_index.
-        const prevMonthDate = new Date(year, month_1_based - 1, 0); // Last day of previous month
+        // 2. Get previous month's "pay period start" (e.g., 25th)
+        // We get the 25th day of the *previous* month
+        const prevMonthStartDate = new Date(prevMonthEndDate.getFullYear(), prevMonthEndDate.getMonth(), 25);
+        const startDate = this.formatDateToYYYYMMDD(prevMonthStartDate);
         
-        const prevMonthYear = prevMonthDate.getFullYear();
-        const prevMonthMonth_1_based = prevMonthDate.getMonth() + 1; // getMonth is 0-indexed
-        
-        const salaryDate = this.getLastWorkingDay(prevMonthYear, prevMonthMonth_1_based);
-        return this.formatDateToYYYYMMDD(salaryDate);
+        return { startDate, endDate };
     }
 
+    // *** PAYCHECK CYCLE FIX ***
+    // Updated function to use the new pay period helper
     async getPreviousMonthSalary() {
         try {
-            const salaryDateString = this.getPreviousMonthSalaryDateString();
-
-            // Now, query for that specific transaction
+            // Get the date range for the last week of the previous month
+            const { startDate, endDate } = this.getPreviousMonthPayPeriod();
+            
+            // Query for "Salary" in that range
             const { data, error } = await supabaseClient
                 .from('transactions')
                 .select('amount')
                 .eq('user_id', this.currentUser.id)
                 .eq('type', 'income')
                 .eq('category', 'Salary')
-                .eq('transaction_date', salaryDateString);
+                .gte('transaction_date', startDate) // e.g., >= '2025-10-25'
+                .lte('transaction_date', endDate);   // e.g., <= '2025-10-31'
 
             if (error) throw error;
 
             let prevMonthSalary = 0;
             if (data && data.length > 0) {
+                // Sum up all salaries found (in case of bonus/multiple)
                 prevMonthSalary = data.reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
             }
             
@@ -1064,11 +1076,9 @@ class ExpenseTracker {
         }
     }
 
+    // This function is still used by the "Add Transaction" form, and it's correct
     getLastWorkingDay(year, month) {
         // month is 1-based (e.g., 11 for November)
-        // new Date(year, month, 0) gives the last day of that month
-        // e.g., new Date(2025, 11, 0) = Nov 30 (month_index 10)
-        // e.g., new Date(2025, 10, 0) = Oct 31 (month_index 9)
         const lastDay = new Date(year, month, 0); 
         const dayOfWeek = lastDay.getDay(); // 0 = Sunday, 6 = Saturday
 
