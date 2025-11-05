@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Authentication Container -->
     <div id="auth-container" class="auth-container" style="display: none;" role="main" aria-label="Authentication">
         <div class="auth-form">
             <h2>💰 Expense Tracker</h2>
@@ -18,14 +17,12 @@
                         role="tab" 
                         aria-selected="true" 
                         aria-controls="login-form"
-                        id="login-tab"
-                        onclick="showAuthTab('login')">Login</button>
+                        id="login-tab-btn">Login</button>
                 <button class="auth-tab" 
                         role="tab" 
                         aria-selected="false" 
                         aria-controls="signup-form"
-                        id="signup-tab"
-                        onclick="showAuthTab('signup')">Sign Up</button>
+                        id="signup-tab-btn">Sign Up</button>
             </div>
 
             <div id="auth-error" class="auth-error" style="display: none;" role="alert" aria-live="polite"></div>
@@ -91,7 +88,7 @@
             </form>
 
             <p style="margin-top: 20px; font-size: 14px; color: #6b7280;">
-                <a href="#" onclick="showAuthTab('reset')" style="color: var(--primary-color);">
+                <a href="#" id="forgot-password-link" style="color: var(--primary-color);">
                     Forgot Password?
                 </a>
             </p>
@@ -110,16 +107,15 @@
                     <span aria-hidden="true">📧</span> Send Reset Link
                 </button>
                 <button type="button" 
+                        id="back-to-login-btn"
                         class="btn btn-secondary" 
-                        style="width: 100%; margin-top: 10px;" 
-                        onclick="showAuthTab('login')">
+                        style="width: 100%; margin-top: 10px;">
                     <span aria-hidden="true">←</span> Back to Login
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- Main Application -->
     <div class="container" style="display: none;" role="main" aria-label="Expense Tracker Application">
         <header class="header">
             <h1>💰 Expense Tracker</h1>
@@ -132,23 +128,25 @@
 
         <nav class="nav-tabs" role="navigation" aria-label="Main navigation">
             <button class="nav-tab active" 
-                    onclick="showPage('add-transaction', event)"
+                    id="add-transaction-tab"
+                    data-page="add-transaction"
                     aria-pressed="true">
                 <span aria-hidden="true">➕</span> Add Transaction
             </button>
             <button class="nav-tab" 
-                    onclick="showPage('dashboard', event)"
+                    id="dashboard-tab"
+                    data-page="dashboard"
                     aria-pressed="false">
                 <span aria-hidden="true">📊</span> Dashboard
             </button>
             <button class="nav-tab" 
-                    onclick="showPage('categories', event)"
+                    id="categories-tab"
+                    data-page="categories"
                     aria-pressed="false">
                 <span aria-hidden="true">📁</span> Categories
             </button>
         </nav>
 
-        <!-- Add Transaction Page -->
         <div id="add-transaction" class="page active" role="tabpanel" aria-labelledby="add-transaction-tab">
             <h2>Add New Transaction</h2>
             <form id="transaction-form" class="transaction-form">
@@ -238,18 +236,23 @@
                     <button type="submit" class="btn btn-primary">
                         <span aria-hidden="true">💾</span> Save Transaction
                     </button>
-                    <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                    <button type="button" class="btn btn-secondary" id="clear-form-btn">
                         <span aria-hidden="true">🔄</span> Clear Form
                     </button>
                 </div>
             </form>
         </div>
 
-        <!-- Dashboard Page -->
         <div id="dashboard" class="page" role="tabpanel" aria-labelledby="dashboard-tab">
-            <h2>Financial Dashboard</h2>
+            <div class="dashboard-header">
+                <h2>Financial Dashboard</h2>
+                <div class="form-group">
+                    <label for="month-selector">Select Month</label>
+                    <input type="month" id="month-selector" aria-label="Select month to view">
+                </div>
+            </div>
             
-            <div class="stats-grid" role="region" aria-label="Financial summary">
+            <div class="stats-grid" role="region" aria-label="Financial summary for selected month">
                 <div class="stat-card income-card">
                     <div class="stat-icon" aria-hidden="true">💰</div>
                     <div class="stat-content">
@@ -274,8 +277,8 @@
             </div>
 
             <div class="chart-container" role="region" aria-label="Income vs expenses chart">
-                <h3><span aria-hidden="true">📈</span> Income vs Expenses (Last 7 Days)</h3>
-                <canvas id="chart" aria-label="Line chart showing income and expenses over the last 7 days"></canvas>
+                <h3 id="line-chart-title"><span aria-hidden="true">📈</span> Daily Breakdown</h3>
+                <canvas id="chart" aria-label="Line chart showing income and expenses for the selected month"></canvas>
             </div>
 
             <div class="chart-container" id="donut-chart-container" role="region" aria-label="Expense breakdown chart">
@@ -291,7 +294,7 @@
 
             <div class="transactions-section" role="region" aria-label="Transaction history">
                 <div class="section-header">
-                    <h3><span aria-hidden="true">📋</span> Recent Transactions</h3>
+                    <h3><span aria-hidden="true">📋</span> Transactions for Selected Month</h3>
                     <div class="filter-controls" role="group" aria-label="Transaction filters">
                         <label for="filter-type" class="sr-only">Filter by transaction type</label>
                         <select id="filter-type" aria-label="Filter transactions by type">
@@ -322,7 +325,6 @@
             </div>
         </div>
 
-        <!-- Categories Page -->
         <div id="categories" class="page" role="tabpanel" aria-labelledby="categories-tab">
             <h2><span aria-hidden="true">📁</span> Manage Categories</h2>
             
@@ -381,14 +383,12 @@
         <footer role="contentinfo">
             <button id="logout-btn" 
                     class="logout-btn" 
-                    onclick="handleLogout()"
                     aria-label="Log out of application">
                 <span aria-hidden="true">🚪</span> Logout
             </button>
         </footer>
     </div>
 
-    <!-- Notification System -->
     <div id="notification" 
          class="notification" 
          role="alert" 
@@ -402,155 +402,10 @@
         </button>
     </div>
 
-    <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        if (typeof Chart === 'undefined') {
-            console.error('Chart.js failed to load!');
-            // Try loading from backup CDN
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js';
-            script.onload = function() {
-                console.log('Chart.js loaded from backup CDN');
-            };
-            document.head.appendChild(script);
-        } else {
-            console.log('Chart.js loaded successfully');
-        }
-    });
-    </script>
-    <script>
-        // Custom Auth Functions
-        function showAuthTab(tab) {
-            // Hide all forms
-            document.getElementById('login-form').style.display = 'none';
-            document.getElementById('signup-form').style.display = 'none';
-            document.getElementById('reset-form').style.display = 'none';
-            
-            // Remove active class from all tabs
-            document.querySelectorAll('.auth-tab').forEach(t => {
-                t.classList.remove('active');
-                t.setAttribute('aria-selected', 'false');
-            });
-            
-            // Show selected form and activate tab
-            if (tab === 'login') {
-                document.getElementById('login-form').style.display = 'block';
-                document.getElementById('login-tab').classList.add('active');
-                document.getElementById('login-tab').setAttribute('aria-selected', 'true');
-            } else if (tab === 'signup') {
-                document.getElementById('signup-form').style.display = 'block';
-                document.getElementById('signup-tab').classList.add('active');
-                document.getElementById('signup-tab').setAttribute('aria-selected', 'true');
-            } else if (tab === 'reset') {
-                document.getElementById('reset-form').style.display = 'block';
-            }
-            
-            hideAuthMessage();
-        }
-
-        function showAuthError(message) {
-            const errorDiv = document.getElementById('auth-error');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            document.getElementById('auth-success').style.display = 'none';
-        }
-
-        function showAuthSuccess(message) {
-            const successDiv = document.getElementById('auth-success');
-            successDiv.textContent = message;
-            successDiv.style.display = 'block';
-            document.getElementById('auth-error').style.display = 'none';
-        }
-
-        function hideAuthMessage() {
-            document.getElementById('auth-error').style.display = 'none';
-            document.getElementById('auth-success').style.display = 'none';
-        }
-
-        async function handleLogin(e) {
-            e.preventDefault();
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            
-            try {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email,
-                    password
-                });
-                if (error) throw error;
-            } catch (error) {
-                showAuthError(error.message);
-            }
-        }
-
-        async function handleSignup(e) {
-            e.preventDefault();
-            const email = document.getElementById('signup-email').value;
-            const password = document.getElementById('signup-password').value;
-            const confirmPassword = document.getElementById('signup-confirm').value;
-            
-            if (password !== confirmPassword) {
-                showAuthError('Passwords do not match');
-                return;
-            }
-            
-            try {
-                const { data, error } = await supabaseClient.auth.signUp({
-                    email,
-                    password
-                });
-                if (error) throw error;
-                showAuthSuccess('Check your email for verification link!');
-            } catch (error) {
-                showAuthError(error.message);
-            }
-        }
-
-        async function handleReset(e) {
-            e.preventDefault();
-            const email = document.getElementById('reset-email').value;
-            
-            try {
-                const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
-                if (error) throw error;
-                showAuthSuccess('Password reset email sent!');
-            } catch (error) {
-                showAuthError(error.message);
-            }
-        }
-
-        async function handleLogout() {
-            try {
-                const { error } = await supabaseClient.auth.signOut();
-                if (error) throw error;
-            } catch (error) {
-                console.error('Logout error:', error);
-            }
-        }
-
-        // Event listeners
-        document.getElementById('login-form').addEventListener('submit', handleLogin);
-        document.getElementById('signup-form').addEventListener('submit', handleSignup);
-        document.getElementById('reset-form').addEventListener('submit', handleReset);
-    </script>
-    <script>
-    // Wait for Chart.js to load
-    window.addEventListener('load', function() {
-        setTimeout(function() {
-            if (typeof Chart === 'undefined') {
-                console.error('Chart.js still not loaded, trying backup');
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js';
-                script.onload = () => console.log('Backup Chart.js loaded');
-                document.head.appendChild(script);
-            }
-        }, 2000);
-    });
-    </script>
     <script src="script.js"></script>
+
 </body>
 </html>

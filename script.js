@@ -1,5 +1,108 @@
-// script.js - Clean Expense Tracker Implementation
+// script.js - Clean, Month-Centric Expense Tracker Implementation
 
+// --- Authentication Functions (Moved from HTML) ---
+function showAuthTab(tab) {
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('reset-form').style.display = 'none';
+    
+    document.querySelectorAll('.auth-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+    });
+    
+    if (tab === 'login') {
+        document.getElementById('login-form').style.display = 'block';
+        document.getElementById('login-tab-btn').classList.add('active');
+        document.getElementById('login-tab-btn').setAttribute('aria-selected', 'true');
+    } else if (tab === 'signup') {
+        document.getElementById('signup-form').style.display = 'block';
+        document.getElementById('signup-tab-btn').classList.add('active');
+        document.getElementById('signup-tab-btn').setAttribute('aria-selected', 'true');
+    } else if (tab === 'reset') {
+        document.getElementById('reset-form').style.display = 'block';
+    }
+    
+    hideAuthMessage();
+}
+
+function showAuthError(message) {
+    const errorDiv = document.getElementById('auth-error');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    document.getElementById('auth-success').style.display = 'none';
+}
+
+function showAuthSuccess(message) {
+    const successDiv = document.getElementById('auth-success');
+    successDiv.textContent = message;
+    successDiv.style.display = 'block';
+    document.getElementById('auth-error').style.display = 'none';
+}
+
+function hideAuthMessage() {
+    document.getElementById('auth-error').style.display = 'none';
+    document.getElementById('auth-success').style.display = 'none';
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    
+    try {
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+    } catch (error) {
+        showAuthError(error.message);
+    }
+}
+
+async function handleSignup(e) {
+    e.preventDefault();
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
+    const confirmPassword = document.getElementById('signup-confirm').value;
+    
+    if (password !== confirmPassword) {
+        showAuthError('Passwords do not match');
+        return;
+    }
+    
+    try {
+        const { error } = await supabaseClient.auth.signUp({ email, password });
+        if (error) throw error;
+        showAuthSuccess('Check your email for verification link!');
+    } catch (error) {
+        showAuthError(error.message);
+    }
+}
+
+async function handleReset(e) {
+    e.preventDefault();
+    const email = document.getElementById('reset-email').value;
+    
+    try {
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+        if (error) throw error;
+        showAuthSuccess('Password reset email sent!');
+    } catch (error)
+    {
+        showAuthError(error.message);
+    }
+}
+
+async function handleLogout() {
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) throw error;
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
+}
+
+
+// --- Main Application Class ---
 class ExpenseTracker {
     constructor() {
         this.transactions = [];
@@ -11,23 +114,39 @@ class ExpenseTracker {
         this.loadOffset = 0;
         this.loadLimit = 10;
         this.salaryAccount = 'UBI';
+        this.selectedMonth = this.getCurrentMonthString(); // e.g., "2025-11"
         
-        // Payment source mapping
         this.paymentSources = {
             'upi': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
             'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
             'credit-card': ['ICICI Platinum', 'ICICI Amazon Pay', 'ICICI Coral', 'RBL Paisabazar', 'UBI CC']
         };
         
+        // This will be set on init
+        this.currentUser = null;
+
+        // Initialize immediately
         this.init();
     }
 
     async init() {
         try {
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) {
+                console.log('No user found, awaiting auth.');
+                return;
+            }
+            this.currentUser = user;
+
             await this.testConnection();
-            await this.loadCategories();
-            await this.loadTransactions();
+            this.initMonthSelector();
             this.setupEventListeners();
+            
+            await this.loadCategories(); // Load categories once
+            
+            // Initial data load for the current month
+            await this.updateDashboardForSelectedMonth();
+            
             this.setTodayDate();
             console.log('✅ Expense Tracker initialized successfully!');
         } catch (error) {
@@ -41,6 +160,7 @@ class ExpenseTracker {
         const statusText = document.getElementById('status-text');
         
         try {
+            // A lightweight query to check connection
             const { error } = await supabaseClient
                 .from('categories')
                 .select('*', { count: 'exact', head: true });
@@ -57,11 +177,45 @@ class ExpenseTracker {
         }
     }
 
+    initMonthSelector() {
+        const monthSelector = document.getElementById('month-selector');
+        monthSelector.value = this.selectedMonth;
+        monthSelector.addEventListener('change', async (e) => {
+            this.selectedMonth = e.target.value;
+            console.log(`Month changed to: ${this.selectedMonth}`);
+            await this.updateDashboardForSelectedMonth();
+        });
+    }
+
+    async updateDashboardForSelectedMonth() {
+        console.log(`Updating dashboard for ${this.selectedMonth}`);
+        const { startDate, endDate } = this.getDateRangeForMonth(this.selectedMonth);
+
+        // Reset transaction list for new month
+        this.transactions = [];
+        this.loadOffset = 0;
+        document.getElementById('transactions-list').innerHTML = '<div class="loading">Loading transactions...</div>';
+
+        try {
+            // Run all updates in parallel for a faster dashboard load
+            await Promise.all([
+                this.loadTransactions(startDate, endDate), // Initial page of transactions
+                this.updateStats(startDate, endDate),
+                this.updateChart(startDate, endDate),
+                this.updateExpenseDonutChart(startDate, endDate)
+            ]);
+        } catch (error) {
+            console.error('Error updating dashboard:', error);
+            this.showNotification('Failed to update dashboard', 'error');
+        }
+    }
+
     async loadCategories() {
         try {
             const { data, error } = await supabaseClient
                 .from('categories')
                 .select('*')
+                .eq('user_id', this.currentUser.id)
                 .order('name');
             
             if (error) throw error;
@@ -75,21 +229,44 @@ class ExpenseTracker {
         }
     }
 
-    async loadTransactions() {
+    async loadTransactions(startDate, endDate, loadMore = false) {
+        if (!loadMore) {
+            this.loadOffset = 0;
+            this.transactions = [];
+        }
+
         try {
-            const { data, error } = await supabaseClient
+            let query = supabaseClient
                 .from('transactions')
                 .select('*')
+                .eq('user_id', this.currentUser.id)
+                .gte('transaction_date', startDate)
+                .lte('transaction_date', endDate)
                 .order('transaction_date', { ascending: false })
                 .order('created_at', { ascending: false })
-                .range(0, this.loadLimit - 1);
+                .range(this.loadOffset, this.loadOffset + this.loadLimit - 1);
+            
+            // Apply filters if they are set
+            const filterType = document.getElementById('filter-type').value;
+            const filterCategory = document.getElementById('filter-category').value;
+            if (filterType) {
+                query = query.eq('type', filterType);
+            }
+            if (filterCategory) {
+                query = query.eq('category', filterCategory);
+            }
+
+            const { data, error } = await query;
             
             if (error) throw error;
             
-            this.transactions = data || [];
-            this.loadOffset = this.transactions.length;
-            this.displayTransactions();
-            await this.updateLoadMoreButton();
+            if (data && data.length > 0) {
+                this.transactions.push(...data);
+                this.loadOffset += data.length;
+            }
+            
+            this.displayTransactions(); // Display whatever we have
+            await this.updateLoadMoreButton(startDate, endDate);
         } catch (error) {
             console.error('Error loading transactions:', error);
             this.showNotification('Failed to load transactions', 'error');
@@ -97,36 +274,32 @@ class ExpenseTracker {
     }
 
     async loadMoreTransactions() {
-        try {
-            const { data, error } = await supabaseClient
-                .from('transactions')
-                .select('*')
-                .order('transaction_date', { ascending: false })
-                .order('created_at', { ascending: false })
-                .range(this.loadOffset, this.loadOffset + this.loadLimit - 1);
-            
-            if (error) throw error;
-            
-            if (data && data.length > 0) {
-                this.transactions.push(...data);
-                this.loadOffset += data.length;
-                this.displayTransactions();
-            }
-            
-            await this.updateLoadMoreButton();
-        } catch (error) {
-            console.error('Error loading more transactions:', error);
-            this.showNotification('Failed to load more transactions', 'error');
-        }
+        const { startDate, endDate } = this.getDateRangeForMonth(this.selectedMonth);
+        await this.loadTransactions(startDate, endDate, true); // true = loadMore
     }
 
-    async updateLoadMoreButton() {
+    async updateLoadMoreButton(startDate, endDate) {
         const container = document.getElementById('load-more-container');
-        
         try {
-            const { count, error } = await supabaseClient
+            // Check total count *for the selected month*
+            let query = supabaseClient
                 .from('transactions')
-                .select('*', { count: 'exact', head: true });
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', this.currentUser.id)
+                .gte('transaction_date', startDate)
+                .lte('transaction_date', endDate);
+
+            // Apply filters to count
+            const filterType = document.getElementById('filter-type').value;
+            const filterCategory = document.getElementById('filter-category').value;
+            if (filterType) {
+                query = query.eq('type', filterType);
+            }
+            if (filterCategory) {
+                query = query.eq('category', filterCategory);
+            }
+
+            const { count, error } = await query;
             
             if (error) throw error;
             
@@ -162,34 +335,41 @@ class ExpenseTracker {
         document.getElementById('load-more-btn').addEventListener('click', () => this.loadMoreTransactions());
         document.getElementById('notification-close').addEventListener('click', () => this.hideNotification());
         document.getElementById('reset-chart-view-btn').addEventListener('click', () => this.renderChartBySource());
+        document.getElementById('clear-form-btn').addEventListener('click', () => this.resetForm());
+        document.getElementById('logout-btn').addEventListener('click', handleLogout); // Global auth func
+
+        // Page Navigation
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const pageId = e.currentTarget.dataset.page;
+                this.showPage(pageId, e);
+            });
+        });
     }
 
     async handleTransactionSubmit(e) {
         e.preventDefault();
         
+        if (!this.currentUser) {
+            this.showNotification('You must be logged in', 'error');
+            return;
+        }
+
+        const transaction = {
+            type: document.getElementById('type').value,
+            amount: parseFloat(document.getElementById('amount').value),
+            category: document.getElementById('category').value,
+            transaction_date: document.getElementById('date').value,
+            description: document.getElementById('description').value || null,
+            payment_to: document.getElementById('payment-to').value,
+            payment_source: document.getElementById('payment-source').value,
+            source_details: document.getElementById('source-details').value || null,
+            user_id: this.currentUser.id
+        };
+
+        if (!this.validateTransaction(transaction)) return;
+
         try {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) {
-                this.showNotification('You must be logged in', 'error');
-                return;
-            }
-
-            const transaction = {
-                type: document.getElementById('type').value,
-                amount: parseFloat(document.getElementById('amount').value),
-                category: document.getElementById('category').value,
-                transaction_date: document.getElementById('date').value,
-                description: document.getElementById('description').value || null,
-                payment_to: document.getElementById('payment-to').value,
-                payment_source: document.getElementById('payment-source').value,
-                source_details: document.getElementById('source-details').value || null,
-                user_id: user.id
-            };
-
-            if (!this.validateTransaction(transaction)) {
-                return;
-            }
-
             const { error } = await supabaseClient
                 .from('transactions')
                 .insert([transaction]);
@@ -198,12 +378,17 @@ class ExpenseTracker {
 
             this.showNotification('Transaction added successfully!', 'success');
             this.resetForm();
-            await this.loadTransactions();
             
-            // Update dashboard if it's active
-            if (document.getElementById('dashboard').classList.contains('active')) {
-                await this.updateDashboard();
+            // Check if the added transaction belongs to the currently viewed month
+            const transactionMonth = transaction.transaction_date.slice(0, 7);
+            if (transactionMonth === this.selectedMonth) {
+                // Refresh the entire dashboard for this month
+                await this.updateDashboardForSelectedMonth();
+            } else {
+                // Just show a success message
+                console.log('Transaction added for a different month.');
             }
+            
         } catch (error) {
             console.error('Error adding transaction:', error);
             this.showNotification(`Failed to add transaction: ${error.message}`, 'error');
@@ -213,33 +398,30 @@ class ExpenseTracker {
     async handleCategorySubmit(e) {
         e.preventDefault();
         
+        if (!this.currentUser) {
+            this.showNotification('You must be logged in', 'error');
+            return;
+        }
+
+        const category = {
+            name: document.getElementById('category-name').value.trim(),
+            type: document.getElementById('category-type').value,
+            icon: document.getElementById('category-icon').value.trim() || '📁',
+            user_id: this.currentUser.id
+        };
+
+        if (!category.name || !category.type) {
+            this.showNotification('Name and type are required', 'error');
+            return;
+        }
+
         try {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) {
-                this.showNotification('You must be logged in', 'error');
-                return;
-            }
-
-            const category = {
-                name: document.getElementById('category-name').value.trim(),
-                type: document.getElementById('category-type').value,
-                icon: document.getElementById('category-icon').value.trim() || '📁',
-                user_id: user.id
-            };
-
-            if (!category.name || !category.type) {
-                this.showNotification('Name and type are required', 'error');
-                return;
-            }
-
             const { error } = await supabaseClient
                 .from('categories')
                 .insert([category]);
 
             if (error) {
-                if (error.code === '23505') {
-                    throw new Error('Category already exists!');
-                }
+                if (error.code === '23505') throw new Error('Category already exists!');
                 throw error;
             }
 
@@ -262,6 +444,7 @@ class ExpenseTracker {
     }
 
     updateFormForSalary() {
+        // (This function remains unchanged from your original)
         const typeSelect = document.getElementById('type');
         const categorySelect = document.getElementById('category');
         const paymentSourceSelect = document.getElementById('payment-source');
@@ -292,6 +475,7 @@ class ExpenseTracker {
     }
 
     updateSourceDetailsOptions() {
+        // (This function remains unchanged from your original)
         const paymentSource = document.getElementById('payment-source').value;
         const sourceDetailsSelect = document.getElementById('source-details');
         
@@ -317,13 +501,19 @@ class ExpenseTracker {
         const categorySelect = document.getElementById('category');
         const filterCategorySelect = document.getElementById('filter-category');
         
+        // Save current values if they exist
+        const currentCategoryVal = categorySelect.value;
+        const currentFilterVal = filterCategorySelect.value;
+        
         categorySelect.innerHTML = '<option value="">Select Category</option>';
         filterCategorySelect.innerHTML = '<option value="">All Categories</option>';
         
         const selectedType = document.getElementById('type').value;
+        
+        // For "Add Transaction" dropdown
         const filteredCategories = selectedType ? 
             this.categories.filter(cat => cat.type === selectedType) : 
-            this.categories;
+            []; // Show nothing if no type is selected
         
         filteredCategories.forEach(category => {
             const option = document.createElement('option');
@@ -332,12 +522,17 @@ class ExpenseTracker {
             categorySelect.appendChild(option);
         });
         
+        // For "Filter" dropdown (show all categories)
         this.categories.forEach(category => {
             const option = document.createElement('option');
             option.value = category.name;
             option.textContent = `${category.icon} ${category.name}`;
             filterCategorySelect.appendChild(option);
         });
+
+        // Restore selected values
+        categorySelect.value = currentCategoryVal;
+        filterCategorySelect.value = currentFilterVal;
     }
 
     updateCategoryOptions() {
@@ -345,6 +540,7 @@ class ExpenseTracker {
     }
 
     displayCategories() {
+        // (This function remains unchanged from your original)
         const incomeContainer = document.getElementById('income-categories');
         const expenseContainer = document.getElementById('expense-categories');
         
@@ -371,14 +567,20 @@ class ExpenseTracker {
         const transactionsList = document.getElementById('transactions-list');
         
         if (this.transactions.length === 0) {
-            transactionsList.innerHTML = '<div class="loading">No transactions found.</div>';
+            transactionsList.innerHTML = '<div class="loading">No transactions found for this month.</div>';
             return;
         }
         
+        // Map only the transactions we have (this.transactions)
         const transactionsHTML = this.transactions.map(transaction => {
             const category = this.categories.find(cat => cat.name === transaction.category);
             const categoryIcon = category ? category.icon : '📁';
-            const date = new Date(transaction.transaction_date).toLocaleDateString('en-IN');
+            // Correct date formatting
+            const date = new Date(transaction.transaction_date + 'T00:00:00').toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
             const amount = this.formatCurrency(transaction.amount);
             
             return `
@@ -396,82 +598,45 @@ class ExpenseTracker {
             `;
         }).join('');
         
-        transactionsList.innerHTML = transactionsHTML;
+        // If offset is 0, we are loading fresh. Otherwise, append.
+        if (this.loadOffset === this.transactions.length) {
+            transactionsList.innerHTML = transactionsHTML;
+        } else {
+            transactionsList.innerHTML = transactionsHTML; // Re-render the whole list
+        }
     }
 
     async filterTransactions() {
-        const filterType = document.getElementById('filter-type').value;
-        const filterCategory = document.getElementById('filter-category').value;
-        
-        try {
-            let query = supabaseClient
-                .from('transactions')
-                .select('*')
-                .order('transaction_date', { ascending: false })
-                .order('created_at', { ascending: false });
-            
-            if (filterType) {
-                query = query.eq('type', filterType);
-            }
-            
-            if (filterCategory) {
-                query = query.eq('category', filterCategory);
-            }
-            
-            const { data, error } = await query.limit(50);
-            
-            if (error) throw error;
-            
-            this.transactions = data || [];
-            this.displayTransactions();
-        } catch (error) {
-            console.error('Error filtering transactions:', error);
-            this.showNotification('Failed to filter transactions', 'error');
-        }
+        // This function now just re-triggers the load
+        const { startDate, endDate } = this.getDateRangeForMonth(this.selectedMonth);
+        await this.loadTransactions(startDate, endDate, false); // false = new load
     }
 
-    async updateDashboard() {
+    async updateStats(startDate, endDate) {
         try {
-            await this.updateStats();
-            await this.updateChart();
-            await this.updateExpenseDonutChart();
-        } catch (error) {
-            console.error('Error updating dashboard:', error);
-            this.showNotification('Failed to update dashboard', 'error');
-        }
-    }
-
-    async updateStats() {
-        try {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) return;
-
-            const { data: transactions, error } = await supabaseClient
-                .from('transactions')
-                .select('type, amount')
-                .eq('user_id', user.id);
-            
-            if (error) throw error;
-            
-            let totalIncome = 0;
-            let totalExpenses = 0;
-            
-            transactions.forEach(transaction => {
-                if (transaction.type === 'income') {
-                    totalIncome += parseFloat(transaction.amount);
-                } else if (transaction.type === 'expense') {
-                    totalExpenses += parseFloat(transaction.amount);
-                }
+            // Call the new RPC function
+            const { data, error } = await supabaseClient.rpc('get_monthly_stats', {
+                user_id_input: this.currentUser.id,
+                start_date: startDate,
+                end_date: endDate
             });
+
+            if (error) throw error;
+
+            const stats = data[0]; // RPC returns an array with one object
+            if (!stats) {
+                console.warn('No stats returned from RPC');
+                return;
+            }
+
+            const netBalance = stats.net_balance;
             
-            const netBalance = totalIncome - totalExpenses;
-            
-            document.getElementById('total-income').textContent = this.formatCurrency(totalIncome);
-            document.getElementById('total-expenses').textContent = this.formatCurrency(totalExpenses);
+            document.getElementById('total-income').textContent = this.formatCurrency(stats.total_income);
+            document.getElementById('total-expenses').textContent = this.formatCurrency(stats.total_expenses);
             document.getElementById('net-balance').textContent = this.formatCurrency(netBalance);
             
             const balanceCard = document.getElementById('balance-card');
-            balanceCard.className = 'stat-card balance-card';
+            balanceCard.className = 'stat-card balance-card'; // Reset classes
             if (netBalance > 0) {
                 balanceCard.classList.add('positive');
             } else if (netBalance < 0) {
@@ -479,37 +644,38 @@ class ExpenseTracker {
             }
         } catch (error) {
             console.error('Error updating stats:', error);
+            this.showNotification('Failed to load summary', 'error');
         }
     }
 
-    async updateChart() {
+    async updateChart(startDate, endDate) {
         try {
             await this.waitForChart();
             
-            const endDate = new Date();
-            const startDate = new Date();
-            startDate.setDate(endDate.getDate() - 6);
-            
+            // Fetch transactions *for the selected month*
             const { data: transactions, error } = await supabaseClient
                 .from('transactions')
                 .select('transaction_date, type, amount')
-                .gte('transaction_date', startDate.toISOString().split('T')[0])
+                .eq('user_id', this.currentUser.id)
+                .gte('transaction_date', startDate)
+                .lte('transaction_date', endDate)
                 .order('transaction_date');
             
             if (error) throw error;
             
-            const chartData = this.processChartData(transactions);
+            const chartData = this.processChartData(transactions, startDate, endDate);
             
             if (this.chart) {
                 this.chart.destroy();
             }
             
             const ctx = document.getElementById('chart');
-            if (!ctx) {
-                console.error('Chart canvas not found');
-                return;
-            }
+            if (!ctx) return;
             
+            // Update chart title
+            const monthName = new Date(this.selectedMonth + '-02').toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+            document.getElementById('line-chart-title').textContent = `📈 Daily Breakdown (${monthName})`;
+
             this.chart = new Chart(ctx.getContext('2d'), {
                 type: 'line',
                 data: {
@@ -539,17 +705,13 @@ class ExpenseTracker {
                     scales: {
                         y: {
                             beginAtZero: true,
-                            ticks: {
-                                callback: (value) => '₹' + value.toLocaleString('en-IN')
-                            }
+                            ticks: { callback: (value) => '₹' + value.toLocaleString('en-IN') }
                         }
                     },
                     plugins: {
                         tooltip: {
                             callbacks: {
-                                label: (context) => {
-                                    return context.dataset.label + ': ₹' + context.parsed.y.toLocaleString('en-IN');
-                                }
+                                label: (context) => `${context.dataset.label}: ₹${context.parsed.y.toLocaleString('en-IN')}`
                             }
                         }
                     }
@@ -557,88 +719,67 @@ class ExpenseTracker {
             });
         } catch (error) {
             console.error('Error updating chart:', error);
-            const chartContainer = document.getElementById('chart').parentElement;
-            if (chartContainer) {
-                chartContainer.innerHTML = `
-                    <div style="text-align: center; padding: 20px; color: #ef4444;">
-                        <p><strong>Chart Loading Error</strong></p>
-                        <p>${error.message}</p>
-                    </div>
-                `;
-            }
         }
     }
 
-    processChartData(transactions) {
+    processChartData(transactions, startDate, endDate) {
         const labels = [];
         const income = [];
         const expenses = [];
         
-        for (let i = 6; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            labels.push(date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' }));
-            
-            const dateStr = date.toISOString().split('T')[0];
-            const dayIncome = transactions
-                .filter(t => t.type === 'income' && t.transaction_date === dateStr)
-                .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-            const dayExpenses = transactions
-                .filter(t => t.type === 'expense' && t.transaction_date === dateStr)
-                .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-            
-            income.push(dayIncome);
-            expenses.push(dayExpenses);
+        // Create a map for quick lookups
+        const dailyData = {};
+
+        const start = new Date(startDate + 'T00:00:00');
+        const end = new Date(endDate + 'T00:00:00');
+
+        // Initialize all days of the month
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+            labels.push(label);
+            dailyData[dateStr] = { income: 0, expenses: 0 };
         }
-        
+
+        // Populate data from transactions
+        transactions.forEach(t => {
+            const dateStr = t.transaction_date;
+            if (dailyData[dateStr]) {
+                if (t.type === 'income') {
+                    dailyData[dateStr].income += parseFloat(t.amount);
+                } else {
+                    dailyData[dateStr].expenses += parseFloat(t.amount);
+                }
+            }
+        });
+
+        // Convert map to chart.js arrays
+        labels.forEach((label, index) => {
+            const dateStr = Object.keys(dailyData)[index];
+            income.push(dailyData[dateStr].income);
+            expenses.push(dailyData[dateStr].expenses);
+        });
+
         return { labels, income, expenses };
     }
 
-    async updateExpenseDonutChart() {
+    async updateExpenseDonutChart(startDate, endDate) {
         try {
             await this.waitForChart();
             
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) return;
-
-            const { data: expenses, error } = await supabaseClient
-                .from('transactions')
-                .select('payment_source, category, amount')
-                .eq('type', 'expense')
-                .eq('user_id', user.id);
+            // Call the new RPC function
+            const { data: expenses, error } = await supabaseClient.rpc('get_monthly_donut_data', {
+                user_id_input: this.currentUser.id,
+                start_date: startDate,
+                end_date: endDate
+            });
             
             if (error) throw error;
             
-            const groupedExpenses = [];
-            const sourceMap = {};
-            
-            expenses.forEach(expense => {
-                const key = `${expense.payment_source}-${expense.category}`;
-                if (!sourceMap[key]) {
-                    sourceMap[key] = {
-                        payment_source: expense.payment_source || 'Unknown',
-                        category: expense.category || 'Uncategorized',
-                        total_amount: 0
-                    };
-                    groupedExpenses.push(sourceMap[key]);
-                }
-                sourceMap[key].total_amount += parseFloat(expense.amount);
-            });
-            
-            this.allExpenses = groupedExpenses;
+            this.allExpenses = expenses || []; // Data is already grouped by the RPC
             this.renderChartBySource();
         } catch (error) {
             console.error('Error updating donut chart:', error);
-            const container = document.getElementById('donut-chart-container');
-            if (container) {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 20px; color: #ef4444;">
-                        <h3>📊 Expenses by Source</h3>
-                        <p><strong>Chart Loading Error</strong></p>
-                        <p>${error.message}</p>
-                    </div>
-                `;
-            }
         }
     }
 
@@ -647,10 +788,11 @@ class ExpenseTracker {
         document.getElementById('reset-chart-view-btn').style.display = 'none';
         
         const sourceData = this.allExpenses.reduce((acc, expense) => {
-            if (!acc[expense.payment_source]) {
-                acc[expense.payment_source] = 0;
+            const source = expense.payment_source;
+            if (!acc[source]) {
+                acc[source] = 0;
             }
-            acc[expense.payment_source] += expense.total_amount;
+            acc[source] += parseFloat(expense.total_amount);
             return acc;
         }, {});
         
@@ -667,11 +809,11 @@ class ExpenseTracker {
         const categoryData = this.allExpenses
             .filter(expense => expense.payment_source === source)
             .reduce((acc, expense) => {
-                const category = expense.category || 'Uncategorized';
+                const category = expense.category;
                 if (!acc[category]) {
                     acc[category] = 0;
                 }
-                acc[category] += expense.total_amount;
+                acc[category] += parseFloat(expense.total_amount);
                 return acc;
             }, {});
         
@@ -690,10 +832,7 @@ class ExpenseTracker {
             }
             
             const ctx = document.getElementById('expense-donut-chart');
-            if (!ctx) {
-                console.error('Donut chart canvas not found');
-                return;
-            }
+            if (!ctx) return;
             
             document.getElementById('donut-chart-title').textContent = title;
             
@@ -720,17 +859,14 @@ class ExpenseTracker {
                     plugins: {
                         legend: {
                             position: 'bottom',
-                            labels: {
-                                padding: 20,
-                                usePointStyle: true
-                            }
+                            labels: { padding: 20, usePointStyle: true }
                         },
                         tooltip: {
                             callbacks: {
                                 label: (context) => {
                                     const value = context.parsed;
                                     const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                                     return `${context.label}: ₹${value.toLocaleString('en-IN')} (${percentage}%)`;
                                 }
                             }
@@ -750,31 +886,23 @@ class ExpenseTracker {
         }
     }
 
-    async waitForChart() {
-            return new Promise((resolve, reject) => {
+    // --- Utility Methods ---
+
+    waitForChart() {
+        return new Promise((resolve, reject) => {
             let attempts = 0;
-            const maxAttempts = 50; // 5 seconds total
+            const maxAttempts = 50; // 5 seconds
             
             const checkChart = () => {
                 if (typeof Chart !== 'undefined') {
                     resolve();
-                    return;
+                } else if (attempts >= maxAttempts) {
+                    reject(new Error('Chart.js failed to load'));
+                } else {
+                    attempts++;
+                    setTimeout(checkChart, 100);
                 }
-                
-                attempts++;
-                if (attempts >= maxAttempts) {
-                    // Try to load Chart.js dynamically
-                    const script = document.createElement('script');
-                    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js';
-                    script.onload = () => resolve();
-                    script.onerror = () => reject(new Error('Failed to load Chart.js'));
-                    document.head.appendChild(script);
-                    return;
-                }
-                
-                setTimeout(checkChart, 100);
             };
-            
             checkChart();
         });
     }
@@ -797,6 +925,24 @@ class ExpenseTracker {
         this.updateFormForSalary();
     }
 
+    showPage(pageId, event) {
+        document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+        
+        document.getElementById(pageId).classList.add('active');
+        
+        if (event) {
+            event.currentTarget.classList.add('active');
+        }
+        
+        // Refresh dashboard *only* if it's being opened and hasn't been refreshed
+        if (pageId === 'dashboard') {
+            // Check if data is already for the selected month
+            // A simple way is to just refresh every time
+            this.updateDashboardForSelectedMonth();
+        }
+    }
+
     showNotification(message, type = 'success') {
         const notification = document.getElementById('notification');
         const messageEl = document.getElementById('notification-message');
@@ -810,48 +956,64 @@ class ExpenseTracker {
     hideNotification() {
         document.getElementById('notification').classList.remove('show');
     }
-}
 
-// Global functions for page navigation and form management
-function showPage(pageId, event) {
-    document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
-    document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-    
-    document.getElementById(pageId).classList.add('active');
-    
-    if (event) {
-        event.target.classList.add('active');
+    getCurrentMonthString() {
+        return new Date().toISOString().slice(0, 7); // "YYYY-MM"
     }
-    
-    if (pageId === 'dashboard' && window.expenseTracker) {
-        window.expenseTracker.updateDashboard();
-    }
-}
 
-function resetForm() {
-    if (window.expenseTracker) {
-        window.expenseTracker.resetForm();
+    getDateRangeForMonth(monthString) {
+        // monthString is "YYYY-MM"
+        const year = parseInt(monthString.split('-')[0]);
+        const month = parseInt(monthString.split('-')[1]);
+        
+        const startDate = `${monthString}-01`;
+        
+        // To get the last day, go to the *next* month and get day 0
+        const lastDay = new Date(year, month, 0).getDate();
+        const endDate = `${monthString}-${lastDay}`;
+        
+        return { startDate, endDate };
     }
 }
 
-// Initialize when DOM is ready and user is authenticated
+
+// --- Global Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Attach auth listeners
+    document.getElementById('login-form').addEventListener('submit', handleLogin);
+    document.getElementById('signup-form').addEventListener('submit', handleSignup);
+    document.getElementById('reset-form').addEventListener('submit', handleReset);
+    document.getElementById('login-tab-btn').addEventListener('click', () => showAuthTab('login'));
+    document.getElementById('signup-tab-btn').addEventListener('click', () => showAuthTab('signup'));
+    document.getElementById('forgot-password-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        showAuthTab('reset');
+    });
+    document.getElementById('back-to-login-btn').addEventListener('click', () => showAuthTab('login'));
+
+    // Handle Auth State
     supabaseClient.auth.onAuthStateChange((event, session) => {
         const mainAppContainer = document.querySelector('.container');
         const authContainer = document.querySelector('#auth-container');
         
         if (session) {
+            // User is logged in
             authContainer.style.display = 'none';
             mainAppContainer.style.display = 'block';
             
+            // Initialize main app
             if (!window.expenseTracker) {
                 window.expenseTracker = new ExpenseTracker();
             }
         } else {
+            // User is logged out
             authContainer.style.display = 'flex';
             mainAppContainer.style.display = 'none';
             
+            // Clean up old instance
             if (window.expenseTracker) {
+                if (window.expenseTracker.chart) window.expenseTracker.chart.destroy();
+                if (window.expenseTracker.expenseDonutChart) window.expenseTracker.expenseDonutChart.destroy();
                 window.expenseTracker = null;
             }
         }
