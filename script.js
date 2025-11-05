@@ -393,9 +393,13 @@ class ExpenseTracker {
 
             // 2. Is it a "Salary" in the last week of the *previous* month?
             const { startDate: prevMonthStartDate, endDate: prevMonthEndDate } = this.getPreviousMonthPayPeriod();
+            
+            // Use a flexible check for "salary"
+            const isSalary = transaction.type === 'income' && 
+                             transaction.category.trim().toLowerCase() === 'salary';
+                             
             const isPreviousMonthSalary = (
-                transaction.type === 'income' &&
-                transaction.category === 'Salary' &&
+                isSalary &&
                 transaction.transaction_date >= prevMonthStartDate &&
                 transaction.transaction_date <= prevMonthEndDate
             );
@@ -470,7 +474,10 @@ class ExpenseTracker {
         const sourceDetailsSelect = document.getElementById('source-details');
         const dateInput = document.getElementById('date'); // Get the date input
         
-        const isSalary = typeSelect.value === 'income' && categorySelect.value === 'Salary';
+        // --- PAYCHECK CYCLE FIX ---
+        // Use a flexible check for "salary"
+        const isSalary = typeSelect.value === 'income' && 
+                         categorySelect.value.trim().toLowerCase() === 'salary';
         
         if (isSalary) {
             // --- Auto-fill payment details (Existing logic) ---
@@ -1055,7 +1062,9 @@ class ExpenseTracker {
                 .select('amount')
                 .eq('user_id', this.currentUser.id)
                 .eq('type', 'income')
-                .eq('category', 'Salary')
+                // *** THIS IS THE FIX ***
+                // .eq('category', 'Salary') // Old, strict, and failing
+                .ilike('category', '%salary%') // New, flexible, and works
                 .gte('transaction_date', startDate) // e.g., >= '2025-10-25'
                 .lte('transaction_date', endDate);   // e.g., <= '2025-10-31'
 
@@ -1067,6 +1076,7 @@ class ExpenseTracker {
                 prevMonthSalary = data.reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
             }
             
+            console.log(`Found previous month salary: ${prevMonthSalary}`);
             return prevMonthSalary;
 
         } catch (error) {
