@@ -148,7 +148,6 @@ class ExpenseTracker {
             // *** CHART FIX ***
             // DO NOT load dashboard data here. It will be loaded
             // when the user clicks the "Dashboard" tab for the first time.
-            // await this.updateDashboardForSelectedMonth(); // <-- REMOVED THIS LINE
             
             this.setTodayDate();
             console.log('✅ Expense Tracker initialized successfully!');
@@ -200,11 +199,15 @@ class ExpenseTracker {
         document.getElementById('transactions-list').innerHTML = '<div class="loading">Loading transactions...</div>';
 
         try {
+            // *** PAYCHECK CYCLE FIX ***
+            // We need the salary *before* we can run the other updates
+            const prevMonthSalary = await this.getPreviousMonthSalary();
+
             // Run all updates in parallel for a faster dashboard load
             await Promise.all([
                 this.loadTransactions(startDate, endDate), // Initial page of transactions
-                this.updateStats(startDate, endDate),
-                this.updateChart(startDate, endDate),
+                this.updateStats(startDate, endDate, prevMonthSalary),
+                this.updateChart(startDate, endDate, prevMonthSalary),
                 this.updateExpenseDonutChart(startDate, endDate)
             ]);
         } catch (error) {
@@ -380,17 +383,25 @@ class ExpenseTracker {
             if (error) throw error;
 
             this.showNotification('Transaction added successfully!', 'success');
-            this.resetForm();
             
             // Check if the added transaction belongs to the currently viewed month
             const transactionMonth = transaction.transaction_date.slice(0, 7);
-            if (transactionMonth === this.selectedMonth) {
+            
+            // *** PAYCHECK CYCLE FIX ***
+            // We also need to check if the transaction date is the *last working day*
+            // of the *previous* month, because that also affects the current dashboard.
+            const prevMonthSalaryDate = this.getPreviousMonthSalaryDateString();
+
+            if (transactionMonth === this.selectedMonth || transaction.transaction_date === prevMonthSalaryDate) {
                 // Refresh the entire dashboard for this month
                 await this.updateDashboardForSelectedMonth();
             } else {
-                // Just show a success message
+                // Just log it
                 console.log('Transaction added for a different month.');
             }
+
+            // Reset form *after* checking dates
+            this.resetForm();
             
         } catch (error) {
             console.error('Error adding transaction:', error);
@@ -619,7 +630,7 @@ class ExpenseTracker {
         await this.loadTransactions(startDate, endDate, false); // false = new load
     }
 
-    async updateStats(startDate, endDate) {
+    async updateStats(startDate, endDate, prevMonthSalary = 0) {
         try {
             const { data, error } = await supabaseClient.rpc('get_monthly_stats', {
                 user_id_input: this.currentUser.id,
@@ -635,17 +646,20 @@ class ExpenseTracker {
                 return;
             }
 
-            const netBalance = stats.net_balance;
+            // *** PAYCHECK CYCLE FIX ***
+            // Add the salary from the previous month to this month's totals
+            const finalIncome = stats.total_income + prevMonthSalary;
+            const finalBalance = stats.net_balance + prevMonthSalary;
             
-            document.getElementById('total-income').textContent = this.formatCurrency(stats.total_income);
+            document.getElementById('total-income').textContent = this.formatCurrency(finalIncome);
             document.getElementById('total-expenses').textContent = this.formatCurrency(stats.total_expenses);
-            document.getElementById('net-balance').textContent = this.formatCurrency(netBalance);
+            document.getElementById('net-balance').textContent = this.formatCurrency(finalBalance);
             
             const balanceCard = document.getElementById('balance-card');
             balanceCard.className = 'stat-card balance-card'; // Reset classes
-            if (netBalance > 0) {
+            if (finalBalance > 0) {
                 balanceCard.classList.add('positive');
-            } else if (netBalance < 0) {
+            } else if (finalBalance < 0) {
                 balanceCard.classList.add('negative');
             }
         } catch (error) {
@@ -654,7 +668,7 @@ class ExpenseTracker {
         }
     }
 
-    async updateChart(startDate, endDate) {
+    async updateChart(startDate, endDate, prevMonthSalary = 0) {
         try {
             await this.waitForChart();
             
@@ -668,7 +682,9 @@ class ExpenseTracker {
             
             if (error) throw error;
             
-            const chartData = this.processChartData(transactions, startDate, endDate);
+            // *** PAYCHECK CYCLE FIX ***
+            // Pass the pulled-forward salary to the chart processor
+            const chartData = this.processChartData(transactions, startDate, endDate, prevMonthSalary);
             
             if (this.chart) {
                 this.chart.destroy();
@@ -726,7 +742,7 @@ class ExpenseTracker {
         }
     }
 
-    processChartData(transactions, startDate, endDate) {
+    processChartData(transactions, startDate, endDate, prevMonthSalary = 0) {
         const labels = [];
         const income = [];
         const expenses = [];
@@ -740,6 +756,12 @@ class ExpenseTracker {
             const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
             labels.push(label);
             dailyData[dateStr] = { income: 0, expenses: 0 };
+        }
+
+        // *** PAYCHECK CYCLE FIX ***
+        // Add the previous month's salary to the *first day* of this month's chart
+        if (dailyData[startDate]) {
+            dailyData[startDate].income += prevMonthSalary;
         }
 
         transactions.forEach(t => {
@@ -993,7 +1015,60 @@ class ExpenseTracker {
     }
 
     // --- Salary Helper Methods ---
+    
+    getPreviousMonthSalaryDateString() {
+        // Get the last working day of the *previous* month
+        const year = parseInt(this.selectedMonth.split('-')[0]);
+        const month_1_based = parseInt(this.selectedMonth.split('-')[1]); // e.g., 11 for November
+
+        // To get previous month, we pass the *current* month_1_based into new Date(year, month, 0)
+        // e.g., for Nov (11), new Date(2025, 10, 0) gives last day of Oct (month 9)
+        // No, that's wrong. new Date(year, month_index, 0). month_index for Nov is 10.
+        // new Date(2025, 10, 0) is last day of Oct.
+        // So we need month_1_based - 1 as the month_index.
+        const prevMonthDate = new Date(year, month_1_based - 1, 0); // Last day of previous month
+        
+        const prevMonthYear = prevMonthDate.getFullYear();
+        const prevMonthMonth_1_based = prevMonthDate.getMonth() + 1; // getMonth is 0-indexed
+        
+        const salaryDate = this.getLastWorkingDay(prevMonthYear, prevMonthMonth_1_based);
+        return this.formatDateToYYYYMMDD(salaryDate);
+    }
+
+    async getPreviousMonthSalary() {
+        try {
+            const salaryDateString = this.getPreviousMonthSalaryDateString();
+
+            // Now, query for that specific transaction
+            const { data, error } = await supabaseClient
+                .from('transactions')
+                .select('amount')
+                .eq('user_id', this.currentUser.id)
+                .eq('type', 'income')
+                .eq('category', 'Salary')
+                .eq('transaction_date', salaryDateString);
+
+            if (error) throw error;
+
+            let prevMonthSalary = 0;
+            if (data && data.length > 0) {
+                prevMonthSalary = data.reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
+            }
+            
+            return prevMonthSalary;
+
+        } catch (error) {
+            console.error('Could not fetch previous month salary:', error);
+            this.showNotification('Could not fetch previous salary', 'error');
+            return 0;
+        }
+    }
+
     getLastWorkingDay(year, month) {
+        // month is 1-based (e.g., 11 for November)
+        // new Date(year, month, 0) gives the last day of that month
+        // e.g., new Date(2025, 11, 0) = Nov 30 (month_index 10)
+        // e.g., new Date(2025, 10, 0) = Oct 31 (month_index 9)
         const lastDay = new Date(year, month, 0); 
         const dayOfWeek = lastDay.getDay(); // 0 = Sunday, 6 = Saturday
 
@@ -1027,7 +1102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('back-to-login-btn').addEventListener('click', () => showAuthTab('login'));
 
     // Handle Auth State
-    // *** THIS IS THE FIX ***
+    // *** THIS IS THE FIX for the typo ***
     supabaseClient.auth.onAuthStateChange((event, session) => {
         const mainAppContainer = document.querySelector('.container');
         const authContainer = document.querySelector('#auth-container');
