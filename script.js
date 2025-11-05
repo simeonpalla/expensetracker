@@ -142,10 +142,13 @@ class ExpenseTracker {
             this.initMonthSelector();
             this.setupEventListeners();
             
-            await this.loadCategories(); // Load categories once
+            // Load categories once (this is fine)
+            await this.loadCategories(); 
             
-            // Initial data load for the current month
-            await this.updateDashboardForSelectedMonth();
+            // *** CHART FIX ***
+            // DO NOT load dashboard data here. It will be loaded
+            // when the user clicks the "Dashboard" tab for the first time.
+            // await this.updateDashboardForSelectedMonth(); // <-- REMOVED THIS LINE
             
             this.setTodayDate();
             console.log('✅ Expense Tracker initialized successfully!');
@@ -444,21 +447,39 @@ class ExpenseTracker {
     }
 
     updateFormForSalary() {
-        // (This function remains unchanged from your original)
         const typeSelect = document.getElementById('type');
         const categorySelect = document.getElementById('category');
         const paymentSourceSelect = document.getElementById('payment-source');
         const sourceDetailsSelect = document.getElementById('source-details');
+        const dateInput = document.getElementById('date'); // Get the date input
         
         const isSalary = typeSelect.value === 'income' && categorySelect.value === 'Salary';
         
         if (isSalary) {
+            // --- Auto-fill payment details (Existing logic) ---
             paymentSourceSelect.innerHTML = '<option value="salary" selected>Salary Deposit</option>';
             sourceDetailsSelect.innerHTML = `<option value="${this.salaryAccount}" selected>${this.salaryAccount}</option>`;
             paymentSourceSelect.disabled = true;
             sourceDetailsSelect.disabled = true;
             sourceDetailsSelect.parentElement.style.display = 'block';
+
+            // --- NEW: Auto-fill date logic ---
+            try {
+                // Get the *currently selected* date to determine the month
+                // Add T00:00:00 to avoid timezone issues
+                const currentDate = new Date(dateInput.value + 'T00:00:00'); 
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth() + 1; // getMonth() is 0-indexed
+
+                const lastWorkingDay = this.getLastWorkingDay(year, month);
+                dateInput.value = this.formatDateToYYYYMMDD(lastWorkingDay);
+            } catch (e) {
+                console.error("Could not auto-set salary date:", e);
+                // Fail silently, user can still set it manually.
+            }
+
         } else {
+            // --- Restore payment details (Existing logic) ---
             if (paymentSourceSelect.disabled) {
                 paymentSourceSelect.innerHTML = `
                     <option value="">Select Source</option>
@@ -475,7 +496,6 @@ class ExpenseTracker {
     }
 
     updateSourceDetailsOptions() {
-        // (This function remains unchanged from your original)
         const paymentSource = document.getElementById('payment-source').value;
         const sourceDetailsSelect = document.getElementById('source-details');
         
@@ -501,7 +521,6 @@ class ExpenseTracker {
         const categorySelect = document.getElementById('category');
         const filterCategorySelect = document.getElementById('filter-category');
         
-        // Save current values if they exist
         const currentCategoryVal = categorySelect.value;
         const currentFilterVal = filterCategorySelect.value;
         
@@ -510,10 +529,9 @@ class ExpenseTracker {
         
         const selectedType = document.getElementById('type').value;
         
-        // For "Add Transaction" dropdown
         const filteredCategories = selectedType ? 
             this.categories.filter(cat => cat.type === selectedType) : 
-            []; // Show nothing if no type is selected
+            []; 
         
         filteredCategories.forEach(category => {
             const option = document.createElement('option');
@@ -522,7 +540,6 @@ class ExpenseTracker {
             categorySelect.appendChild(option);
         });
         
-        // For "Filter" dropdown (show all categories)
         this.categories.forEach(category => {
             const option = document.createElement('option');
             option.value = category.name;
@@ -530,7 +547,6 @@ class ExpenseTracker {
             filterCategorySelect.appendChild(option);
         });
 
-        // Restore selected values
         categorySelect.value = currentCategoryVal;
         filterCategorySelect.value = currentFilterVal;
     }
@@ -540,7 +556,6 @@ class ExpenseTracker {
     }
 
     displayCategories() {
-        // (This function remains unchanged from your original)
         const incomeContainer = document.getElementById('income-categories');
         const expenseContainer = document.getElementById('expense-categories');
         
@@ -571,11 +586,9 @@ class ExpenseTracker {
             return;
         }
         
-        // Map only the transactions we have (this.transactions)
         const transactionsHTML = this.transactions.map(transaction => {
             const category = this.categories.find(cat => cat.name === transaction.category);
             const categoryIcon = category ? category.icon : '📁';
-            // Correct date formatting
             const date = new Date(transaction.transaction_date + 'T00:00:00').toLocaleDateString('en-IN', {
                 day: '2-digit',
                 month: 'short',
@@ -598,23 +611,16 @@ class ExpenseTracker {
             `;
         }).join('');
         
-        // If offset is 0, we are loading fresh. Otherwise, append.
-        if (this.loadOffset === this.transactions.length) {
-            transactionsList.innerHTML = transactionsHTML;
-        } else {
-            transactionsList.innerHTML = transactionsHTML; // Re-render the whole list
-        }
+        transactionsList.innerHTML = transactionsHTML;
     }
 
     async filterTransactions() {
-        // This function now just re-triggers the load
         const { startDate, endDate } = this.getDateRangeForMonth(this.selectedMonth);
         await this.loadTransactions(startDate, endDate, false); // false = new load
     }
 
     async updateStats(startDate, endDate) {
         try {
-            // Call the new RPC function
             const { data, error } = await supabaseClient.rpc('get_monthly_stats', {
                 user_id_input: this.currentUser.id,
                 start_date: startDate,
@@ -623,7 +629,7 @@ class ExpenseTracker {
 
             if (error) throw error;
 
-            const stats = data[0]; // RPC returns an array with one object
+            const stats = data[0]; 
             if (!stats) {
                 console.warn('No stats returned from RPC');
                 return;
@@ -652,7 +658,6 @@ class ExpenseTracker {
         try {
             await this.waitForChart();
             
-            // Fetch transactions *for the selected month*
             const { data: transactions, error } = await supabaseClient
                 .from('transactions')
                 .select('transaction_date, type, amount')
@@ -672,7 +677,6 @@ class ExpenseTracker {
             const ctx = document.getElementById('chart');
             if (!ctx) return;
             
-            // Update chart title
             const monthName = new Date(this.selectedMonth + '-02').toLocaleString('en-IN', { month: 'long', year: 'numeric' });
             document.getElementById('line-chart-title').textContent = `📈 Daily Breakdown (${monthName})`;
 
@@ -727,13 +731,10 @@ class ExpenseTracker {
         const income = [];
         const expenses = [];
         
-        // Create a map for quick lookups
         const dailyData = {};
-
         const start = new Date(startDate + 'T00:00:00');
         const end = new Date(endDate + 'T00:00:00');
 
-        // Initialize all days of the month
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
@@ -741,7 +742,6 @@ class ExpenseTracker {
             dailyData[dateStr] = { income: 0, expenses: 0 };
         }
 
-        // Populate data from transactions
         transactions.forEach(t => {
             const dateStr = t.transaction_date;
             if (dailyData[dateStr]) {
@@ -753,7 +753,6 @@ class ExpenseTracker {
             }
         });
 
-        // Convert map to chart.js arrays
         labels.forEach((label, index) => {
             const dateStr = Object.keys(dailyData)[index];
             income.push(dailyData[dateStr].income);
@@ -767,7 +766,6 @@ class ExpenseTracker {
         try {
             await this.waitForChart();
             
-            // Call the new RPC function
             const { data: expenses, error } = await supabaseClient.rpc('get_monthly_donut_data', {
                 user_id_input: this.currentUser.id,
                 start_date: startDate,
@@ -888,21 +886,37 @@ class ExpenseTracker {
 
     // --- Utility Methods ---
 
-    waitForChart() {
+    // *** CHART FIX ***
+    // This is the more resilient Chart.js loader
+    async waitForChart() {
         return new Promise((resolve, reject) => {
             let attempts = 0;
-            const maxAttempts = 50; // 5 seconds
+            const maxAttempts = 50; // 5 seconds total
             
             const checkChart = () => {
                 if (typeof Chart !== 'undefined') {
                     resolve();
-                } else if (attempts >= maxAttempts) {
-                    reject(new Error('Chart.js failed to load'));
-                } else {
-                    attempts++;
-                    setTimeout(checkChart, 100);
+                    return;
                 }
+                
+                attempts++;
+                if (attempts >= maxAttempts) {
+                    // Try to load Chart.js dynamically
+                    console.warn('Chart.js not loaded, attempting dynamic load...');
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js';
+                    script.onload = () => {
+                        console.log('Chart.js loaded dynamically.');
+                        resolve();
+                    };
+                    script.onerror = () => reject(new Error('Failed to load Chart.js from CDN'));
+                    document.head.appendChild(script);
+                    return;
+                }
+                
+                setTimeout(checkChart, 100);
             };
+            
             checkChart();
         });
     }
@@ -935,10 +949,9 @@ class ExpenseTracker {
             event.currentTarget.classList.add('active');
         }
         
-        // Refresh dashboard *only* if it's being opened and hasn't been refreshed
+        // *** CHART FIX ***
+        // Only load the dashboard data when the page is being shown
         if (pageId === 'dashboard') {
-            // Check if data is already for the selected month
-            // A simple way is to just refresh every time
             this.updateDashboardForSelectedMonth();
         }
     }
@@ -947,10 +960,15 @@ class ExpenseTracker {
         const notification = document.getElementById('notification');
         const messageEl = document.getElementById('notification-message');
         
-        messageEl.textContent = message;
+        messageEl.textContent = message.replace('Error: ', ''); // Clean up error messages
         notification.className = `notification ${type} show`;
         
-        setTimeout(() => this.hideNotification(), 5000);
+        // Clear old timers
+        if (this.notificationTimer) {
+            clearTimeout(this.notificationTimer);
+        }
+        
+        this.notificationTimer = setTimeout(() => this.hideNotification(), 5000);
     }
 
     hideNotification() {
@@ -968,11 +986,28 @@ class ExpenseTracker {
         
         const startDate = `${monthString}-01`;
         
-        // To get the last day, go to the *next* month and get day 0
         const lastDay = new Date(year, month, 0).getDate();
         const endDate = `${monthString}-${lastDay}`;
         
         return { startDate, endDate };
+    }
+
+    // --- Salary Helper Methods ---
+    getLastWorkingDay(year, month) {
+        const lastDay = new Date(year, month, 0); 
+        const dayOfWeek = lastDay.getDay(); // 0 = Sunday, 6 = Saturday
+
+        if (dayOfWeek === 0) { // Sunday
+            lastDay.setDate(lastDay.getDate() - 2);
+        } else if (dayOfWeek === 6) { // Saturday
+            lastDay.setDate(lastDay.getDate() - 1);
+        }
+        
+        return lastDay;
+    }
+
+    formatDateToYYYYMMDD(date) {
+        return date.toISOString().split('T')[0];
     }
 }
 
@@ -992,6 +1027,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('back-to-login-btn').addEventListener('click', () => showAuthTab('login'));
 
     // Handle Auth State
+    // *** THIS IS THE FIX ***
     supabaseClient.auth.onAuthStateChange((event, session) => {
         const mainAppContainer = document.querySelector('.container');
         const authContainer = document.querySelector('#auth-container');
