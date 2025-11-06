@@ -614,6 +614,12 @@ class ExpenseTracker {
         }
     }
 
+    isWeekend(dateStr) {
+        const d = new Date(dateStr);
+        const day = d.getDay(); // 0 = Sun, 6 = Sat
+        return day === 0 || day === 6;
+    }
+
     async updateChart(startDate, endDate, prevMonthSalary = 0) {
         try {
             const { data: transactions, error } = await supabaseClient
@@ -627,6 +633,11 @@ class ExpenseTracker {
 
             const chartData = this.processChartData(transactions, startDate, endDate, prevMonthSalary);
             const expensesMA = this.calculateMovingAverage(chartData.expenses, 5); // 5-day moving average
+            const overspendPoints = chartData.expenses.map((val, i) => {
+                if (val === 0) return false;
+                const threshold = expensesMA[i] * 1.75;
+                return val > threshold;
+            });
 
 
             if (this.chart) this.chart.destroy();
@@ -641,7 +652,30 @@ class ExpenseTracker {
             const titleEl = document.getElementById('line-chart-title');
             if (titleEl) titleEl.textContent = `📈 Daily Breakdown (${monthName})`;
 
+            const weekendPlugin = {
+                id: 'weekendShade',
+                beforeDraw(chart) {
+                    const ctx = chart.ctx;
+                    const xAxis = chart.scales.x;
+                    const yAxis = chart.scales.y;
+
+                    chart.data.labels.forEach((label, i) => {
+                        const dateStr = label; // already YYYY-MM-DD formatted in your code
+                        if (!window.expenseTracker.isWeekend(dateStr)) return;
+
+                        const xStart = xAxis.getPixelForValue(i) - (xAxis.getPixelForValue(i + 1) - xAxis.getPixelForValue(i)) / 2;
+                        const xEnd = xAxis.getPixelForValue(i + 1) - (xAxis.getPixelForValue(i + 1) - xAxis.getPixelForValue(i)) / 2;
+
+                        ctx.save();
+                        ctx.fillStyle = "rgba(229, 231, 235, 0.30)"; // Soft gray tint
+                        ctx.fillRect(xStart, yAxis.top, xEnd - xStart, yAxis.bottom - yAxis.top);
+                        ctx.restore();
+                    });
+                }
+            };
+
             this.chart = new Chart(canvas.getContext('2d'), {
+                plugins: [weekendPlugin],
                 type: 'line',
                 data: {
                     labels: chartData.labels,
@@ -652,7 +686,11 @@ class ExpenseTracker {
                             borderColor: '#ef4444',
                             backgroundColor: 'rgba(239, 68, 68, 0.1)',
                             tension: 0.4,
-                            fill: true
+                            fill: true,
+                            pointRadius: overspendPoints.map(d => d ? 6 : 3),
+                            pointBackgroundColor: overspendPoints.map(d => d ? '#ef4444' : '#ffffff'),
+                            pointBorderColor: overspendPoints.map(d => d ? '#b91c1c' : '#ef4444'),
+                            pointBorderWidth: overspendPoints.map(d => d ? 3 : 1),
                         },
                         {
                             label: 'Expense Trend (Moving Avg)',
@@ -677,6 +715,7 @@ class ExpenseTracker {
                         }
                     },
                     plugins: {
+                        weekendShade: true,
                         tooltip: {
                             callbacks: {
                                 label: (ctx) => `${ctx.dataset.label}: ₹${ctx.parsed.y.toLocaleString('en-IN')}`
