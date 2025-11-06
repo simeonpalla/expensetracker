@@ -626,6 +626,8 @@ class ExpenseTracker {
             if (error) throw error;
 
             const chartData = this.processChartData(transactions, startDate, endDate, prevMonthSalary);
+            const expensesMA = this.calculateMovingAverage(chartData.expenses, 5); // 5-day moving average
+
 
             if (this.chart) this.chart.destroy();
             const canvas = document.getElementById('chart');
@@ -659,6 +661,15 @@ class ExpenseTracker {
                             backgroundColor: 'rgba(239, 68, 68, 0.1)',
                             tension: 0.4,
                             fill: true
+                        },
+                        {
+                            label: 'Expense Trend (Moving Avg)',
+                            data: expensesMA,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.4
                         }
                     ]
                 },
@@ -667,8 +678,11 @@ class ExpenseTracker {
                     maintainAspectRatio: false,
                     scales: {
                         y: {
-                            beginAtZero: true,
-                            ticks: { callback: (v) => '₹' + v.toLocaleString('en-IN') }
+                            type: 'logarithmic',
+                            min: 1,
+                            ticks: {
+                                callback: (value) => '₹' + Number(value).toLocaleString('en-IN')
+                            }
                         }
                     },
                     plugins: {
@@ -720,6 +734,16 @@ class ExpenseTracker {
         });
 
         return { labels, income, expenses };
+    }
+    calculateMovingAverage(data, windowSize = 5) {
+        const result = [];
+        for (let i = 0; i < data.length; i++) {
+            const start = Math.max(0, i - windowSize + 1);
+            const subset = data.slice(start, i + 1);
+            const avg = subset.reduce((a, b) => a + b, 0) / subset.length;
+            result.push(Number(avg.toFixed(2)));
+        }
+        return result;
     }
 
     async updateExpenseDonutChart(startDate, endDate) {
