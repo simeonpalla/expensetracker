@@ -647,14 +647,6 @@ class ExpenseTracker {
                     labels: chartData.labels,
                     datasets: [
                         {
-                            label: 'Income (₹)',
-                            data: chartData.income,
-                            borderColor: '#10b981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            tension: 0.4,
-                            fill: true
-                        },
-                        {
                             label: 'Expenses (₹)',
                             data: chartData.expenses,
                             borderColor: '#ef4444',
@@ -678,8 +670,7 @@ class ExpenseTracker {
                     maintainAspectRatio: false,
                     scales: {
                         y: {
-                            type: 'logarithmic',
-                            min: 1,
+                            beginAtZero: true,
                             ticks: {
                                 callback: (value) => '₹' + Number(value).toLocaleString('en-IN')
                             }
