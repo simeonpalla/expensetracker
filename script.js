@@ -1,16 +1,16 @@
-// script.js - Clean, Month-Centric Expense Tracker (Updated)
+// script.js - Clean, Month-Centric Expense Tracker Implementation
 
-// --- Authentication Functions ---
+// --- Authentication Functions (Unchanged) ---
 function showAuthTab(tab) {
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('signup-form').style.display = 'none';
     document.getElementById('reset-form').style.display = 'none';
-
+    
     document.querySelectorAll('.auth-tab').forEach(t => {
         t.classList.remove('active');
         t.setAttribute('aria-selected', 'false');
     });
-
+    
     if (tab === 'login') {
         document.getElementById('login-form').style.display = 'block';
         document.getElementById('login-tab-btn').classList.add('active');
@@ -22,7 +22,7 @@ function showAuthTab(tab) {
     } else if (tab === 'reset') {
         document.getElementById('reset-form').style.display = 'block';
     }
-
+    
     hideAuthMessage();
 }
 
@@ -49,7 +49,7 @@ async function handleLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-
+    
     try {
         const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -63,12 +63,12 @@ async function handleSignup(e) {
     const email = document.getElementById('signup-email').value;
     const password = document.getElementById('signup-password').value;
     const confirmPassword = document.getElementById('signup-confirm').value;
-
+    
     if (password !== confirmPassword) {
         showAuthError('Passwords do not match');
         return;
     }
-
+    
     try {
         const { error } = await supabaseClient.auth.signUp({ email, password });
         if (error) throw error;
@@ -81,7 +81,7 @@ async function handleSignup(e) {
 async function handleReset(e) {
     e.preventDefault();
     const email = document.getElementById('reset-email').value;
-
+    
     try {
         const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
         if (error) throw error;
@@ -100,7 +100,10 @@ async function handleLogout() {
     }
 }
 
-// --- Main Application Class ---
+// -----------------------------------------------------------
+// ----------------------- MAIN CLASS ------------------------
+// -----------------------------------------------------------
+
 class ExpenseTracker {
     constructor() {
         this.transactions = [];
@@ -112,12 +115,10 @@ class ExpenseTracker {
         this.loadOffset = 0;
         this.loadLimit = 10;
 
-        // Default salary account (can be overridden by user_settings)
+        // ✅ DEFAULT salary account (will be overwritten by saved setting)
         this.salaryAccount = 'UBI';
 
-        // Month string like "2025-11"
-        this.selectedMonth = this.getCurrentMonthString();
-
+        this.selectedMonth = this.getCurrentMonthString(); // e.g., "2025-11"
         this.paymentSources = {
             'upi': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
             'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
@@ -125,63 +126,46 @@ class ExpenseTracker {
         };
 
         this.currentUser = null;
-
-        // Initialize
         this.init();
     }
 
     async init() {
         try {
             const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) {
-                console.log('No user found, awaiting auth.');
-                return;
-            }
+            if (!user) return;
             this.currentUser = user;
 
+            await this.loadSalaryAccountSetting();
             await this.testConnection();
             this.initMonthSelector();
             this.setupEventListeners();
-
-            // Load persisted user setting for salary account (if table/UI exists)
-            await this.loadSalaryAccountSetting();
-
-            // Load categories once
             await this.loadCategories();
-
-            // Do not load dashboard until user opens Dashboard tab
             this.setTodayDate();
-
-            console.log('✅ Expense Tracker initialized successfully!');
         } catch (error) {
-            console.error('❌ Failed to initialize Expense Tracker:', error);
-            this.showNotification('Failed to initialize application', 'error');
+            console.error('❌ Init failed:', error);
         }
     }
-
     async testConnection() {
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
-
         try {
             const { error } = await supabaseClient
                 .from('categories')
                 .select('*', { count: 'exact', head: true });
-
             if (error) throw error;
-
             statusDot.className = 'status-dot connected';
             statusText.textContent = 'Connected to database';
         } catch (error) {
             console.error('Database connection error:', error);
-            statusDot.className = 'status-dot error';
-            statusText.textContent = 'Database connection failed';
+            if (statusDot) statusDot.className = 'status-dot error';
+            if (statusText) statusText.textContent = 'Database connection failed';
             throw error;
         }
     }
 
     initMonthSelector() {
         const monthSelector = document.getElementById('month-selector');
+        if (!monthSelector) return;
         monthSelector.value = this.selectedMonth;
         monthSelector.addEventListener('change', async (e) => {
             this.selectedMonth = e.target.value;
@@ -194,22 +178,20 @@ class ExpenseTracker {
         console.log(`Updating dashboard for ${this.selectedMonth}`);
         const { startDate, endDate } = this.getDateRangeForMonth(this.selectedMonth);
 
-        // Reset transaction list for new month
+        // Reset list while loading
         this.transactions = [];
         this.loadOffset = 0;
         const listEl = document.getElementById('transactions-list');
-        if (listEl) {
-            listEl.innerHTML = '<div class="loading">Loading transactions...</div>';
-        }
+        if (listEl) listEl.innerHTML = '<div class="loading">Loading transactions...</div>';
 
         try {
-            // Get the salary from the LAST WORKING DAY of the previous month
+            // ✅ New robust carry-forward: pick the closest Salary BEFORE the selected month
             const prevMonthSalary = await this.getPreviousMonthSalary();
 
             await Promise.all([
-                this.loadTransactions(startDate, endDate),             // initial page
+                this.loadTransactions(startDate, endDate),             // list
                 this.updateStats(startDate, endDate, prevMonthSalary), // cards
-                this.updateChart(startDate, endDate, prevMonthSalary), // line chart
+                this.updateChart(startDate, endDate, prevMonthSalary), // line
                 this.updateExpenseDonutChart(startDate, endDate)       // donut
             ]);
         } catch (error) {
@@ -225,7 +207,6 @@ class ExpenseTracker {
                 .select('*')
                 .eq('user_id', this.currentUser.id)
                 .order('name');
-
             if (error) throw error;
 
             this.categories = data || [];
@@ -242,7 +223,6 @@ class ExpenseTracker {
             this.loadOffset = 0;
             this.transactions = [];
         }
-
         try {
             let query = supabaseClient
                 .from('transactions')
@@ -254,15 +234,15 @@ class ExpenseTracker {
                 .order('created_at', { ascending: false })
                 .range(this.loadOffset, this.loadOffset + this.loadLimit - 1);
 
-            const filterType = document.getElementById('filter-type').value;
-            const filterCategory = document.getElementById('filter-category').value;
+            const filterType = document.getElementById('filter-type')?.value || '';
+            const filterCategory = document.getElementById('filter-category')?.value || '';
             if (filterType) query = query.eq('type', filterType);
             if (filterCategory) query = query.eq('category', filterCategory);
 
             const { data, error } = await query;
             if (error) throw error;
 
-            if (data && data.length > 0) {
+            if (data?.length) {
                 this.transactions.push(...data);
                 this.loadOffset += data.length;
             }
@@ -291,15 +271,15 @@ class ExpenseTracker {
                 .gte('transaction_date', startDate)
                 .lte('transaction_date', endDate);
 
-            const filterType = document.getElementById('filter-type').value;
-            const filterCategory = document.getElementById('filter-category').value;
+            const filterType = document.getElementById('filter-type')?.value || '';
+            const filterCategory = document.getElementById('filter-category')?.value || '';
             if (filterType) query = query.eq('type', filterType);
             if (filterCategory) query = query.eq('category', filterCategory);
 
             const { count, error } = await query;
             if (error) throw error;
 
-            container.style.display = (this.transactions.length < count) ? 'block' : 'none';
+            container.style.display = (this.transactions.length < (count || 0)) ? 'block' : 'none';
         } catch (error) {
             console.error('Error checking transaction count:', error);
             container.style.display = 'none';
@@ -308,27 +288,27 @@ class ExpenseTracker {
 
     setupEventListeners() {
         // Forms
-        document.getElementById('transaction-form').addEventListener('submit', (e) => this.handleTransactionSubmit(e));
-        document.getElementById('category-form').addEventListener('submit', (e) => this.handleCategorySubmit(e));
+        document.getElementById('transaction-form')?.addEventListener('submit', (e) => this.handleTransactionSubmit(e));
+        document.getElementById('category-form')?.addEventListener('submit', (e) => this.handleCategorySubmit(e));
 
         // Field changes
-        document.getElementById('type').addEventListener('change', () => {
+        document.getElementById('type')?.addEventListener('change', () => {
             this.updateCategoryOptions();
             this.updateFormForSalary();
         });
-        document.getElementById('category').addEventListener('change', () => this.updateFormForSalary());
-        document.getElementById('payment-source').addEventListener('change', () => this.updateSourceDetailsOptions());
+        document.getElementById('category')?.addEventListener('change', () => this.updateFormForSalary());
+        document.getElementById('payment-source')?.addEventListener('change', () => this.updateSourceDetailsOptions());
 
         // Filters
-        document.getElementById('filter-type').addEventListener('change', () => this.filterTransactions());
-        document.getElementById('filter-category').addEventListener('change', () => this.filterTransactions());
+        document.getElementById('filter-type')?.addEventListener('change', () => this.filterTransactions());
+        document.getElementById('filter-category')?.addEventListener('change', () => this.filterTransactions());
 
         // Buttons
-        document.getElementById('load-more-btn').addEventListener('click', () => this.loadMoreTransactions());
-        document.getElementById('notification-close').addEventListener('click', () => this.hideNotification());
-        document.getElementById('reset-chart-view-btn').addEventListener('click', () => this.renderChartBySource());
-        document.getElementById('clear-form-btn').addEventListener('click', () => this.resetForm());
-        document.getElementById('logout-btn').addEventListener('click', handleLogout);
+        document.getElementById('load-more-btn')?.addEventListener('click', () => this.loadMoreTransactions());
+        document.getElementById('notification-close')?.addEventListener('click', () => this.hideNotification());
+        document.getElementById('reset-chart-view-btn')?.addEventListener('click', () => this.renderChartBySource());
+        document.getElementById('clear-form-btn')?.addEventListener('click', () => this.resetForm());
+        document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
 
         // Page Navigation
         document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -338,7 +318,7 @@ class ExpenseTracker {
             });
         });
 
-        // Optional Settings form (exists only if you added it in HTML)
+        // Optional settings form (if you added it in HTML)
         const salarySettingsForm = document.getElementById('salary-settings-form');
         if (salarySettingsForm) {
             salarySettingsForm.addEventListener('submit', (e) => this.saveSalaryAccountSetting(e));
@@ -347,7 +327,6 @@ class ExpenseTracker {
 
     async handleTransactionSubmit(e) {
         e.preventDefault();
-
         if (!this.currentUser) {
             this.showNotification('You must be logged in', 'error');
             return;
@@ -373,24 +352,12 @@ class ExpenseTracker {
 
             this.showNotification('Transaction added successfully!', 'success');
 
+            // Refresh dashboard if it affects the current month or influences carry-forward
             const transactionMonth = transaction.transaction_date.slice(0, 7);
             const affectsCurrentMonth = (transactionMonth === this.selectedMonth);
 
-            const { startDate: prevStart, endDate: prevEnd } = this.getPreviousMonthPayPeriod();
-
-            const isSalary = transaction.type === 'income' &&
-                             transaction.category.trim().toLowerCase() === 'salary';
-
-            const isPreviousMonthSalary = (
-                isSalary &&
-                transaction.transaction_date >= prevStart &&
-                transaction.transaction_date <= prevEnd
-            );
-
-            if (affectsCurrentMonth || isPreviousMonthSalary) {
+            if (affectsCurrentMonth || transaction.category.trim().toLowerCase() === 'salary') {
                 await this.updateDashboardForSelectedMonth();
-            } else {
-                console.log('Transaction added for a different month.');
             }
 
             this.resetForm();
@@ -402,7 +369,6 @@ class ExpenseTracker {
 
     async handleCategorySubmit(e) {
         e.preventDefault();
-
         if (!this.currentUser) {
             this.showNotification('You must be logged in', 'error');
             return;
@@ -426,7 +392,6 @@ class ExpenseTracker {
                 if (error.code === '23505') throw new Error('Category already exists!');
                 throw error;
             }
-
             this.showNotification('Category added successfully!', 'success');
             document.getElementById('category-form').reset();
             await this.loadCategories();
@@ -451,29 +416,35 @@ class ExpenseTracker {
         const sourceDetailsSelect = document.getElementById('source-details');
         const dateInput = document.getElementById('date');
 
-        const isSalary = typeSelect.value === 'income' &&
-                         categorySelect.value.trim().toLowerCase() === 'salary';
+        const isSalary = typeSelect?.value === 'income' &&
+                         (categorySelect?.value || '').trim().toLowerCase() === 'salary';
 
         if (isSalary) {
             // Auto-fill payment details
-            paymentSourceSelect.innerHTML = '<option value="salary" selected>Salary Deposit</option>';
-            sourceDetailsSelect.innerHTML = `<option value="${this.salaryAccount}" selected>${this.salaryAccount}</option>`;
-            paymentSourceSelect.disabled = true;
-            sourceDetailsSelect.disabled = true;
-            sourceDetailsSelect.parentElement.style.display = 'block';
+            if (paymentSourceSelect) {
+                paymentSourceSelect.innerHTML = '<option value="salary" selected>Salary Deposit</option>';
+                paymentSourceSelect.disabled = true;
+            }
+            if (sourceDetailsSelect) {
+                sourceDetailsSelect.innerHTML = `<option value="${this.salaryAccount}" selected>${this.salaryAccount}</option>`;
+                sourceDetailsSelect.disabled = true;
+                sourceDetailsSelect.parentElement.style.display = 'block';
+            }
 
-            // Auto-set date to LAST WORKING DAY of the currently selected date's month
+            // Auto-set date to last working day of the month currently in date picker
             try {
-                const currentDate = new Date((dateInput.value || new Date().toISOString().split('T')[0]) + 'T00:00:00');
+                const baseDateStr = dateInput?.value || new Date().toISOString().split('T')[0];
+                const currentDate = new Date(baseDateStr + 'T00:00:00');
                 const year = currentDate.getFullYear();
                 const month = currentDate.getMonth() + 1; // 1-based
                 const lastWorkingDay = this.getLastWorkingDay(year, month);
-                dateInput.value = this.formatDateToYYYYMMDD(lastWorkingDay);
+                if (dateInput) dateInput.value = this.formatDateToYYYYMMDD(lastWorkingDay);
             } catch (e) {
                 console.error("Could not auto-set salary date:", e);
             }
         } else {
-            if (paymentSourceSelect.disabled) {
+            // Restore default options
+            if (paymentSourceSelect && paymentSourceSelect.disabled) {
                 paymentSourceSelect.innerHTML = `
                     <option value="">Select Source</option>
                     <option value="upi">UPI</option>
@@ -481,23 +452,25 @@ class ExpenseTracker {
                     <option value="debit-card">Debit Card</option>
                     <option value="cash">Cash</option>
                 `;
+                paymentSourceSelect.disabled = false;
             }
-            paymentSourceSelect.disabled = false;
-            sourceDetailsSelect.disabled = false;
+            if (sourceDetailsSelect) {
+                sourceDetailsSelect.disabled = false;
+            }
             this.updateSourceDetailsOptions();
         }
     }
 
     updateSourceDetailsOptions() {
-        const paymentSource = document.getElementById('payment-source').value;
+        const paymentSource = document.getElementById('payment-source')?.value;
         const sourceDetailsSelect = document.getElementById('source-details');
+        if (!sourceDetailsSelect) return;
 
         sourceDetailsSelect.innerHTML = '<option value="">Select Details</option>';
 
         if (this.paymentSources[paymentSource]) {
             sourceDetailsSelect.parentElement.style.display = 'block';
             sourceDetailsSelect.required = true;
-
             this.paymentSources[paymentSource].forEach(source => {
                 const option = document.createElement('option');
                 option.value = source;
@@ -514,13 +487,13 @@ class ExpenseTracker {
         const categorySelect = document.getElementById('category');
         const filterCategorySelect = document.getElementById('filter-category');
 
-        const currentCategoryVal = categorySelect.value;
-        const currentFilterVal = filterCategorySelect.value;
+        const currentCategoryVal = categorySelect?.value || '';
+        const currentFilterVal = filterCategorySelect?.value || '';
 
-        categorySelect.innerHTML = '<option value="">Select Category</option>';
-        filterCategorySelect.innerHTML = '<option value="">All Categories</option>';
+        if (categorySelect) categorySelect.innerHTML = '<option value="">Select Category</option>';
+        if (filterCategorySelect) filterCategorySelect.innerHTML = '<option value="">All Categories</option>';
 
-        const selectedType = document.getElementById('type').value;
+        const selectedType = document.getElementById('type')?.value;
 
         const filtered = selectedType
             ? this.categories.filter(cat => cat.type === selectedType)
@@ -530,18 +503,18 @@ class ExpenseTracker {
             const option = document.createElement('option');
             option.value = category.name;
             option.textContent = `${category.icon} ${category.name}`;
-            categorySelect.appendChild(option);
+            categorySelect?.appendChild(option);
         });
 
         this.categories.forEach(category => {
             const option = document.createElement('option');
             option.value = category.name;
             option.textContent = `${category.icon} ${category.name}`;
-            filterCategorySelect.appendChild(option);
+            filterCategorySelect?.appendChild(option);
         });
 
-        categorySelect.value = currentCategoryVal;
-        filterCategorySelect.value = currentFilterVal;
+        if (categorySelect) categorySelect.value = currentCategoryVal;
+        if (filterCategorySelect) filterCategorySelect.value = currentFilterVal;
     }
 
     updateCategoryOptions() {
@@ -563,7 +536,6 @@ class ExpenseTracker {
                 <span class="category-icon">${category.icon}</span>
                 <span class="category-name">${category.name}</span>
             `;
-
             if (category.type === 'income') {
                 incomeContainer.appendChild(categoryDiv);
             } else {
@@ -585,12 +557,9 @@ class ExpenseTracker {
             const category = this.categories.find(cat => cat.name === t.category);
             const categoryIcon = category ? category.icon : '📁';
             const date = new Date(t.transaction_date + 'T00:00:00').toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
+                day: '2-digit', month: 'short', year: 'numeric'
             });
             const amount = this.formatCurrency(t.amount);
-
             return `
                 <div class="transaction-item">
                     <div class="transaction-details">
@@ -621,16 +590,11 @@ class ExpenseTracker {
                 start_date: startDate,
                 end_date: endDate
             });
-
             if (error) throw error;
 
-            const stats = data[0];
-            if (!stats) {
-                console.warn('No stats returned from RPC');
-                return;
-            }
+            const stats = data?.[0];
+            if (!stats) return;
 
-            // Add salary pulled forward
             const finalIncome = Number(stats.total_income) + Number(prevMonthSalary);
             const finalBalance = Number(stats.net_balance) + Number(prevMonthSalary);
 
@@ -639,9 +603,11 @@ class ExpenseTracker {
             document.getElementById('net-balance').textContent = this.formatCurrency(finalBalance);
 
             const balanceCard = document.getElementById('balance-card');
-            balanceCard.className = 'stat-card balance-card';
-            if (finalBalance > 0) balanceCard.classList.add('positive');
-            else if (finalBalance < 0) balanceCard.classList.add('negative');
+            if (balanceCard) {
+                balanceCard.className = 'stat-card balance-card';
+                if (finalBalance > 0) balanceCard.classList.add('positive');
+                else if (finalBalance < 0) balanceCard.classList.add('negative');
+            }
         } catch (error) {
             console.error('Error updating stats:', error);
             this.showNotification('Failed to load summary', 'error');
@@ -657,18 +623,21 @@ class ExpenseTracker {
                 .gte('transaction_date', startDate)
                 .lte('transaction_date', endDate)
                 .order('transaction_date');
-
             if (error) throw error;
 
             const chartData = this.processChartData(transactions, startDate, endDate, prevMonthSalary);
 
             if (this.chart) this.chart.destroy();
-
             const canvas = document.getElementById('chart');
             if (!canvas) return;
 
+            // keep chart height pleasant even without CSS tweak
+            canvas.style.maxHeight = '320px';
+            canvas.style.height = '320px';
+
             const monthName = new Date(this.selectedMonth + '-02').toLocaleString('en-IN', { month: 'long', year: 'numeric' });
-            document.getElementById('line-chart-title').textContent = `📈 Daily Breakdown (${monthName})`;
+            const titleEl = document.getElementById('line-chart-title');
+            if (titleEl) titleEl.textContent = `📈 Daily Breakdown (${monthName})`;
 
             this.chart = new Chart(canvas.getContext('2d'), {
                 type: 'line',
@@ -720,8 +689,8 @@ class ExpenseTracker {
         const labels = [];
         const income = [];
         const expenses = [];
-
         const dailyData = {};
+
         const start = new Date(startDate + 'T00:00:00');
         const end = new Date(endDate + 'T00:00:00');
 
@@ -732,7 +701,7 @@ class ExpenseTracker {
             dailyData[dateStr] = { income: 0, expenses: 0 };
         }
 
-        // Add previous month salary to first day of this month
+        // ✅ add carry-forward salary on day 1
         if (dailyData[startDate]) {
             dailyData[startDate].income += Number(prevMonthSalary);
         }
@@ -740,11 +709,8 @@ class ExpenseTracker {
         (transactions || []).forEach(t => {
             const dateStr = t.transaction_date;
             if (dailyData[dateStr]) {
-                if (t.type === 'income') {
-                    dailyData[dateStr].income += Number(t.amount);
-                } else {
-                    dailyData[dateStr].expenses += Number(t.amount);
-                }
+                if (t.type === 'income') dailyData[dateStr].income += Number(t.amount);
+                else dailyData[dateStr].expenses += Number(t.amount);
             }
         });
 
@@ -763,7 +729,6 @@ class ExpenseTracker {
                 start_date: startDate,
                 end_date: endDate
             });
-
             if (error) throw error;
 
             this.allExpenses = expenses || [];
@@ -817,6 +782,10 @@ class ExpenseTracker {
         const canvas = document.getElementById('expense-donut-chart');
         if (!canvas) return;
 
+        // keep donut chart pleasant even without CSS tweak
+        canvas.style.maxHeight = '320px';
+        canvas.style.height = '320px';
+
         const titleEl = document.getElementById('donut-chart-title');
         if (titleEl) titleEl.textContent = title;
 
@@ -863,8 +832,7 @@ class ExpenseTracker {
             }
         });
     }
-
-    // --- Utility Methods ---
+    // ---------------- Utility Methods ----------------
 
     formatCurrency(amount) {
         return '₹' + Number(amount).toLocaleString('en-IN', {
@@ -879,7 +847,7 @@ class ExpenseTracker {
     }
 
     resetForm() {
-        document.getElementById('transaction-form').reset();
+        document.getElementById('transaction-form')?.reset();
         this.setTodayDate();
         this.updateCategoryOptions();
         this.updateFormForSalary();
@@ -889,9 +857,10 @@ class ExpenseTracker {
         document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
         document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
 
-        document.getElementById(pageId).classList.add('active');
+        document.getElementById(pageId)?.classList.add('active');
         if (event) event.currentTarget.classList.add('active');
 
+        // Lazy-load dashboard data
         if (pageId === 'dashboard') {
             this.updateDashboardForSelectedMonth();
         }
@@ -901,85 +870,65 @@ class ExpenseTracker {
         const notification = document.getElementById('notification');
         const messageEl = document.getElementById('notification-message');
 
-        messageEl.textContent = message.replace('Error: ', '');
-        notification.className = `notification ${type} show`;
+        if (messageEl && notification) {
+            messageEl.textContent = String(message).replace('Error: ', '');
+            notification.className = `notification ${type} show`;
+        }
 
         if (this.notificationTimer) clearTimeout(this.notificationTimer);
         this.notificationTimer = setTimeout(() => this.hideNotification(), 5000);
     }
 
     hideNotification() {
-        document.getElementById('notification').classList.remove('show');
+        document.getElementById('notification')?.classList.remove('show');
     }
 
     getCurrentMonthString() {
-        return new Date().toISOString().slice(0, 7);
+        return new Date().toISOString().slice(0, 7); // "YYYY-MM"
     }
 
     getDateRangeForMonth(monthString) {
         const year = parseInt(monthString.split('-')[0], 10);
         const month = parseInt(monthString.split('-')[1], 10);
-
         const startDate = `${monthString}-01`;
         const lastDay = new Date(year, month, 0).getDate();
         const endDate = `${monthString}-${String(lastDay).padStart(2, '0')}`;
-
         return { startDate, endDate };
     }
 
-    // --- Salary Helper Methods ---
-
-    // PAYCHECK CYCLE FIX:
-    // Get previous month's pay period as EXACT last working day only
-    getPreviousMonthPayPeriod() {
-        const [year, month1] = this.selectedMonth.split('-').map(Number); // month1 is 1-based
-        const prevMonthDate = new Date(year, month1 - 1, 1);
-        prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
-
-        const prevYear = prevMonthDate.getFullYear();
-        const prevMonth = prevMonthDate.getMonth() + 1; // 1-based
-
-        const lastWorkingDay = this.getLastWorkingDay(prevYear, prevMonth);
-        const d = this.formatDateToYYYYMMDD(lastWorkingDay);
-
-        return { startDate: d, endDate: d };
-    }
-
-    // Query the salary credited on the last working day of previous month
+    // ---------- Salary Carry-Forward (Robust) ----------
+    // Find the most recent "Salary%" income *before* the first day of the selected month.
+    // Whatever that amount is, add it to the current month's totals and plot on day 1.
     async getPreviousMonthSalary() {
         try {
-            const { startDate, endDate } = this.getPreviousMonthPayPeriod();
+            const firstDayOfMonth = `${this.selectedMonth}-01`;
 
             const { data, error } = await supabaseClient
                 .from('transactions')
-                .select('amount')
+                .select('amount, transaction_date')
                 .eq('user_id', this.currentUser.id)
                 .eq('type', 'income')
-                .ilike('category', 'Salary%') // case-insensitive, supports "Salary", "Salary Bonus", etc.
-                .gte('transaction_date', startDate)
-                .lte('transaction_date', endDate);
+                .ilike('category', 'Salary%')
+                .lt('transaction_date', firstDayOfMonth)
+                .order('transaction_date', { ascending: false })
+                .limit(1);
 
             if (error) throw error;
 
-            const prevMonthSalary = (data || []).reduce((sum, tx) => sum + Number(tx.amount), 0);
-            return prevMonthSalary;
+            return (data && data.length > 0) ? Number(data[0].amount) : 0;
         } catch (error) {
-            console.error('Could not fetch previous month salary:', error);
-            this.showNotification('Could not fetch previous salary', 'error');
+            console.error('Previous month salary lookup failed:', error.message);
             return 0;
         }
     }
 
-    // Last working day for a 1-based month
+    // Last working day helper: if month ends on Sat/Sun, move back to Fri
+    // month is 1-based
     getLastWorkingDay(year, month) {
         const lastDay = new Date(year, month, 0); // last day of month
-        const dayOfWeek = lastDay.getDay(); // 0=Sun, 6=Sat
-
-        if (dayOfWeek === 0) { // Sunday
-            lastDay.setDate(lastDay.getDate() - 2);
-        } else if (dayOfWeek === 6) { // Saturday
-            lastDay.setDate(lastDay.getDate() - 1);
-        }
+        const dow = lastDay.getDay(); // 0=Sun, 6=Sat
+        if (dow === 0) lastDay.setDate(lastDay.getDate() - 2); // Sunday -> Friday
+        else if (dow === 6) lastDay.setDate(lastDay.getDate() - 1); // Saturday -> Friday
         return lastDay;
     }
 
@@ -987,24 +936,23 @@ class ExpenseTracker {
         return date.toISOString().split('T')[0];
     }
 
-    // --- Optional Settings: Save/Load preferred salary account ---
-
+    // -------- Optional Settings: Salary Account --------
     async loadSalaryAccountSetting() {
         try {
             const { data, error } = await supabaseClient
                 .from('user_settings')
                 .select('salary_account')
-                .eq('user_id', this.currentUser.id)
+                .eq('user_id', this.currentUser?.id || '')
                 .single();
 
-            if (!error && data && data.salary_account) {
+            if (!error && data?.salary_account) {
                 this.salaryAccount = data.salary_account;
             }
 
             const select = document.getElementById('salary-default-account');
             if (select) select.value = this.salaryAccount;
-        } catch (e) {
-            // table or row may not exist yet; ignore silently
+        } catch {
+            // Table may not exist yet; ignore silently
         }
     }
 
@@ -1012,7 +960,6 @@ class ExpenseTracker {
         e.preventDefault();
         const select = document.getElementById('salary-default-account');
         if (!select) return;
-
         const newAccount = select.value;
 
         try {
@@ -1027,7 +974,6 @@ class ExpenseTracker {
 
             this.salaryAccount = newAccount;
             this.showNotification(`Salary default account set to ${newAccount}`, 'success');
-            // If user is on Add Transaction and Salary selected, refresh autofill
             this.updateFormForSalary();
         } catch (err) {
             console.error('Error saving salary account:', err);
@@ -1036,19 +982,19 @@ class ExpenseTracker {
     }
 }
 
-// --- Global Initialization ---
+// --------------- Global Initialization ---------------
 document.addEventListener('DOMContentLoaded', () => {
-    // Attach auth listeners
-    document.getElementById('login-form').addEventListener('submit', handleLogin);
-    document.getElementById('signup-form').addEventListener('submit', handleSignup);
-    document.getElementById('reset-form').addEventListener('submit', handleReset);
-    document.getElementById('login-tab-btn').addEventListener('click', () => showAuthTab('login'));
-    document.getElementById('signup-tab-btn').addEventListener('click', () => showAuthTab('signup'));
-    document.getElementById('forgot-password-link').addEventListener('click', (e) => {
+    // Auth UI listeners
+    document.getElementById('login-form')?.addEventListener('submit', handleLogin);
+    document.getElementById('signup-form')?.addEventListener('submit', handleSignup);
+    document.getElementById('reset-form')?.addEventListener('submit', handleReset);
+    document.getElementById('login-tab-btn')?.addEventListener('click', () => showAuthTab('login'));
+    document.getElementById('signup-tab-btn')?.addEventListener('click', () => showAuthTab('signup'));
+    document.getElementById('forgot-password-link')?.addEventListener('click', (e) => {
         e.preventDefault();
         showAuthTab('reset');
     });
-    document.getElementById('back-to-login-btn').addEventListener('click', () => showAuthTab('login'));
+    document.getElementById('back-to-login-btn')?.addEventListener('click', () => showAuthTab('login'));
 
     // Auth state
     supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -1057,17 +1003,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (session) {
             // Logged in
-            authContainer.style.display = 'none';
-            mainAppContainer.style.display = 'block';
+            if (authContainer) authContainer.style.display = 'none';
+            if (mainAppContainer) mainAppContainer.style.display = 'block';
 
-            // Initialize main app
+            // Initialize main app once
             if (!window.expenseTracker) {
                 window.expenseTracker = new ExpenseTracker();
             }
         } else {
             // Logged out
-            authContainer.style.display = 'flex';
-            mainAppContainer.style.display = 'none';
+            if (authContainer) authContainer.style.display = 'flex';
+            if (mainAppContainer) mainAppContainer.style.display = 'none';
 
             // Clean old instance
             if (window.expenseTracker) {
