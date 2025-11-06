@@ -90,5 +90,11 @@ footer{text-align:center;margin-top:40px;padding-bottom:20px}.logout-btn{backgro
 .filter-controls select{flex:1}
 .form-row{flex-direction:column}
 .stat-card{flex-direction:column;text-align:center}
+.streak-card.positive {
+    border: 2px solid var(--success-color);
+    background: rgba(16,185,129,0.08);
+    transform: scale(1.02);
+    transition: 0.3s ease;
+}
 .stat-icon{font-size:3rem}
 }

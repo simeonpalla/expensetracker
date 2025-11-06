@@ -174,6 +174,46 @@ class ExpenseTracker {
         });
     }
 
+    calculateNoSpendStreak(transactions, startDate, endDate) {
+        const days = {};
+        
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        // Initialize all dates as no-spend
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            days[d.toISOString().split('T')[0]] = true;
+        }
+
+        // Mark days where expenses occurred
+        transactions.forEach(t => {
+            if (t.type === 'expense') {
+                days[t.transaction_date] = false;
+            }
+        });
+
+        // Count streaks
+        let currentStreak = 0;
+        let bestStreak = 0;
+
+        const today = new Date().toISOString().split('T')[0];
+        const dates = Object.keys(days);
+
+        dates.forEach(dateStr => {
+            if (days[dateStr]) {
+                currentStreak += 1;
+            } else {
+                bestStreak = Math.max(bestStreak, currentStreak);
+                currentStreak = 0;
+            }
+        });
+
+        bestStreak = Math.max(bestStreak, currentStreak);
+
+        return { currentStreak, bestStreak };
+    }
+
+
     async updateDashboardForSelectedMonth() {
         console.log(`Updating dashboard for ${this.selectedMonth}`);
         const { startDate, endDate } = this.getDateRangeForMonth(this.selectedMonth);
@@ -194,6 +234,19 @@ class ExpenseTracker {
                 this.updateChart(startDate, endDate, prevMonthSalary), // line
                 this.updateExpenseDonutChart(startDate, endDate)       // donut
             ]);
+
+            // Calculate streak after transactions load
+            const streak = this.calculateNoSpendStreak(this.transactions, startDate, endDate);
+            document.getElementById('current-streak').textContent = `${streak.currentStreak} Days`;
+            document.getElementById('best-streak').textContent = `Best: ${streak.bestStreak} days`;
+
+            const streakCard = document.getElementById('streak-card');
+            if (streak.currentStreak >= 3) {
+                streakCard.classList.add('positive');
+            } else {
+                streakCard.classList.remove('positive');
+            }
+
         } catch (error) {
             console.error('Error updating dashboard:', error);
             this.showNotification('Failed to update dashboard', 'error');
