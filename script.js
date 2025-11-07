@@ -1044,49 +1044,24 @@ class ExpenseTracker {
     }
 
     // -------- Optional Settings: Salary Account --------
-    // async loadSalaryAccountSetting() {
-    //     try {
-    //         const { data, error } = await supabaseClient
-    //             .from('user_settings')
-    //             .select('salary_account')
-    //             .eq('user_id', this.currentUser?.id || '')
-    //             .single();
-
-    //         if (!error && data?.salary_account) {
-    //             this.salaryAccount = data.salary_account;
-    //         }
-
-    //         const select = document.getElementById('salary-default-account');
-    //         if (select) select.value = this.salaryAccount;
-    //     } catch {
-    //         // Table may not exist yet; ignore silently
-    //     }
-    // }
-
     async loadSalaryAccountSetting() {
         try {
             const { data, error } = await supabaseClient
                 .from('user_settings')
-                .select('salary_account, monthly_budget')
+                .select('salary_account')
                 .eq('user_id', this.currentUser?.id || '')
                 .single();
 
-            if (!error && data) {
-                if (data.salary_account) this.salaryAccount = data.salary_account;
-                // default monthly budget if not set
-                this.monthlyBudget = data.monthly_budget ? Number(data.monthly_budget) : 30000;
-            } else {
-                this.monthlyBudget = 30000; // sane default
+            if (!error && data?.salary_account) {
+                this.salaryAccount = data.salary_account;
             }
 
             const select = document.getElementById('salary-default-account');
             if (select) select.value = this.salaryAccount;
         } catch {
-            // Table may not exist yet; ignore
-            this.monthlyBudget = 30000;
+            // Table may not exist yet; ignore silently
         }
     }
-
 
     async saveSalaryAccountSetting(e) {
         e.preventDefault();
