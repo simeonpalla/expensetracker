@@ -1,5 +1,3 @@
-// script.js - Advanced Salary-Cycle Expense Tracker & AI Coach
-
 // --- Authentication Functions (Unchanged) ---
 function showAuthTab(tab) {
     document.getElementById('login-form').style.display = 'none';
@@ -208,13 +206,11 @@ class ExpenseTracker {
 
             if (index === 0) {
                 // Latest Salary (Current Cycle)
-                // End date is Today (or logic for next salary date if user wants to see future)
                 endDate = new Date().toISOString().split('T')[0]; 
                 const niceDate = new Date(startDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
                 label = `Current: Since ${niceDate}`;
             } else {
                 // Past Cycles
-                // The end date is the day BEFORE the salary that came after it (index - 1)
                 const nextSalaryDate = new Date(salaries[index - 1].transaction_date);
                 nextSalaryDate.setDate(nextSalaryDate.getDate() - 1);
                 endDate = nextSalaryDate.toISOString().split('T')[0];
@@ -224,9 +220,8 @@ class ExpenseTracker {
                 label = `${s} - ${e}`;
             }
 
-            // Create Option
             const option = document.createElement('option');
-            option.value = `${startDate}|${endDate}`; // Store full range in value
+            option.value = `${startDate}|${endDate}`;
             option.textContent = label;
             selector.appendChild(option);
         });
@@ -269,8 +264,6 @@ class ExpenseTracker {
         try {
             await Promise.all([
                 this.loadTransactions(startDate, endDate),
-                // Pass 0 to updateStats to ensure "Remaining Budget" calculates strictly within this range
-                // Net Balance = (Salary + Other Income inside range) - (Expenses inside range)
                 this.updateStats(startDate, endDate, 0), 
                 this.updateChart(startDate, endDate, 0),
                 this.updateExpenseDonutChart(startDate, endDate)
@@ -286,75 +279,217 @@ class ExpenseTracker {
         }
     }
 
-    // --- ✨ AI COACH CAPABILITIES ---
+    // --- ✨ AI COACH CAPABILITIES (LOCAL MODEL) ---
     async generateAIInsights() {
-        const apiKey = document.getElementById('ai-api-key').value;
         const resultDiv = document.getElementById('ai-result');
         const loadingDiv = document.getElementById('ai-loading');
-        
-        if (!apiKey) {
-            this.showNotification('Please enter a Gemini API Key', 'error');
-            return;
-        }
+
+        if (!resultDiv || !loadingDiv) return;
 
         loadingDiv.style.display = 'block';
         resultDiv.style.display = 'none';
 
-        // Gather Context
-        const income = document.getElementById('total-income').textContent;
-        const expense = document.getElementById('total-expenses').textContent;
-        const balance = document.getElementById('net-balance').textContent;
-        const streak = document.getElementById('current-streak').textContent;
-        
-        // Contextual Transaction List (Top 15 expenses)
-        const expenseList = this.transactions
-            .filter(t => t.type === 'expense')
-            .slice(0, 15)
-            .map(t => `- ${t.transaction_date}: ${t.category} ₹${t.amount} (${t.description || ''})`)
-            .join('\n');
-
-        const prompt = `
-            Act as a smart, strict financial coach.
-            Current Cycle Status:
-            - Income: ${income}
-            - Spent: ${expense}
-            - Remaining: ${balance}
-            - No-Spend Streak: ${streak}
-            
-            Recent Expenses:
-            ${expenseList}
-
-            Task:
-            1. Roast my spending habits in 1 sentence. 🌶️
-            2. Identify one category I am overspending on.
-            3. Give me 3 specific, actionable tips to save money before my next salary.
-            4. Rate my financial health (1-10).
-            
-            Use emojis. Use HTML tags like <b> for bolding.
-        `;
-
         try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-            });
+            if (!this.transactions || this.transactions.length === 0) {
+                resultDiv.innerHTML = `
+                    <p>You don't have any transactions in this cycle yet.</p>
+                    <p><b>Add a few days of spending, then hit "Analyze This Cycle".</b></p>
+                `;
+                resultDiv.style.display = 'block';
+                return;
+            }
 
-            const data = await response.json();
-            
-            if (data.error) throw new Error(data.error.message);
-            
-            const aiText = data.candidates[0].content.parts[0].text;
-            
+            const insights = this.buildLocalCoachInsights();
+            resultDiv.innerHTML = insights.html;
             resultDiv.style.display = 'block';
-            resultDiv.innerHTML = aiText; // Render Markdown/HTML from AI
 
-        } catch (error) {
-            console.error(error);
-            this.showNotification('AI Analysis failed. Check Key.', 'error');
+        } catch (err) {
+            console.error(err);
+            this.showNotification('Could not analyze spending.', 'error');
         } finally {
             loadingDiv.style.display = 'none';
         }
+    }
+
+    parseCurrencyFromText(text) {
+        if (!text) return 0;
+        return Number(text.replace(/[₹,\s]/g, '').trim()) || 0;
+    }
+
+    buildLocalCoachInsights() {
+        const txs = this.transactions || [];
+
+        // 1. Basic aggregates
+        let totalIncome = 0;
+        let totalExpenses = 0;
+
+        const byCategory = {};
+        const byMerchant = {};
+        const byDayOfWeek = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+
+        const needCategories = new Set([
+            'Rent', 'Groceries', 'Fuel', 'Petrol', 'Diesel',
+            'Utilities', 'Electricity', 'Water', 'Internet',
+            'Medicine', 'Medical', 'Insurance', 'EMI', 'Bills',
+            'House Rent', 'Transport'
+        ]);
+
+        const wantCategories = new Set([
+            'Food Delivery', 'Zomato', 'Swiggy', 'Dining Out',
+            'Cafe', 'Coffee', 'Shopping', 'Online Shopping',
+            'Amazon', 'Myntra', 'Flipkart', 'Entertainment',
+            'Movies', 'Subscriptions', 'Travel', 'Vacation'
+        ]);
+
+        let needSpend = 0;
+        let wantSpend = 0;
+
+        txs.forEach(t => {
+            const amt = Number(t.amount) || 0;
+            const cat = (t.category || 'Uncategorized').trim();
+            const merchant = (t.payment_to || 'Unknown').trim();
+            const dateObj = new Date(t.transaction_date + 'T00:00:00');
+            const dow = dateObj.getDay(); // 0–6
+
+            if (t.type === 'income') {
+                totalIncome += amt;
+            } else if (t.type === 'expense') {
+                totalExpenses += amt;
+
+                // Category
+                if (!byCategory[cat]) byCategory[cat] = 0;
+                byCategory[cat] += amt;
+
+                // Merchant
+                if (!byMerchant[merchant]) byMerchant[merchant] = 0;
+                byMerchant[merchant] += amt;
+
+                // Day of week
+                byDayOfWeek[dow] += amt;
+
+                // Needs vs Wants
+                if (wantCategories.has(cat)) {
+                    wantSpend += amt;
+                } else if (needCategories.has(cat)) {
+                    needSpend += amt;
+                } else {
+                    needSpend += amt * 0.5;
+                    wantSpend += amt * 0.5;
+                }
+            }
+        });
+
+        const savings = totalIncome - totalExpenses;
+        const savingsRate = totalIncome > 0 ? savings / totalIncome : 0;
+        const wantShare = totalExpenses > 0 ? wantSpend / totalExpenses : 0;
+
+        const topCategories = Object.entries(byCategory)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+        const topMerchants = Object.entries(byMerchant)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+        const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const peakDowEntry = Object.entries(byDayOfWeek)
+            .sort((a, b) => b[1] - a[1])[0]; // [dow, amount]
+
+        // 2. “Roast”
+        let roast;
+        if (totalIncome === 0 && totalExpenses === 0) {
+            roast = "You’re financially invisible right now — no income, no expenses, no data, no judgement. 😶";
+        } else if (savingsRate < 0) {
+            roast = "You’re literally spending future you’s money. Credit-card companies must love you. 💳🔥";
+        } else if (savingsRate < 0.05) {
+            roast = "You’re treating ‘savings’ like an optional subscription you forgot to pay for. 🥲";
+        } else if (savingsRate < 0.15) {
+            roast = "You’re surviving, not thriving — your savings are walking, not running. 🚶‍♂️";
+        } else {
+            roast = "Okay, okay, responsible adult detected. Your savings game isn’t bad at all. 😎";
+        }
+
+        // Overspending category
+        let overspendCat = null;
+        if (topCategories.length > 0) {
+            const [cat, amt] = topCategories[0];
+            const share = totalExpenses > 0 ? (amt / totalExpenses) : 0;
+            if (share > 0.15) {
+                overspendCat = { cat, amt, share };
+            }
+        }
+
+        // Rating (1–10)
+        let rating = 7;
+        if (savingsRate < 0) rating -= 3;
+        else if (savingsRate < 0.05) rating -= 2;
+        else if (savingsRate < 0.1) rating -= 1;
+
+        if (wantShare > 0.5) rating -= 2;
+        else if (wantShare > 0.35) rating -= 1;
+        else if (wantShare < 0.2 && totalExpenses > 0) rating += 1;
+
+        rating = Math.max(1, Math.min(10, Math.round(rating)));
+
+        // Tips
+        const tips = [];
+
+        if (overspendCat) {
+            const targetCut = overspendCat.amt * 0.2;
+            tips.push(
+                `Set a hard monthly cap for <b>${overspendCat.cat}</b>. ` +
+                `Cut just 20% here (≈ <b>${this.formatCurrency(targetCut)}</b>) and you’ll feel the difference without suffering.`
+            );
+        }
+
+        if (peakDowEntry && peakDowEntry[1] > totalExpenses * 0.25) {
+            const [dowIdx, amt] = peakDowEntry;
+            tips.push(
+                `${dowNames[dowIdx]} is your danger day (≈ <b>${this.formatCurrency(amt)}</b> this cycle). ` +
+                `Declare it a <b>no-random-spends</b> day or pre-plan a fixed budget envelope.`
+            );
+        }
+
+        if (savingsRate < 0.2 && totalIncome > 0) {
+            const targetSavings = totalIncome * 0.2;
+            const extraToSave = Math.max(0, targetSavings - savings);
+            tips.push(
+                `Aim for at least <b>20% savings</b> this cycle (≈ <b>${this.formatCurrency(targetSavings)}</b>). ` +
+                `That means trimming about <b>${this.formatCurrency(extraToSave)}</b> from non-essential spends.`
+            );
+        }
+
+        if (tips.length < 3) {
+            tips.push(
+                `Before every non-essential purchase, pause for 10 seconds and ask: ` +
+                `<b>“Will I still be happy about this swipe 7 days from now?”</b> If not, skip.`
+            );
+        }
+
+        const html = `
+            <p><b>1. Roast:</b><br>${roast}</p>
+            <hr style="margin: 16px 0;">
+            <p><b>2. Overspending Focus:</b><br>
+                ${
+                    overspendCat
+                        ? `You’re pouring a lot into <b>${overspendCat.cat}</b> — about <b>${(overspendCat.share * 100).toFixed(1)}%</b> of your expenses `
+                          + `(${this.formatCurrency(overspendCat.amt)} this cycle).`
+                        : `No single category is exploding, but there’s still room to tighten a few leaks.`
+                }
+            </p>
+            <hr style="margin: 16px 0;">
+            <p><b>3. Three things to do before next salary:</b></p>
+            <ul>
+                ${tips.slice(0, 3).map(t => `<li>${t}</li>`).join('')}
+            </ul>
+            <hr style="margin: 16px 0;">
+            <p><b>4. Financial Health Score:</b> <span style="font-size: 1.2rem;">${rating}/10</span></p>
+            <p style="font-size: 0.9rem; color: #6b7280;">
+                (Based on this salary cycle’s income, expenses, category mix, and weekend behaviour.)
+            </p>
+        `;
+
+        return { html };
     }
 
     // --- CORE DATA FUNCTIONS ---
@@ -387,7 +522,6 @@ class ExpenseTracker {
             if (days[dateStr]) {
                 currentStreak++;
             } else if (dateStr !== todayStr) {
-                // Break if missed a day (unless it's today and we haven't spent YET)
                 break;
             } else if (dateStr === todayStr && !days[dateStr]) {
                 currentStreak = 0;
@@ -396,7 +530,6 @@ class ExpenseTracker {
             tempDate.setDate(tempDate.getDate() - 1);
         }
         
-        // Calc best streak
         let tempStreak = 0;
         Object.keys(days).sort().forEach(date => {
             if (days[date]) tempStreak++;
@@ -465,7 +598,7 @@ class ExpenseTracker {
     }
 
     async loadMoreTransactions() {
-        if(this.currentCycleStart && this.currentCycleEnd) {
+        if (this.currentCycleStart && this.currentCycleEnd) {
             await this.loadTransactions(this.currentCycleStart, this.currentCycleEnd, true);
         }
     }
@@ -510,7 +643,7 @@ class ExpenseTracker {
         document.getElementById('filter-type')?.addEventListener('change', () => this.filterTransactions());
         document.getElementById('filter-category')?.addEventListener('change', () => this.filterTransactions());
         
-        // ✅ HISTORY DROPDOWN LISTENER
+        // HISTORY DROPDOWN LISTENER
         document.getElementById('cycle-history')?.addEventListener('change', () => this.handleCycleChange());
 
         // Buttons
@@ -520,7 +653,7 @@ class ExpenseTracker {
         document.getElementById('clear-form-btn')?.addEventListener('click', () => this.resetForm());
         document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
         
-        // ✅ AI BUTTON
+        // AI BUTTON
         document.getElementById('generate-ai-btn')?.addEventListener('click', () => this.generateAIInsights());
 
         // Page Navigation
@@ -560,16 +693,13 @@ class ExpenseTracker {
             this.showNotification('Transaction added successfully!', 'success');
             this.resetForm();
 
-            // ✅ AUTO-UPDATE LOGIC
             const isSalary = transaction.type === 'income' && 
                              transaction.category.toLowerCase().includes('salary');
 
             if (isSalary) {
                 this.showNotification('🎉 New Salary Detected! Updating cycles...', 'success');
-                // Reload history to include the new salary cycle
                 await this.loadCycleHistory();
             } else {
-                // Refresh current view
                 if (this.currentCycleStart && this.currentCycleEnd) {
                     await this.loadSpecificCycle(this.currentCycleStart, this.currentCycleEnd);
                 }
@@ -618,7 +748,6 @@ class ExpenseTracker {
         const categorySelect = document.getElementById('category');
         const paymentSourceSelect = document.getElementById('payment-source');
         const sourceDetailsSelect = document.getElementById('source-details');
-        const dateInput = document.getElementById('date');
 
         const isSalary = typeSelect?.value === 'income' &&
                          (categorySelect?.value || '').trim().toLowerCase().includes('salary');
@@ -634,7 +763,6 @@ class ExpenseTracker {
                 sourceDetailsSelect.parentElement.style.display = 'block';
             }
         } else {
-            // Restore default options
             if (paymentSourceSelect && paymentSourceSelect.disabled) {
                 paymentSourceSelect.innerHTML = `
                     <option value="">Select Source</option>
@@ -762,7 +890,7 @@ class ExpenseTracker {
     }
 
     async filterTransactions() {
-        if(this.currentCycleStart && this.currentCycleEnd) {
+        if (this.currentCycleStart && this.currentCycleEnd) {
             await this.loadTransactions(this.currentCycleStart, this.currentCycleEnd, false);
         }
     }
@@ -1020,7 +1148,7 @@ class ExpenseTracker {
             if (!error && data?.salary_account) this.salaryAccount = data.salary_account;
             
             const select = document.getElementById('salary-default-account');
-            if(select) select.value = this.salaryAccount;
+            if (select) select.value = this.salaryAccount;
         } catch { }
     }
 
