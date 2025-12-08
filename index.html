@@ -252,9 +252,13 @@
 
         <div id="dashboard" class="page" role="tabpanel" aria-labelledby="dashboard-tab">
             <div class="dashboard-header">
-                <h2 id="dashboard-title">My Finances</h2>
-                <div style="font-size: 0.9rem; color: #6b7280; margin-top: 5px;">
-                    <span id="cycle-label">Loading cycle...</span>
+                <div style="flex: 1;">
+                    <h2 id="dashboard-title">My Finances</h2>
+                </div>
+                <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
+                    <select id="cycle-history" style="padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; width: 100%; background: #fff;">
+                        <option value="current">Loading history...</option>
+                    </select>
                 </div>
             </div>
             

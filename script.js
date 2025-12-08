@@ -1,4 +1,4 @@
-// script.js - Auto-Fresh Salary Cycle & AI Coach Implementation
+// script.js - Advanced Salary-Cycle Expense Tracker & AI Coach
 
 // --- Authentication Functions (Unchanged) ---
 function showAuthTab(tab) {
@@ -115,18 +115,18 @@ class ExpenseTracker {
         this.loadOffset = 0;
         this.loadLimit = 10;
 
-        // Default Salary Account
+        // Default settings
         this.salaryAccount = 'UBI';
+        
+        // Track the currently viewed date range
+        this.currentCycleStart = null;
+        this.currentCycleEnd = null;
 
         this.paymentSources = {
             'upi': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
             'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
             'credit-card': ['ICICI Platinum', 'ICICI Amazon Pay', 'ICICI Coral', 'RBL Paisabazar', 'UBI CC']
         };
-
-        // Track the current cycle dates
-        this.currentCycleStart = null;
-        this.currentCycleEnd = null;
 
         this.currentUser = null;
         this.init();
@@ -145,8 +145,8 @@ class ExpenseTracker {
             await this.loadCategories();
             this.setTodayDate();
 
-            // ✅ AUTOMATICALLY DETECT LATEST SALARY & LOAD DASHBOARD
-            await this.loadCurrentCycle();
+            // ✅ INITIALIZE HISTORY DROPDOWN (This triggers the dashboard load)
+            await this.loadCycleHistory();
 
         } catch (error) {
             console.error('❌ Init failed:', error);
@@ -171,133 +171,122 @@ class ExpenseTracker {
         }
     }
 
-    // --- 🚀 NEW CORE LOGIC: AUTO-DETECT SALARY CYCLE ---
-    async loadCurrentCycle() {
-        console.log("♻️ Auto-detecting current salary cycle...");
-        const listEl = document.getElementById('transactions-list');
-        const labelEl = document.getElementById('cycle-label'); // Ensure you added this ID in HTML
-        const chartTitle = document.getElementById('line-chart-title');
+    // --- 🗓️ CYCLE HISTORY LOGIC ---
 
-        if (listEl) listEl.innerHTML = '<div class="loading">Finding latest salary...</div>';
+    async loadCycleHistory() {
+        const selector = document.getElementById('cycle-history');
+        if (!selector) return;
 
-        try {
-            // 1. Find the MOST RECENT transaction with "Salary" in the category
-            const { data, error } = await supabaseClient
-                .from('transactions')
-                .select('transaction_date, amount')
-                .eq('user_id', this.currentUser.id)
-                .eq('type', 'income')
-                .ilike('category', '%Salary%') // Case-insensitive match
-                .order('transaction_date', { ascending: false }) // Newest first
-                .limit(1);
+        // 1. Fetch ALL Salary entries, newest first
+        const { data: salaries, error } = await supabaseClient
+            .from('transactions')
+            .select('transaction_date, amount')
+            .eq('user_id', this.currentUser.id)
+            .eq('type', 'income')
+            .ilike('category', '%Salary%')
+            .order('transaction_date', { ascending: false });
 
-            let startDate;
-            let cycleDisplayName;
+        if (error || !salaries || salaries.length === 0) {
+            selector.innerHTML = '<option value="">No Salary Data Found</option>';
+            // If no salary exists, fallback to current calendar month
+            const d = new Date();
+            d.setDate(1);
+            const start = d.toISOString().split('T')[0];
+            const end = new Date().toISOString().split('T')[0];
+            this.loadSpecificCycle(start, end);
+            return;
+        }
 
-            if (data && data.length > 0) {
-                // Found a salary! This is our Anchor Date.
-                startDate = data[0].transaction_date;
+        selector.innerHTML = ''; // Clear existing options
+
+        // 2. Build Cycle Ranges
+        // Cycle starts on Salary Date, ends the day before the NEXT Salary Date
+        salaries.forEach((salary, index) => {
+            const startDate = salary.transaction_date;
+            let endDate;
+            let label;
+
+            if (index === 0) {
+                // Latest Salary (Current Cycle)
+                // End date is Today (or logic for next salary date if user wants to see future)
+                endDate = new Date().toISOString().split('T')[0]; 
                 const niceDate = new Date(startDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
-                cycleDisplayName = `Cycle: Since Salary on ${niceDate}`;
+                label = `Current: Since ${niceDate}`;
             } else {
-                // No salary found? Fallback to 1st of current month
-                const d = new Date();
-                d.setDate(1); 
-                startDate = d.toISOString().split('T')[0];
-                cycleDisplayName = "Current Month (No Salary Found)";
+                // Past Cycles
+                // The end date is the day BEFORE the salary that came after it (index - 1)
+                const nextSalaryDate = new Date(salaries[index - 1].transaction_date);
+                nextSalaryDate.setDate(nextSalaryDate.getDate() - 1);
+                endDate = nextSalaryDate.toISOString().split('T')[0];
+
+                const s = new Date(startDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
+                const e = new Date(endDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
+                label = `${s} - ${e}`;
             }
 
-            // 2. The End Date is ALWAYS Today (or future) to capture real-time status
-            // We want to see "How am I doing RIGHT NOW?"
-            const endDate = new Date().toISOString().split('T')[0];
+            // Create Option
+            const option = document.createElement('option');
+            option.value = `${startDate}|${endDate}`; // Store full range in value
+            option.textContent = label;
+            selector.appendChild(option);
+        });
 
-            // UI Updates
-            if (labelEl) labelEl.textContent = cycleDisplayName;
-            if (chartTitle) chartTitle.innerHTML = `<span>📈 Spending Trends (${cycleDisplayName})</span>`;
+        // 3. Automatically select the first option (Current) and load it
+        if (selector.options.length > 0) {
+            selector.selectedIndex = 0;
+            this.handleCycleChange(); 
+        }
+    }
 
-            // Save state
-            this.currentCycleStart = startDate;
-            this.currentCycleEnd = endDate;
-            this.loadOffset = 0;
-            this.transactions = [];
+    async handleCycleChange() {
+        const selector = document.getElementById('cycle-history');
+        const value = selector.value;
+        if (!value || !value.includes('|')) return;
 
-            // 3. Load Data Parallelly
-            // IMPORTANT: passing '0' as 3rd arg to updateStats ensures 
-            // "Remaining Budget" = (Salary + New Income) - (New Expenses)
-            // We do NOT add carry-forward balance. Fresh start.
+        const [startDate, endDate] = value.split('|');
+        await this.loadSpecificCycle(startDate, endDate);
+    }
+
+    async loadSpecificCycle(startDate, endDate) {
+        console.log(`Loading cycle: ${startDate} to ${endDate}`);
+        
+        // Update UI Title
+        const chartTitle = document.getElementById('line-chart-title');
+        const s = new Date(startDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
+        const e = new Date(endDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
+        if (chartTitle) chartTitle.innerHTML = `<span>📈 Trends: ${s} to ${e}</span>`;
+
+        // Save current view state
+        this.currentCycleStart = startDate;
+        this.currentCycleEnd = endDate;
+
+        // Reset Data Containers
+        this.transactions = [];
+        this.loadOffset = 0;
+        const listEl = document.getElementById('transactions-list');
+        if (listEl) listEl.innerHTML = '<div class="loading">Loading cycle data...</div>';
+
+        try {
             await Promise.all([
                 this.loadTransactions(startDate, endDate),
+                // Pass 0 to updateStats to ensure "Remaining Budget" calculates strictly within this range
+                // Net Balance = (Salary + Other Income inside range) - (Expenses inside range)
                 this.updateStats(startDate, endDate, 0), 
                 this.updateChart(startDate, endDate, 0),
                 this.updateExpenseDonutChart(startDate, endDate)
             ]);
 
-            // 4. Update Streak
+            // Update streak
             const streak = this.calculateNoSpendStreak(this.transactions, startDate, endDate);
             document.getElementById('current-streak').textContent = `${streak.currentStreak} Days`;
             document.getElementById('best-streak').textContent = `Best: ${streak.bestStreak} days`;
 
         } catch (error) {
-            console.error("Cycle Error", error);
-            this.showNotification('Failed to load cycle data', 'error');
+            console.error("Error loading cycle", error);
         }
     }
 
-    calculateNoSpendStreak(transactions, startDate, endDate) {
-        const days = {};
-        const start = new Date(startDate);
-        const end = new Date(); // Calculate streak up to TODAY, not future
-
-        // Initialize dates
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            days[d.toISOString().split('T')[0]] = true;
-        }
-
-        // Mark expense days
-        transactions.forEach(t => {
-            if (t.type === 'expense') {
-                days[t.transaction_date] = false;
-            }
-        });
-
-        let currentStreak = 0;
-        let bestStreak = 0;
-        const todayStr = new Date().toISOString().split('T')[0];
-
-        // Iterate backwards from today for current streak
-        let tempDate = new Date();
-        while (true) {
-            const dateStr = tempDate.toISOString().split('T')[0];
-            if (new Date(dateStr) < start) break;
-            
-            if (days[dateStr]) {
-                currentStreak++;
-            } else if (dateStr !== todayStr) {
-                // If today has an expense, streak is 0. If yesterday had expense, break.
-                // Allow "today" to be counted if no expense YET.
-                break;
-            } else if (dateStr === todayStr && !days[dateStr]) {
-                currentStreak = 0;
-                break;
-            }
-            tempDate.setDate(tempDate.getDate() - 1);
-        }
-        
-        // Calculate best streak historically in this period
-        let tempStreak = 0;
-        Object.keys(days).sort().forEach(date => {
-            if (days[date]) tempStreak++;
-            else {
-                bestStreak = Math.max(bestStreak, tempStreak);
-                tempStreak = 0;
-            }
-        });
-        bestStreak = Math.max(bestStreak, tempStreak);
-
-        return { currentStreak, bestStreak };
-    }
-
-    // --- ✨ NEW: AI COACH CAPABILITIES ---
+    // --- ✨ AI COACH CAPABILITIES ---
     async generateAIInsights() {
         const apiKey = document.getElementById('ai-api-key').value;
         const resultDiv = document.getElementById('ai-result');
@@ -325,7 +314,7 @@ class ExpenseTracker {
             .join('\n');
 
         const prompt = `
-            Act as a smart, slightly strict financial coach.
+            Act as a smart, strict financial coach.
             Current Cycle Status:
             - Income: ${income}
             - Spent: ${expense}
@@ -345,7 +334,6 @@ class ExpenseTracker {
         `;
 
         try {
-            // Call Gemini API (Safe for client-side demo, use backend for production)
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -367,6 +355,59 @@ class ExpenseTracker {
         } finally {
             loadingDiv.style.display = 'none';
         }
+    }
+
+    // --- CORE DATA FUNCTIONS ---
+
+    calculateNoSpendStreak(transactions, startDate, endDate) {
+        const days = {};
+        const start = new Date(startDate);
+        const end = new Date(); // Calculate streak up to TODAY
+
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            days[d.toISOString().split('T')[0]] = true;
+        }
+
+        transactions.forEach(t => {
+            if (t.type === 'expense') {
+                days[t.transaction_date] = false;
+            }
+        });
+
+        let currentStreak = 0;
+        let bestStreak = 0;
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        // Iterate backwards from today
+        let tempDate = new Date();
+        while (true) {
+            const dateStr = tempDate.toISOString().split('T')[0];
+            if (new Date(dateStr) < start) break;
+            
+            if (days[dateStr]) {
+                currentStreak++;
+            } else if (dateStr !== todayStr) {
+                // Break if missed a day (unless it's today and we haven't spent YET)
+                break;
+            } else if (dateStr === todayStr && !days[dateStr]) {
+                currentStreak = 0;
+                break;
+            }
+            tempDate.setDate(tempDate.getDate() - 1);
+        }
+        
+        // Calc best streak
+        let tempStreak = 0;
+        Object.keys(days).sort().forEach(date => {
+            if (days[date]) tempStreak++;
+            else {
+                bestStreak = Math.max(bestStreak, tempStreak);
+                tempStreak = 0;
+            }
+        });
+        bestStreak = Math.max(bestStreak, tempStreak);
+
+        return { currentStreak, bestStreak };
     }
 
     async loadCategories() {
@@ -465,9 +506,12 @@ class ExpenseTracker {
         document.getElementById('category')?.addEventListener('change', () => this.updateFormForSalary());
         document.getElementById('payment-source')?.addEventListener('change', () => this.updateSourceDetailsOptions());
 
-        // Filters
+        // Filters & Views
         document.getElementById('filter-type')?.addEventListener('change', () => this.filterTransactions());
         document.getElementById('filter-category')?.addEventListener('change', () => this.filterTransactions());
+        
+        // ✅ HISTORY DROPDOWN LISTENER
+        document.getElementById('cycle-history')?.addEventListener('change', () => this.handleCycleChange());
 
         // Buttons
         document.getElementById('load-more-btn')?.addEventListener('click', () => this.loadMoreTransactions());
@@ -475,8 +519,8 @@ class ExpenseTracker {
         document.getElementById('reset-chart-view-btn')?.addEventListener('click', () => this.renderChartBySource());
         document.getElementById('clear-form-btn')?.addEventListener('click', () => this.resetForm());
         document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
-
-        // ✅ AI BUTTON LISTENER
+        
+        // ✅ AI BUTTON
         document.getElementById('generate-ai-btn')?.addEventListener('click', () => this.generateAIInsights());
 
         // Page Navigation
@@ -516,21 +560,18 @@ class ExpenseTracker {
             this.showNotification('Transaction added successfully!', 'success');
             this.resetForm();
 
-            // ✅ AUTO-RESET LOGIC:
-            // If the user just added a SALARY, restart the cycle immediately.
+            // ✅ AUTO-UPDATE LOGIC
             const isSalary = transaction.type === 'income' && 
                              transaction.category.toLowerCase().includes('salary');
 
             if (isSalary) {
-                this.showNotification('🎉 New Salary Detected! Resetting Cycle...', 'success');
-                await this.loadCurrentCycle();
+                this.showNotification('🎉 New Salary Detected! Updating cycles...', 'success');
+                // Reload history to include the new salary cycle
+                await this.loadCycleHistory();
             } else {
-                // Otherwise, just refresh the current view
+                // Refresh current view
                 if (this.currentCycleStart && this.currentCycleEnd) {
-                    await this.loadTransactions(this.currentCycleStart, this.currentCycleEnd);
-                    await this.updateStats(this.currentCycleStart, this.currentCycleEnd, 0);
-                    await this.updateChart(this.currentCycleStart, this.currentCycleEnd, 0);
-                    await this.updateExpenseDonutChart(this.currentCycleStart, this.currentCycleEnd);
+                    await this.loadSpecificCycle(this.currentCycleStart, this.currentCycleEnd);
                 }
             }
         } catch (error) {
@@ -592,8 +633,6 @@ class ExpenseTracker {
                 sourceDetailsSelect.disabled = true;
                 sourceDetailsSelect.parentElement.style.display = 'block';
             }
-            // Auto-set date to today or last working day?
-            // For now, let user pick, but we could add logic here.
         } else {
             // Restore default options
             if (paymentSourceSelect && paymentSourceSelect.disabled) {
@@ -739,7 +778,6 @@ class ExpenseTracker {
 
             const stats = data?.[0] || { total_income: 0, total_expenses: 0, net_balance: 0 };
 
-            // In Auto-Fresh mode, prevMonthSalary is usually 0 because the new salary is IN the range.
             const finalIncome = Number(stats.total_income) + Number(prevMonthSalary);
             const finalBalance = Number(stats.net_balance) + Number(prevMonthSalary);
 
@@ -756,12 +794,6 @@ class ExpenseTracker {
         } catch (error) {
             console.error('Error updating stats:', error);
         }
-    }
-
-    isWeekend(dateStr) {
-        const d = new Date(dateStr);
-        const day = d.getDay(); // 0 = Sun, 6 = Sat
-        return day === 0 || day === 6;
     }
 
     async updateChart(startDate, endDate, prevMonthSalary = 0) {
@@ -781,19 +813,6 @@ class ExpenseTracker {
             if (this.chart) this.chart.destroy();
             const canvas = document.getElementById('chart');
             if (!canvas) return;
-
-            const weekendPlugin = {
-                id: 'weekendShade',
-                beforeDraw(chart) {
-                    const ctx = chart.ctx;
-                    const xAxis = chart.scales.x;
-                    const yAxis = chart.scales.y;
-                    chart.data.labels.forEach((label, i) => {
-                         // Simple approximation: check if label (DD MMM) falls on weekend
-                         // Better to use actual date logic if index matches logic
-                    });
-                }
-            };
 
             this.chart = new Chart(canvas.getContext('2d'), {
                 type: 'line',
@@ -837,8 +856,7 @@ class ExpenseTracker {
         const dailyData = {};
 
         const start = new Date(startDate + 'T00:00:00');
-        // Chart up to today or end date? Let's chart transactions found + range
-        const end = new Date(); // Only chart up to today to avoid empty space
+        const end = new Date(); // Chart up to today
 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
@@ -1025,7 +1043,6 @@ class ExpenseTracker {
 
 // --------------- Global Initialization ---------------
 document.addEventListener('DOMContentLoaded', () => {
-    // Auth UI listeners
     document.getElementById('login-form')?.addEventListener('submit', handleLogin);
     document.getElementById('signup-form')?.addEventListener('submit', handleSignup);
     document.getElementById('reset-form')?.addEventListener('submit', handleReset);
@@ -1037,7 +1054,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('back-to-login-btn')?.addEventListener('click', () => showAuthTab('login'));
 
-    // Auth state
     supabaseClient.auth.onAuthStateChange((event, session) => {
         const mainAppContainer = document.querySelector('.container');
         const authContainer = document.querySelector('#auth-container');
