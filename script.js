@@ -272,6 +272,7 @@ class ExpenseTracker {
     }
 
     // --- 📊 LOCAL AI COACH (NO EXTERNAL API) ---
+    // --- 📊 LOCAL AI COACH (NO EXTERNAL API) ---
     async generateLocalAIInsights() {
         const loading = document.getElementById('local-ai-loading');
         const result = document.getElementById('local-ai-result');
@@ -282,14 +283,38 @@ class ExpenseTracker {
         result.innerHTML = '';
 
         try {
-            // Analyse last 6 calendar months from today
-            const today = new Date();
-            const sixMonthsAgo = new Date();
-            sixMonthsAgo.setMonth(today.getMonth() - 6);
+            // ✅ 1. Find actual data range from transactions (NOT from today's date)
+            const { data: firstTx, error: firstErr } = await supabaseClient
+                .from('transactions')
+                .select('transaction_date')
+                .eq('user_id', this.currentUser.id)
+                .order('transaction_date', { ascending: true })
+                .limit(1);
 
-            const startDate = sixMonthsAgo.toISOString().split('T')[0];
-            const endDate = today.toISOString().split('T')[0];
+            const { data: lastTx, error: lastErr } = await supabaseClient
+                .from('transactions')
+                .select('transaction_date')
+                .eq('user_id', this.currentUser.id)
+                .order('transaction_date', { ascending: false })
+                .limit(1);
 
+            if (firstErr || lastErr) throw firstErr || lastErr;
+
+            if (!firstTx || !firstTx.length || !lastTx || !lastTx.length) {
+                result.innerHTML = `
+                    <p>
+                        I couldn't find any transactions for your account yet.  
+                        Add some data and then click <b>Analyze My Spending</b> again.
+                    </p>
+                `;
+                result.style.display = 'block';
+                return;
+            }
+
+            const startDate = firstTx[0].transaction_date;   // earliest date in your data
+            const endDate   = lastTx[0].transaction_date;    // latest date in your data
+
+            // ✅ 2. Fetch all transactions within that actual data range
             const { data, error } = await supabaseClient
                 .from('transactions')
                 .select('*')
@@ -304,8 +329,8 @@ class ExpenseTracker {
                 result.innerHTML = `
                     <p>
                         I only found <b>${data ? data.length : 0}</b> transactions between 
-                        <b>${this.prettyDate(startDate)}</b> and <b>${this.prettyDate(endDate)}</b>.
-                        That’s too little to say anything serious. Track a few more weeks and try again.
+                        <b>${this.prettyDate(startDate)}</b> and <b>${this.prettyDate(endDate)}</b>.  
+                        That’s too little to give solid insights. Track a bit more and try again.
                     </p>
                 `;
                 result.style.display = 'block';
@@ -314,6 +339,7 @@ class ExpenseTracker {
 
             const txs = data;
 
+            // --- the rest of the logic stays the same as before ---
             let totalIncome = 0;
             let totalExpenses = 0;
 
@@ -425,7 +451,7 @@ class ExpenseTracker {
             html += `<li>Total income <b>tracked in the app</b>: <b>${this.humanMoney(totalIncome)}</b></li>`;
             html += `<li>Total spending <b>tracked in the app</b>: <b>${this.humanMoney(totalExpenses)}</b></li>`;
             html += `<li>Unallocated amount (income − tracked expenses): <b>${this.humanMoney(trackerBalance)}</b><br>
-                     <small>⚠ This is <b>not guaranteed savings</b>. It just means this money is not recorded as an expense here — it could be actual savings, cash withdrawals you didn’t log, transfers, etc.</small></li>`;
+                    <small>⚠ This is <b>not guaranteed savings</b>. It just means this money is not recorded as an expense here — it could be actual savings, cash withdrawals you didn’t log, transfers, etc.</small></li>`;
             if (overspend > 0) {
                 html += `<li>You spent <b>${this.humanMoney(overspend)}</b> more than you earned (as per tracked data).</li>`;
             }
@@ -473,13 +499,20 @@ class ExpenseTracker {
             html += `<li>If you cut this by 20% → you could free up about <b>${this.humanMoney(potentialCut20)}</b> every month.</li>`;
             html += `</ul>`;
 
+            const healthScore = this.computeHealthScore({
+                totalIncome,
+                totalExpenses,
+                byBroadBucket,
+                monthsWithData
+            });
+
             html += `<h3>🧠 Overall Financial Health</h3>`;
             html += `<p>Based on your income vs expenses and share of lifestyle spend, I’d rate your financial health at <b>${healthScore}/10</b>.</p>`;
 
             html += `<h3>📌 3 Things To Do Before Next Salary</h3>`;
             html += `<ol>`;
             if (topCats[0]) {
-                html += `<li>Put a hard monthly cap on <b>${topCats[0][0]}</b>. Aim to spend at least 10–20% less than this month.</li>`;
+                html += `<li>Put a hard monthly cap on <b>${topCats[0][0]}</b>. Aim to spend at least 10–20% less than this period.</li>`;
             } else {
                 html += `<li>Pick one discretionary area (food delivery, shopping, cabs etc.) and set a strict weekly limit.</li>`;
             }
@@ -496,7 +529,8 @@ class ExpenseTracker {
         } finally {
             loading.style.display = 'none';
         }
-    }
+}
+
 
     // --- CORE DATA FUNCTIONS ---
 
