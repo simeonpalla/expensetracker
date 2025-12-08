@@ -146,7 +146,7 @@ class ExpenseTracker {
             await this.loadCategories();
             this.setTodayDate();
 
-            // Initialize Salary-cycle history dropdown (this will trigger dashboard load)
+            // Initialize salary-cycle history dropdown (this will trigger dashboard load)
             await this.loadCycleHistory();
 
         } catch (error) {
@@ -272,7 +272,6 @@ class ExpenseTracker {
     }
 
     // --- 📊 LOCAL AI COACH (NO EXTERNAL API) ---
-    // --- 📊 LOCAL AI COACH (NO EXTERNAL API) ---
     async generateLocalAIInsights() {
         const loading = document.getElementById('local-ai-loading');
         const result = document.getElementById('local-ai-result');
@@ -283,7 +282,7 @@ class ExpenseTracker {
         result.innerHTML = '';
 
         try {
-            // ✅ 1. Find actual data range from transactions (NOT from today's date)
+            // 1. Find actual data range from transactions (NOT from today's date)
             const { data: firstTx, error: firstErr } = await supabaseClient
                 .from('transactions')
                 .select('transaction_date')
@@ -314,7 +313,7 @@ class ExpenseTracker {
             const startDate = firstTx[0].transaction_date;   // earliest date in your data
             const endDate   = lastTx[0].transaction_date;    // latest date in your data
 
-            // ✅ 2. Fetch all transactions within that actual data range
+            // 2. Fetch all transactions within that actual data range
             const { data, error } = await supabaseClient
                 .from('transactions')
                 .select('*')
@@ -339,7 +338,6 @@ class ExpenseTracker {
 
             const txs = data;
 
-            // --- the rest of the logic stays the same as before ---
             let totalIncome = 0;
             let totalExpenses = 0;
 
@@ -499,13 +497,6 @@ class ExpenseTracker {
             html += `<li>If you cut this by 20% → you could free up about <b>${this.humanMoney(potentialCut20)}</b> every month.</li>`;
             html += `</ul>`;
 
-            const healthScore = this.computeHealthScore({
-                totalIncome,
-                totalExpenses,
-                byBroadBucket,
-                monthsWithData
-            });
-
             html += `<h3>🧠 Overall Financial Health</h3>`;
             html += `<p>Based on your income vs expenses and share of lifestyle spend, I’d rate your financial health at <b>${healthScore}/10</b>.</p>`;
 
@@ -529,8 +520,7 @@ class ExpenseTracker {
         } finally {
             loading.style.display = 'none';
         }
-}
-
+    }
 
     // --- CORE DATA FUNCTIONS ---
 
@@ -1026,7 +1016,7 @@ class ExpenseTracker {
         const dailyData = {};
 
         const start = new Date(startDate + 'T00:00:00');
-        const end = new Date(); // up to today
+        const end = new Date(endDate + 'T00:00:00'); // up to last date in the selected cycle
 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
