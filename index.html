@@ -397,38 +397,34 @@
                 </div>
             </div>
         </div>
-
-        <div id="ai-insights" class="page" role="tabpanel" aria-labelledby="ai-tab">
+        <div id="ai-nsights" class="page" role="tabpanel" aria-labelledby="ai-tab">
             <div class="dashboard-header">
-                <h2>💰 Financial AI Coach</h2>
+                <h2>💰 Financial Coach (Local)</h2>
             </div>
 
-            <div class="ai-container" style="text-align: center; max-width: 600px; margin: 0 auto;">
-                <div class="ai-card" style="background: linear-gradient(135deg, #f3e8ff 0%, #fae8ff 100%); padding: 30px; border-radius: 20px; border: 2px solid #d8b4fe; margin-bottom: 20px;">
-                    <div style="font-size: 40px; margin-bottom: 15px;">🤖</div>
-                    <h3>Analyze My Spending</h3>
-                    <p style="color: #6b7280; margin-bottom: 20px;">
-                        I will look at your spending in the current salary cycle and give you specific tips to save money.
+            <div class="ai-container" style="text-align: center; max-width: 700px; margin: 0 auto;">
+                <div class="ai-card" style="background: linear-gradient(135deg, #f3e8ff 0%, #fae8ff 100%); padding: 24px; border-radius: 20px; border: 2px solid #d8b4fe; margin-bottom: 20px;">
+                    <div style="font-size: 40px; margin-bottom: 12px;">🧠</div>
+                    <h3>Your Spending Pattern</h3>
+                    <p style="color: #6b7280; margin-bottom: 16px;">
+                        I’ll look at your expenses from the last 6 months and tell you where you’re
+                        <b>throwing money</b> and where you’re spending as required.
                     </p>
-                    
-                    <div id="ai-controls">
-                        <button id="generate-ai-btn" class="btn btn-primary" style="background: #9333ea; border:none;">
-                            ✨ Analyze This Cycle
-                        </button>
-                        <p style="font-size: 12px; color: #666; margin-top: 10px;">
-                            Runs fully on your data in the browser. No external API needed.
-                        </p>
-                    </div>
-                    
-                    <div id="ai-loading" style="display: none; margin-top: 20px;">
-                        <span class="status-dot connecting" style="background: #9333ea;"></span> Thinking...
-                    </div>
+
+                    <button id="generate-local-ai-btn" class="btn btn-primary" style="background: #9333ea; border:none;">
+                        🔍 Analyze My Pattern
+                    </button>
                 </div>
 
-                <div id="ai-result" class="ai-result" style="display: none; text-align: left; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); line-height: 1.6;">
+                <div id="local-ai-loading" style="display: none; margin-top: 10px; color:#6b7280;">
+                    <span class="status-dot connecting" style="background: #9333ea;"></span> Analyzing your history...
+                </div>
+
+                <div id="local-ai-result" class="ai-result" style="display: none; text-align: left; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); line-height: 1.6;">
                 </div>
             </div>
         </div>
+
 
         <footer role="contentinfo">
             <button id="logout-btn" 

@@ -99,3 +99,35 @@ footer{text-align:center;margin-top:40px;padding-bottom:20px}.logout-btn{backgro
 .stat-card{flex-direction:column;text-align:center}
 .stat-icon{font-size:3rem}
 }
+
+
+
+
+.insights-list {
+    margin-top: 12px;
+    list-style: none;
+    padding-left: 0;
+}
+
+.insight-item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    border: 1px solid #e5e7eb;
+}
+
+.insight-high {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.insight-medium {
+    border-color: #fde68a;
+    background: #fffbeb;
+}
+
+.insight-low {
+    border-color: #bbf7d0;
+    background: #ecfdf5;
+}
