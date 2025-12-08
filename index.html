@@ -145,6 +145,13 @@
                     aria-pressed="false">
                 <span aria-hidden="true">📁</span> Categories
             </button>
+            <button class="nav-tab" 
+                    id="ai-tab"
+                    data-page="ai-insights"
+                    aria-pressed="false"
+                    style="background: linear-gradient(135deg, #a855f7 0%, #d946ef 100%);">
+                <span aria-hidden="true">✨</span> AI Coach
+            </button>
         </nav>
 
         <div id="add-transaction" class="page active" role="tabpanel" aria-labelledby="add-transaction-tab">
@@ -245,10 +252,9 @@
 
         <div id="dashboard" class="page" role="tabpanel" aria-labelledby="dashboard-tab">
             <div class="dashboard-header">
-                <h2>Financial Dashboard</h2>
-                <div class="form-group">
-                    <label for="month-selector">Select Month</label>
-                    <input type="month" id="month-selector" aria-label="Select month to view">
+                <h2 id="dashboard-title">My Finances</h2>
+                <div style="font-size: 0.9rem; color: #6b7280; margin-top: 5px;">
+                    <span id="cycle-label">Loading cycle...</span>
                 </div>
             </div>
             
@@ -271,7 +277,7 @@
                     <div class="stat-icon" aria-hidden="true">💵</div>
                     <div class="stat-content">
                         <div class="stat-value" id="net-balance" aria-label="Net balance amount">₹0.00</div>
-                        <div class="stat-label">Net Balance</div>
+                        <div class="stat-label">Remaining Budget</div>
                     </div>
                 </div>
                 <div class="stat-card streak-card" id="streak-card">
@@ -384,6 +390,40 @@
                              role="group" 
                              aria-label="Expense categories"></div>
                     </div>
+                </div>
+            </div>
+        </div>
+        <div id="ai-insights" class="page" role="tabpanel" aria-labelledby="ai-tab">
+            <div class="dashboard-header">
+                <h2>💰 Financial AI Coach</h2>
+            </div>
+
+            <div class="ai-container" style="text-align: center; max-width: 600px; margin: 0 auto;">
+                <div class="ai-card" style="background: linear-gradient(135deg, #f3e8ff 0%, #fae8ff 100%); padding: 30px; border-radius: 20px; border: 2px solid #d8b4fe; margin-bottom: 20px;">
+                    <div style="font-size: 40px; margin-bottom: 15px;">🤖</div>
+                    <h3>Analyze My Spending</h3>
+                    <p style="color: #6b7280; margin-bottom: 20px;">
+                        I will look at your spending since your last salary and give you tips to save money.
+                    </p>
+                    
+                    <div id="ai-controls">
+                        <input type="password" id="ai-api-key" placeholder="Enter Gemini API Key" 
+                            style="padding: 12px; border-radius: 8px; border: 1px solid #ccc; width: 70%; margin-bottom: 15px;">
+                        <br>
+                        <button id="generate-ai-btn" class="btn btn-primary" style="background: #9333ea; border:none;">
+                            ✨ Analyze Now
+                        </button>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                            <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #9333ea;">Get a Free Gemini Key Here</a>
+                        </p>
+                    </div>
+                    
+                    <div id="ai-loading" style="display: none; margin-top: 20px;">
+                        <span class="status-dot connecting" style="background: #9333ea;"></span> Thinking...
+                    </div>
+                </div>
+
+                <div id="ai-result" class="ai-result" style="display: none; text-align: left; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); line-height: 1.6;">
                 </div>
             </div>
         </div>

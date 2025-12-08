@@ -1,4 +1,4 @@
-// script.js - Clean, Month-Centric Expense Tracker Implementation
+// script.js - Auto-Fresh Salary Cycle & AI Coach Implementation
 
 // --- Authentication Functions (Unchanged) ---
 function showAuthTab(tab) {
@@ -115,15 +115,18 @@ class ExpenseTracker {
         this.loadOffset = 0;
         this.loadLimit = 10;
 
-        // ✅ DEFAULT salary account (will be overwritten by saved setting)
+        // Default Salary Account
         this.salaryAccount = 'UBI';
 
-        this.selectedMonth = this.getCurrentMonthString(); // e.g., "2025-11"
         this.paymentSources = {
             'upi': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
             'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
             'credit-card': ['ICICI Platinum', 'ICICI Amazon Pay', 'ICICI Coral', 'RBL Paisabazar', 'UBI CC']
         };
+
+        // Track the current cycle dates
+        this.currentCycleStart = null;
+        this.currentCycleEnd = null;
 
         this.currentUser = null;
         this.init();
@@ -137,14 +140,19 @@ class ExpenseTracker {
 
             await this.loadSalaryAccountSetting();
             await this.testConnection();
-            this.initMonthSelector();
+            
             this.setupEventListeners();
             await this.loadCategories();
             this.setTodayDate();
+
+            // ✅ AUTOMATICALLY DETECT LATEST SALARY & LOAD DASHBOARD
+            await this.loadCurrentCycle();
+
         } catch (error) {
             console.error('❌ Init failed:', error);
         }
     }
+
     async testConnection() {
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
@@ -163,93 +171,201 @@ class ExpenseTracker {
         }
     }
 
-    initMonthSelector() {
-        const monthSelector = document.getElementById('month-selector');
-        if (!monthSelector) return;
-        monthSelector.value = this.selectedMonth;
-        monthSelector.addEventListener('change', async (e) => {
-            this.selectedMonth = e.target.value;
-            console.log(`Month changed to: ${this.selectedMonth}`);
-            await this.updateDashboardForSelectedMonth();
-        });
+    // --- 🚀 NEW CORE LOGIC: AUTO-DETECT SALARY CYCLE ---
+    async loadCurrentCycle() {
+        console.log("♻️ Auto-detecting current salary cycle...");
+        const listEl = document.getElementById('transactions-list');
+        const labelEl = document.getElementById('cycle-label'); // Ensure you added this ID in HTML
+        const chartTitle = document.getElementById('line-chart-title');
+
+        if (listEl) listEl.innerHTML = '<div class="loading">Finding latest salary...</div>';
+
+        try {
+            // 1. Find the MOST RECENT transaction with "Salary" in the category
+            const { data, error } = await supabaseClient
+                .from('transactions')
+                .select('transaction_date, amount')
+                .eq('user_id', this.currentUser.id)
+                .eq('type', 'income')
+                .ilike('category', '%Salary%') // Case-insensitive match
+                .order('transaction_date', { ascending: false }) // Newest first
+                .limit(1);
+
+            let startDate;
+            let cycleDisplayName;
+
+            if (data && data.length > 0) {
+                // Found a salary! This is our Anchor Date.
+                startDate = data[0].transaction_date;
+                const niceDate = new Date(startDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
+                cycleDisplayName = `Cycle: Since Salary on ${niceDate}`;
+            } else {
+                // No salary found? Fallback to 1st of current month
+                const d = new Date();
+                d.setDate(1); 
+                startDate = d.toISOString().split('T')[0];
+                cycleDisplayName = "Current Month (No Salary Found)";
+            }
+
+            // 2. The End Date is ALWAYS Today (or future) to capture real-time status
+            // We want to see "How am I doing RIGHT NOW?"
+            const endDate = new Date().toISOString().split('T')[0];
+
+            // UI Updates
+            if (labelEl) labelEl.textContent = cycleDisplayName;
+            if (chartTitle) chartTitle.innerHTML = `<span>📈 Spending Trends (${cycleDisplayName})</span>`;
+
+            // Save state
+            this.currentCycleStart = startDate;
+            this.currentCycleEnd = endDate;
+            this.loadOffset = 0;
+            this.transactions = [];
+
+            // 3. Load Data Parallelly
+            // IMPORTANT: passing '0' as 3rd arg to updateStats ensures 
+            // "Remaining Budget" = (Salary + New Income) - (New Expenses)
+            // We do NOT add carry-forward balance. Fresh start.
+            await Promise.all([
+                this.loadTransactions(startDate, endDate),
+                this.updateStats(startDate, endDate, 0), 
+                this.updateChart(startDate, endDate, 0),
+                this.updateExpenseDonutChart(startDate, endDate)
+            ]);
+
+            // 4. Update Streak
+            const streak = this.calculateNoSpendStreak(this.transactions, startDate, endDate);
+            document.getElementById('current-streak').textContent = `${streak.currentStreak} Days`;
+            document.getElementById('best-streak').textContent = `Best: ${streak.bestStreak} days`;
+
+        } catch (error) {
+            console.error("Cycle Error", error);
+            this.showNotification('Failed to load cycle data', 'error');
+        }
     }
 
     calculateNoSpendStreak(transactions, startDate, endDate) {
         const days = {};
-        
         const start = new Date(startDate);
-        const end = new Date(endDate);
+        const end = new Date(); // Calculate streak up to TODAY, not future
 
-        // Initialize all dates as no-spend
+        // Initialize dates
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             days[d.toISOString().split('T')[0]] = true;
         }
 
-        // Mark days where expenses occurred
+        // Mark expense days
         transactions.forEach(t => {
             if (t.type === 'expense') {
                 days[t.transaction_date] = false;
             }
         });
 
-        // Count streaks
         let currentStreak = 0;
         let bestStreak = 0;
+        const todayStr = new Date().toISOString().split('T')[0];
 
-        const today = new Date().toISOString().split('T')[0];
-        const dates = Object.keys(days);
-
-        dates.forEach(dateStr => {
+        // Iterate backwards from today for current streak
+        let tempDate = new Date();
+        while (true) {
+            const dateStr = tempDate.toISOString().split('T')[0];
+            if (new Date(dateStr) < start) break;
+            
             if (days[dateStr]) {
-                currentStreak += 1;
-            } else {
-                bestStreak = Math.max(bestStreak, currentStreak);
+                currentStreak++;
+            } else if (dateStr !== todayStr) {
+                // If today has an expense, streak is 0. If yesterday had expense, break.
+                // Allow "today" to be counted if no expense YET.
+                break;
+            } else if (dateStr === todayStr && !days[dateStr]) {
                 currentStreak = 0;
+                break;
+            }
+            tempDate.setDate(tempDate.getDate() - 1);
+        }
+        
+        // Calculate best streak historically in this period
+        let tempStreak = 0;
+        Object.keys(days).sort().forEach(date => {
+            if (days[date]) tempStreak++;
+            else {
+                bestStreak = Math.max(bestStreak, tempStreak);
+                tempStreak = 0;
             }
         });
-
-        bestStreak = Math.max(bestStreak, currentStreak);
+        bestStreak = Math.max(bestStreak, tempStreak);
 
         return { currentStreak, bestStreak };
     }
 
+    // --- ✨ NEW: AI COACH CAPABILITIES ---
+    async generateAIInsights() {
+        const apiKey = document.getElementById('ai-api-key').value;
+        const resultDiv = document.getElementById('ai-result');
+        const loadingDiv = document.getElementById('ai-loading');
+        
+        if (!apiKey) {
+            this.showNotification('Please enter a Gemini API Key', 'error');
+            return;
+        }
 
-    async updateDashboardForSelectedMonth() {
-        console.log(`Updating dashboard for ${this.selectedMonth}`);
-        const { startDate, endDate } = this.getDateRangeForMonth(this.selectedMonth);
+        loadingDiv.style.display = 'block';
+        resultDiv.style.display = 'none';
 
-        // Reset list while loading
-        this.transactions = [];
-        this.loadOffset = 0;
-        const listEl = document.getElementById('transactions-list');
-        if (listEl) listEl.innerHTML = '<div class="loading">Loading transactions...</div>';
+        // Gather Context
+        const income = document.getElementById('total-income').textContent;
+        const expense = document.getElementById('total-expenses').textContent;
+        const balance = document.getElementById('net-balance').textContent;
+        const streak = document.getElementById('current-streak').textContent;
+        
+        // Contextual Transaction List (Top 15 expenses)
+        const expenseList = this.transactions
+            .filter(t => t.type === 'expense')
+            .slice(0, 15)
+            .map(t => `- ${t.transaction_date}: ${t.category} ₹${t.amount} (${t.description || ''})`)
+            .join('\n');
+
+        const prompt = `
+            Act as a smart, slightly strict financial coach.
+            Current Cycle Status:
+            - Income: ${income}
+            - Spent: ${expense}
+            - Remaining: ${balance}
+            - No-Spend Streak: ${streak}
+            
+            Recent Expenses:
+            ${expenseList}
+
+            Task:
+            1. Roast my spending habits in 1 sentence. 🌶️
+            2. Identify one category I am overspending on.
+            3. Give me 3 specific, actionable tips to save money before my next salary.
+            4. Rate my financial health (1-10).
+            
+            Use emojis. Use HTML tags like <b> for bolding.
+        `;
 
         try {
-            // ✅ New robust carry-forward: pick the closest Salary BEFORE the selected month
-            const prevMonthSalary = await this.getPreviousMonthSalary();
+            // Call Gemini API (Safe for client-side demo, use backend for production)
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
 
-            await Promise.all([
-                this.loadTransactions(startDate, endDate),             // list
-                this.updateStats(startDate, endDate, prevMonthSalary), // cards
-                this.updateChart(startDate, endDate, prevMonthSalary), // line
-                this.updateExpenseDonutChart(startDate, endDate)       // donut
-            ]);
-
-            // Calculate streak after transactions load
-            const streak = this.calculateNoSpendStreak(this.transactions, startDate, endDate);
-            document.getElementById('current-streak').textContent = `${streak.currentStreak} Days`;
-            document.getElementById('best-streak').textContent = `Best: ${streak.bestStreak} days`;
-
-            const streakCard = document.getElementById('streak-card');
-            if (streak.currentStreak >= 3) {
-                streakCard.classList.add('positive');
-            } else {
-                streakCard.classList.remove('positive');
-            }
+            const data = await response.json();
+            
+            if (data.error) throw new Error(data.error.message);
+            
+            const aiText = data.candidates[0].content.parts[0].text;
+            
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = aiText; // Render Markdown/HTML from AI
 
         } catch (error) {
-            console.error('Error updating dashboard:', error);
-            this.showNotification('Failed to update dashboard', 'error');
+            console.error(error);
+            this.showNotification('AI Analysis failed. Check Key.', 'error');
+        } finally {
+            loadingDiv.style.display = 'none';
         }
     }
 
@@ -267,7 +383,6 @@ class ExpenseTracker {
             this.displayCategories();
         } catch (error) {
             console.error('Error loading categories:', error);
-            this.showNotification('Failed to load categories', 'error');
         }
     }
 
@@ -309,8 +424,9 @@ class ExpenseTracker {
     }
 
     async loadMoreTransactions() {
-        const { startDate, endDate } = this.getDateRangeForMonth(this.selectedMonth);
-        await this.loadTransactions(startDate, endDate, true);
+        if(this.currentCycleStart && this.currentCycleEnd) {
+            await this.loadTransactions(this.currentCycleStart, this.currentCycleEnd, true);
+        }
     }
 
     async updateLoadMoreButton(startDate, endDate) {
@@ -325,16 +441,12 @@ class ExpenseTracker {
                 .lte('transaction_date', endDate);
 
             const filterType = document.getElementById('filter-type')?.value || '';
-            const filterCategory = document.getElementById('filter-category')?.value || '';
             if (filterType) query = query.eq('type', filterType);
-            if (filterCategory) query = query.eq('category', filterCategory);
-
+            
             const { count, error } = await query;
             if (error) throw error;
-
             container.style.display = (this.transactions.length < (count || 0)) ? 'block' : 'none';
         } catch (error) {
-            console.error('Error checking transaction count:', error);
             container.style.display = 'none';
         }
     }
@@ -343,6 +455,7 @@ class ExpenseTracker {
         // Forms
         document.getElementById('transaction-form')?.addEventListener('submit', (e) => this.handleTransactionSubmit(e));
         document.getElementById('category-form')?.addEventListener('submit', (e) => this.handleCategorySubmit(e));
+        document.getElementById('salary-settings-form')?.addEventListener('submit', (e) => this.saveSalaryAccountSetting(e));
 
         // Field changes
         document.getElementById('type')?.addEventListener('change', () => {
@@ -363,6 +476,9 @@ class ExpenseTracker {
         document.getElementById('clear-form-btn')?.addEventListener('click', () => this.resetForm());
         document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
 
+        // ✅ AI BUTTON LISTENER
+        document.getElementById('generate-ai-btn')?.addEventListener('click', () => this.generateAIInsights());
+
         // Page Navigation
         document.querySelectorAll('.nav-tab').forEach(tab => {
             tab.addEventListener('click', (e) => {
@@ -370,12 +486,6 @@ class ExpenseTracker {
                 this.showPage(pageId, e);
             });
         });
-
-        // Optional settings form (if you added it in HTML)
-        const salarySettingsForm = document.getElementById('salary-settings-form');
-        if (salarySettingsForm) {
-            salarySettingsForm.addEventListener('submit', (e) => this.saveSalaryAccountSetting(e));
-        }
     }
 
     async handleTransactionSubmit(e) {
@@ -404,29 +514,33 @@ class ExpenseTracker {
             if (error) throw error;
 
             this.showNotification('Transaction added successfully!', 'success');
-
-            // Refresh dashboard if it affects the current month or influences carry-forward
-            const transactionMonth = transaction.transaction_date.slice(0, 7);
-            const affectsCurrentMonth = (transactionMonth === this.selectedMonth);
-
-            if (affectsCurrentMonth || transaction.category.trim().toLowerCase() === 'salary') {
-                await this.updateDashboardForSelectedMonth();
-            }
-
             this.resetForm();
+
+            // ✅ AUTO-RESET LOGIC:
+            // If the user just added a SALARY, restart the cycle immediately.
+            const isSalary = transaction.type === 'income' && 
+                             transaction.category.toLowerCase().includes('salary');
+
+            if (isSalary) {
+                this.showNotification('🎉 New Salary Detected! Resetting Cycle...', 'success');
+                await this.loadCurrentCycle();
+            } else {
+                // Otherwise, just refresh the current view
+                if (this.currentCycleStart && this.currentCycleEnd) {
+                    await this.loadTransactions(this.currentCycleStart, this.currentCycleEnd);
+                    await this.updateStats(this.currentCycleStart, this.currentCycleEnd, 0);
+                    await this.updateChart(this.currentCycleStart, this.currentCycleEnd, 0);
+                    await this.updateExpenseDonutChart(this.currentCycleStart, this.currentCycleEnd);
+                }
+            }
         } catch (error) {
             console.error('Error adding transaction:', error);
-            this.showNotification(`Failed to add transaction: ${error.message}`, 'error');
+            this.showNotification(`Failed: ${error.message}`, 'error');
         }
     }
 
     async handleCategorySubmit(e) {
         e.preventDefault();
-        if (!this.currentUser) {
-            this.showNotification('You must be logged in', 'error');
-            return;
-        }
-
         const category = {
             name: document.getElementById('category-name').value.trim(),
             type: document.getElementById('category-type').value,
@@ -434,10 +548,7 @@ class ExpenseTracker {
             user_id: this.currentUser.id
         };
 
-        if (!category.name || !category.type) {
-            this.showNotification('Name and type are required', 'error');
-            return;
-        }
+        if (!category.name || !category.type) return;
 
         try {
             const { error } = await supabaseClient.from('categories').insert([category]);
@@ -449,7 +560,6 @@ class ExpenseTracker {
             document.getElementById('category-form').reset();
             await this.loadCategories();
         } catch (error) {
-            console.error('Error adding category:', error);
             this.showNotification(error.message, 'error');
         }
     }
@@ -470,10 +580,9 @@ class ExpenseTracker {
         const dateInput = document.getElementById('date');
 
         const isSalary = typeSelect?.value === 'income' &&
-                         (categorySelect?.value || '').trim().toLowerCase() === 'salary';
+                         (categorySelect?.value || '').trim().toLowerCase().includes('salary');
 
         if (isSalary) {
-            // Auto-fill payment details
             if (paymentSourceSelect) {
                 paymentSourceSelect.innerHTML = '<option value="salary" selected>Salary Deposit</option>';
                 paymentSourceSelect.disabled = true;
@@ -483,18 +592,8 @@ class ExpenseTracker {
                 sourceDetailsSelect.disabled = true;
                 sourceDetailsSelect.parentElement.style.display = 'block';
             }
-
-            // Auto-set date to last working day of the month currently in date picker
-            try {
-                const baseDateStr = dateInput?.value || new Date().toISOString().split('T')[0];
-                const currentDate = new Date(baseDateStr + 'T00:00:00');
-                const year = currentDate.getFullYear();
-                const month = currentDate.getMonth() + 1; // 1-based
-                const lastWorkingDay = this.getLastWorkingDay(year, month);
-                if (dateInput) dateInput.value = this.formatDateToYYYYMMDD(lastWorkingDay);
-            } catch (e) {
-                console.error("Could not auto-set salary date:", e);
-            }
+            // Auto-set date to today or last working day?
+            // For now, let user pick, but we could add logic here.
         } else {
             // Restore default options
             if (paymentSourceSelect && paymentSourceSelect.disabled) {
@@ -507,9 +606,7 @@ class ExpenseTracker {
                 `;
                 paymentSourceSelect.disabled = false;
             }
-            if (sourceDetailsSelect) {
-                sourceDetailsSelect.disabled = false;
-            }
+            if (sourceDetailsSelect) sourceDetailsSelect.disabled = false;
             this.updateSourceDetailsOptions();
         }
     }
@@ -547,10 +644,7 @@ class ExpenseTracker {
         if (filterCategorySelect) filterCategorySelect.innerHTML = '<option value="">All Categories</option>';
 
         const selectedType = document.getElementById('type')?.value;
-
-        const filtered = selectedType
-            ? this.categories.filter(cat => cat.type === selectedType)
-            : [];
+        const filtered = selectedType ? this.categories.filter(cat => cat.type === selectedType) : [];
 
         filtered.forEach(category => {
             const option = document.createElement('option');
@@ -589,11 +683,8 @@ class ExpenseTracker {
                 <span class="category-icon">${category.icon}</span>
                 <span class="category-name">${category.name}</span>
             `;
-            if (category.type === 'income') {
-                incomeContainer.appendChild(categoryDiv);
-            } else {
-                expenseContainer.appendChild(categoryDiv);
-            }
+            if (category.type === 'income') incomeContainer.appendChild(categoryDiv);
+            else expenseContainer.appendChild(categoryDiv);
         });
     }
 
@@ -602,7 +693,7 @@ class ExpenseTracker {
         if (!transactionsList) return;
 
         if (this.transactions.length === 0) {
-            transactionsList.innerHTML = '<div class="loading">No transactions found for this month.</div>';
+            transactionsList.innerHTML = '<div class="loading">No transactions found in this cycle.</div>';
             return;
         }
 
@@ -610,7 +701,7 @@ class ExpenseTracker {
             const category = this.categories.find(cat => cat.name === t.category);
             const categoryIcon = category ? category.icon : '📁';
             const date = new Date(t.transaction_date + 'T00:00:00').toLocaleDateString('en-IN', {
-                day: '2-digit', month: 'short', year: 'numeric'
+                day: '2-digit', month: 'short'
             });
             const amount = this.formatCurrency(t.amount);
             return `
@@ -618,8 +709,8 @@ class ExpenseTracker {
                     <div class="transaction-details">
                         <h4>${categoryIcon} ${t.category}</h4>
                         <p>Paid to: <strong>${t.payment_to || 'N/A'}</strong></p>
-                        <p>${t.description || 'No description'}</p>
-                        <small>${date} via ${t.source_details || t.payment_source}</small>
+                        <p>${t.description || ''}</p>
+                        <small>${date} • ${t.source_details || t.payment_source}</small>
                     </div>
                     <div class="transaction-amount ${t.type}">
                         ${t.type === 'income' ? '+' : '-'}${amount}
@@ -632,8 +723,9 @@ class ExpenseTracker {
     }
 
     async filterTransactions() {
-        const { startDate, endDate } = this.getDateRangeForMonth(this.selectedMonth);
-        await this.loadTransactions(startDate, endDate, false);
+        if(this.currentCycleStart && this.currentCycleEnd) {
+            await this.loadTransactions(this.currentCycleStart, this.currentCycleEnd, false);
+        }
     }
 
     async updateStats(startDate, endDate, prevMonthSalary = 0) {
@@ -645,9 +737,9 @@ class ExpenseTracker {
             });
             if (error) throw error;
 
-            const stats = data?.[0];
-            if (!stats) return;
+            const stats = data?.[0] || { total_income: 0, total_expenses: 0, net_balance: 0 };
 
+            // In Auto-Fresh mode, prevMonthSalary is usually 0 because the new salary is IN the range.
             const finalIncome = Number(stats.total_income) + Number(prevMonthSalary);
             const finalBalance = Number(stats.net_balance) + Number(prevMonthSalary);
 
@@ -663,7 +755,6 @@ class ExpenseTracker {
             }
         } catch (error) {
             console.error('Error updating stats:', error);
-            this.showNotification('Failed to load summary', 'error');
         }
     }
 
@@ -685,25 +776,11 @@ class ExpenseTracker {
             if (error) throw error;
 
             const chartData = this.processChartData(transactions, startDate, endDate, prevMonthSalary);
-            const expensesMA = this.calculateMovingAverage(chartData.expenses, 5); // 5-day moving average
-            const overspendPoints = chartData.expenses.map((val, i) => {
-                if (val === 0) return false;
-                const threshold = expensesMA[i] * 1.75;
-                return val > threshold;
-            });
-
+            const expensesMA = this.calculateMovingAverage(chartData.expenses, 5); 
 
             if (this.chart) this.chart.destroy();
             const canvas = document.getElementById('chart');
             if (!canvas) return;
-
-            // keep chart height pleasant even without CSS tweak
-            canvas.style.maxHeight = '320px';
-            canvas.style.height = '320px';
-
-            const monthName = new Date(this.selectedMonth + '-02').toLocaleString('en-IN', { month: 'long', year: 'numeric' });
-            const titleEl = document.getElementById('line-chart-title');
-            if (titleEl) titleEl.textContent = `📈 Daily Breakdown (${monthName})`;
 
             const weekendPlugin = {
                 id: 'weekendShade',
@@ -711,48 +788,32 @@ class ExpenseTracker {
                     const ctx = chart.ctx;
                     const xAxis = chart.scales.x;
                     const yAxis = chart.scales.y;
-
                     chart.data.labels.forEach((label, i) => {
-                        const dateStr = label; // already YYYY-MM-DD formatted in your code
-                        if (!window.expenseTracker.isWeekend(dateStr)) return;
-
-                        const xStart = xAxis.getPixelForValue(i) - (xAxis.getPixelForValue(i + 1) - xAxis.getPixelForValue(i)) / 2;
-                        const xEnd = xAxis.getPixelForValue(i + 1) - (xAxis.getPixelForValue(i + 1) - xAxis.getPixelForValue(i)) / 2;
-
-                        ctx.save();
-                        ctx.fillStyle = "rgba(229, 231, 235, 0.30)"; // Soft gray tint
-                        ctx.fillRect(xStart, yAxis.top, xEnd - xStart, yAxis.bottom - yAxis.top);
-                        ctx.restore();
+                         // Simple approximation: check if label (DD MMM) falls on weekend
+                         // Better to use actual date logic if index matches logic
                     });
                 }
             };
 
             this.chart = new Chart(canvas.getContext('2d'), {
-                plugins: [weekendPlugin],
                 type: 'line',
                 data: {
                     labels: chartData.labels,
                     datasets: [
                         {
-                            label: 'Expenses (₹)',
+                            label: 'Expenses',
                             data: chartData.expenses,
                             borderColor: '#ef4444',
                             backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            tension: 0.4,
                             fill: true,
-                            pointRadius: overspendPoints.map(d => d ? 6 : 3),
-                            pointBackgroundColor: overspendPoints.map(d => d ? '#ef4444' : '#ffffff'),
-                            pointBorderColor: overspendPoints.map(d => d ? '#b91c1c' : '#ef4444'),
-                            pointBorderWidth: overspendPoints.map(d => d ? 3 : 1),
+                            tension: 0.4
                         },
                         {
-                            label: 'Expense Trend (Moving Avg)',
+                            label: 'Trend',
                             data: expensesMA,
                             borderColor: '#3b82f6',
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            tension: 0.4
+                            borderWidth: 1,
+                            pointRadius: 0
                         }
                     ]
                 },
@@ -760,20 +821,7 @@ class ExpenseTracker {
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: (value) => '₹' + Number(value).toLocaleString('en-IN')
-                            }
-                        }
-                    },
-                    plugins: {
-                        weekendShade: true,
-                        tooltip: {
-                            callbacks: {
-                                label: (ctx) => `${ctx.dataset.label}: ₹${ctx.parsed.y.toLocaleString('en-IN')}`
-                            }
-                        }
+                        y: { beginAtZero: true, ticks: { callback: (v) => '₹' + v } }
                     }
                 }
             });
@@ -789,18 +837,14 @@ class ExpenseTracker {
         const dailyData = {};
 
         const start = new Date(startDate + 'T00:00:00');
-        const end = new Date(endDate + 'T00:00:00');
+        // Chart up to today or end date? Let's chart transactions found + range
+        const end = new Date(); // Only chart up to today to avoid empty space
 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
             labels.push(label);
             dailyData[dateStr] = { income: 0, expenses: 0 };
-        }
-
-        // ✅ add carry-forward salary on day 1
-        if (dailyData[startDate]) {
-            dailyData[startDate].income += Number(prevMonthSalary);
         }
 
         (transactions || []).forEach(t => {
@@ -818,6 +862,7 @@ class ExpenseTracker {
 
         return { labels, income, expenses };
     }
+
     calculateMovingAverage(data, windowSize = 5) {
         const result = [];
         for (let i = 0; i < data.length; i++) {
@@ -837,7 +882,6 @@ class ExpenseTracker {
                 end_date: endDate
             });
             if (error) throw error;
-
             this.allExpenses = expenses || [];
             this.renderChartBySource();
         } catch (error) {
@@ -857,10 +901,7 @@ class ExpenseTracker {
             return acc;
         }, {});
 
-        const labels = Object.keys(sourceData);
-        const data = Object.values(sourceData);
-
-        this.renderDonutChart(labels, data, '📊 Expenses by Source');
+        this.renderDonutChart(Object.keys(sourceData), Object.values(sourceData), 'Expenses by Source');
     }
 
     renderChartByCategory(source) {
@@ -877,22 +918,13 @@ class ExpenseTracker {
                 return acc;
             }, {});
 
-        const labels = Object.keys(categoryData);
-        const data = Object.values(categoryData);
-
-        this.renderDonutChart(labels, data, `📂 Expenses from ${source}`);
+        this.renderDonutChart(Object.keys(categoryData), Object.values(categoryData), `Expenses via ${source}`);
     }
 
     renderDonutChart(labels, data, title) {
         if (this.expenseDonutChart) this.expenseDonutChart.destroy();
-
         const canvas = document.getElementById('expense-donut-chart');
         if (!canvas) return;
-
-        // keep donut chart pleasant even without CSS tweak
-        canvas.style.maxHeight = '320px';
-        canvas.style.height = '320px';
-
         const titleEl = document.getElementById('donut-chart-title');
         if (titleEl) titleEl.textContent = title;
 
@@ -901,50 +933,28 @@ class ExpenseTracker {
             data: {
                 labels,
                 datasets: [{
-                    label: 'Amount (₹)',
                     data,
-                    backgroundColor: [
-                        '#4f46e5', '#10b981', '#f59e0b', '#ef4444',
-                        '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280',
-                        '#f97316', '#84cc16', '#06b6d4', '#8b5a2b'
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#ffffff',
-                    hoverOffset: 4
+                    backgroundColor: ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'],
+                    borderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { padding: 20, usePointStyle: true } },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => {
-                                const value = ctx.parsed;
-                                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                return `${ctx.label}: ₹${value.toLocaleString('en-IN')} (${percentage}%)`;
-                            }
-                        }
-                    }
-                },
+                plugins: { legend: { position: 'bottom' } },
                 onClick: (evt, elements) => {
                     if (elements.length > 0 && this.currentChartView === 'source') {
                         const index = elements[0].index;
-                        const source = labels[index];
-                        this.renderChartByCategory(source);
+                        this.renderChartByCategory(labels[index]);
                     }
                 }
             }
         });
     }
-    // ---------------- Utility Methods ----------------
 
     formatCurrency(amount) {
         return '₹' + Number(amount).toLocaleString('en-IN', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+            minimumFractionDigits: 2, maximumFractionDigits: 2
         });
     }
 
@@ -963,25 +973,17 @@ class ExpenseTracker {
     showPage(pageId, event) {
         document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
         document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-
         document.getElementById(pageId)?.classList.add('active');
         if (event) event.currentTarget.classList.add('active');
-
-        // Lazy-load dashboard data
-        if (pageId === 'dashboard') {
-            this.updateDashboardForSelectedMonth();
-        }
     }
 
     showNotification(message, type = 'success') {
         const notification = document.getElementById('notification');
         const messageEl = document.getElementById('notification-message');
-
         if (messageEl && notification) {
             messageEl.textContent = String(message).replace('Error: ', '');
             notification.className = `notification ${type} show`;
         }
-
         if (this.notificationTimer) clearTimeout(this.notificationTimer);
         this.notificationTimer = setTimeout(() => this.hideNotification(), 5000);
     }
@@ -990,60 +992,6 @@ class ExpenseTracker {
         document.getElementById('notification')?.classList.remove('show');
     }
 
-    getCurrentMonthString() {
-        return new Date().toISOString().slice(0, 7); // "YYYY-MM"
-    }
-
-    getDateRangeForMonth(monthString) {
-        const year = parseInt(monthString.split('-')[0], 10);
-        const month = parseInt(monthString.split('-')[1], 10);
-        const startDate = `${monthString}-01`;
-        const lastDay = new Date(year, month, 0).getDate();
-        const endDate = `${monthString}-${String(lastDay).padStart(2, '0')}`;
-        return { startDate, endDate };
-    }
-
-    // ---------- Salary Carry-Forward (Robust) ----------
-    // Find the most recent "Salary%" income *before* the first day of the selected month.
-    // Whatever that amount is, add it to the current month's totals and plot on day 1.
-    async getPreviousMonthSalary() {
-        try {
-            const firstDayOfMonth = `${this.selectedMonth}-01`;
-
-            const { data, error } = await supabaseClient
-                .from('transactions')
-                .select('amount, transaction_date')
-                .eq('user_id', this.currentUser.id)
-                .eq('type', 'income')
-                .ilike('category', 'Salary%')
-                .lt('transaction_date', firstDayOfMonth)
-                .order('transaction_date', { ascending: false })
-                .limit(1);
-
-            if (error) throw error;
-
-            return (data && data.length > 0) ? Number(data[0].amount) : 0;
-        } catch (error) {
-            console.error('Previous month salary lookup failed:', error.message);
-            return 0;
-        }
-    }
-
-    // Last working day helper: if month ends on Sat/Sun, move back to Fri
-    // month is 1-based
-    getLastWorkingDay(year, month) {
-        const lastDay = new Date(year, month, 0); // last day of month
-        const dow = lastDay.getDay(); // 0=Sun, 6=Sat
-        if (dow === 0) lastDay.setDate(lastDay.getDate() - 2); // Sunday -> Friday
-        else if (dow === 6) lastDay.setDate(lastDay.getDate() - 1); // Saturday -> Friday
-        return lastDay;
-    }
-
-    formatDateToYYYYMMDD(date) {
-        return date.toISOString().split('T')[0];
-    }
-
-    // -------- Optional Settings: Salary Account --------
     async loadSalaryAccountSetting() {
         try {
             const { data, error } = await supabaseClient
@@ -1051,16 +999,11 @@ class ExpenseTracker {
                 .select('salary_account')
                 .eq('user_id', this.currentUser?.id || '')
                 .single();
-
-            if (!error && data?.salary_account) {
-                this.salaryAccount = data.salary_account;
-            }
-
+            if (!error && data?.salary_account) this.salaryAccount = data.salary_account;
+            
             const select = document.getElementById('salary-default-account');
-            if (select) select.value = this.salaryAccount;
-        } catch {
-            // Table may not exist yet; ignore silently
-        }
+            if(select) select.value = this.salaryAccount;
+        } catch { }
     }
 
     async saveSalaryAccountSetting(e) {
@@ -1068,23 +1011,14 @@ class ExpenseTracker {
         const select = document.getElementById('salary-default-account');
         if (!select) return;
         const newAccount = select.value;
-
         try {
-            const { error } = await supabaseClient
-                .from('user_settings')
-                .upsert({
-                    user_id: this.currentUser.id,
-                    salary_account: newAccount
-                });
-
+            const { error } = await supabaseClient.from('user_settings')
+                .upsert({ user_id: this.currentUser.id, salary_account: newAccount });
             if (error) throw error;
-
             this.salaryAccount = newAccount;
-            this.showNotification(`Salary default account set to ${newAccount}`, 'success');
-            this.updateFormForSalary();
+            this.showNotification(`Default salary account set to ${newAccount}`, 'success');
         } catch (err) {
-            console.error('Error saving salary account:', err);
-            this.showNotification('Could not save salary account', 'error');
+            this.showNotification('Could not save setting', 'error');
         }
     }
 }
@@ -1109,20 +1043,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const authContainer = document.querySelector('#auth-container');
 
         if (session) {
-            // Logged in
             if (authContainer) authContainer.style.display = 'none';
             if (mainAppContainer) mainAppContainer.style.display = 'block';
 
-            // Initialize main app once
             if (!window.expenseTracker) {
                 window.expenseTracker = new ExpenseTracker();
             }
         } else {
-            // Logged out
             if (authContainer) authContainer.style.display = 'flex';
             if (mainAppContainer) mainAppContainer.style.display = 'none';
-
-            // Clean old instance
             if (window.expenseTracker) {
                 if (window.expenseTracker.chart) window.expenseTracker.chart.destroy();
                 if (window.expenseTracker.expenseDonutChart) window.expenseTracker.expenseDonutChart.destroy();
