@@ -1,6 +1,6 @@
 // script.js - Advanced Salary-Cycle Expense Tracker & Local AI Coach
 
-// --- Authentication Functions (Unchanged) ---
+// --- Authentication Functions ---
 function showAuthTab(tab) {
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('signup-form').style.display = 'none';
@@ -129,6 +129,7 @@ class ExpenseTracker {
         };
 
         this.currentUser = null;
+        this.notificationTimer = null;
         this.init();
     }
 
@@ -145,7 +146,7 @@ class ExpenseTracker {
             await this.loadCategories();
             this.setTodayDate();
 
-            // Initialize salary-cycle history and default dashboard view
+            // Initialize Salary-cycle history dropdown (this will trigger dashboard load)
             await this.loadCycleHistory();
 
         } catch (error) {
@@ -161,8 +162,8 @@ class ExpenseTracker {
                 .from('categories')
                 .select('*', { count: 'exact', head: true });
             if (error) throw error;
-            statusDot.className = 'status-dot connected';
-            statusText.textContent = 'Connected to database';
+            if (statusDot) statusDot.className = 'status-dot connected';
+            if (statusText) statusText.textContent = 'Connected to database';
         } catch (error) {
             console.error('Database connection error:', error);
             if (statusDot) statusDot.className = 'status-dot error';
@@ -177,7 +178,6 @@ class ExpenseTracker {
         const selector = document.getElementById('cycle-history');
         if (!selector) return;
 
-        // 1. Fetch ALL Salary entries, newest first
         const { data: salaries, error } = await supabaseClient
             .from('transactions')
             .select('transaction_date, amount')
@@ -188,31 +188,26 @@ class ExpenseTracker {
 
         if (error || !salaries || salaries.length === 0) {
             selector.innerHTML = '<option value="">No Salary Data Found</option>';
-            // Fallback to current calendar month view
             const d = new Date();
             d.setDate(1);
             const start = d.toISOString().split('T')[0];
             const end = new Date().toISOString().split('T')[0];
-            await this.loadSpecificCycle(start, end);
+            this.loadSpecificCycle(start, end);
             return;
         }
 
-        selector.innerHTML = ''; // Clear existing options
+        selector.innerHTML = '';
 
-        // 2. Build Cycle Ranges
-        // Cycle starts on Salary Date, ends the day before the NEXT Salary Date
         salaries.forEach((salary, index) => {
             const startDate = salary.transaction_date;
             let endDate;
             let label;
 
             if (index === 0) {
-                // Latest Salary (Current Cycle): end = today
-                endDate = new Date().toISOString().split('T')[0]; 
+                endDate = new Date().toISOString().split('T')[0];
                 const niceDate = new Date(startDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
                 label = `Current: Since ${niceDate}`;
             } else {
-                // Past cycles: end = day before next salary
                 const nextSalaryDate = new Date(salaries[index - 1].transaction_date);
                 nextSalaryDate.setDate(nextSalaryDate.getDate() - 1);
                 endDate = nextSalaryDate.toISOString().split('T')[0];
@@ -228,10 +223,9 @@ class ExpenseTracker {
             selector.appendChild(option);
         });
 
-        // 3. Automatically select current cycle and load it
         if (selector.options.length > 0) {
             selector.selectedIndex = 0;
-            await this.handleCycleChange(); 
+            this.handleCycleChange(); 
         }
     }
 
@@ -247,17 +241,14 @@ class ExpenseTracker {
     async loadSpecificCycle(startDate, endDate) {
         console.log(`Loading cycle: ${startDate} to ${endDate}`);
         
-        // Update UI Title
         const chartTitle = document.getElementById('line-chart-title');
         const s = new Date(startDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
         const e = new Date(endDate).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
         if (chartTitle) chartTitle.innerHTML = `<span>📈 Trends: ${s} to ${e}</span>`;
 
-        // Save current view state
         this.currentCycleStart = startDate;
         this.currentCycleEnd = endDate;
 
-        // Reset Data Containers
         this.transactions = [];
         this.loadOffset = 0;
         const listEl = document.getElementById('transactions-list');
@@ -266,20 +257,244 @@ class ExpenseTracker {
         try {
             await Promise.all([
                 this.loadTransactions(startDate, endDate),
-                // Net Balance = (Income inside range) - (Expenses inside range)
-                this.updateStats(startDate, endDate, 0), 
+                this.updateStats(startDate, endDate, 0),
                 this.updateChart(startDate, endDate, 0),
                 this.updateExpenseDonutChart(startDate, endDate)
             ]);
 
-            // Update no-spend streak
             const streak = this.calculateNoSpendStreak(this.transactions, startDate, endDate);
             document.getElementById('current-streak').textContent = `${streak.currentStreak} Days`;
             document.getElementById('best-streak').textContent = `Best: ${streak.bestStreak} days`;
 
         } catch (error) {
             console.error("Error loading cycle", error);
-            this.showNotification('Failed to load cycle', 'error');
+        }
+    }
+
+    // --- 📊 LOCAL AI COACH (NO EXTERNAL API) ---
+    async generateLocalAIInsights() {
+        const loading = document.getElementById('local-ai-loading');
+        const result = document.getElementById('local-ai-result');
+        if (!loading || !result) return;
+
+        loading.style.display = 'block';
+        result.style.display = 'none';
+        result.innerHTML = '';
+
+        try {
+            // Analyse last 6 calendar months from today
+            const today = new Date();
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(today.getMonth() - 6);
+
+            const startDate = sixMonthsAgo.toISOString().split('T')[0];
+            const endDate = today.toISOString().split('T')[0];
+
+            const { data, error } = await supabaseClient
+                .from('transactions')
+                .select('*')
+                .eq('user_id', this.currentUser.id)
+                .gte('transaction_date', startDate)
+                .lte('transaction_date', endDate)
+                .order('transaction_date', { ascending: true });
+
+            if (error) throw error;
+
+            if (!data || data.length < 5) {
+                result.innerHTML = `
+                    <p>
+                        I only found <b>${data ? data.length : 0}</b> transactions between 
+                        <b>${this.prettyDate(startDate)}</b> and <b>${this.prettyDate(endDate)}</b>.
+                        That’s too little to say anything serious. Track a few more weeks and try again.
+                    </p>
+                `;
+                result.style.display = 'block';
+                return;
+            }
+
+            const txs = data;
+
+            let totalIncome = 0;
+            let totalExpenses = 0;
+
+            const byCategory = {};
+            const byBroadBucket = { essentials: 0, lifestyle: 0, financial: 0, other: 0 };
+            const byMonth = {};
+            const byWeekday = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+            const byHour = {};
+            const merchantSpend = {};
+
+            txs.forEach(t => {
+                const amount = Number(t.amount) || 0;
+                const isIncome = t.type === 'income';
+
+                const dateStr = t.transaction_date;
+                const d = new Date(dateStr + 'T00:00:00');
+                const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                const weekday = d.getDay();
+
+                if (!byMonth[monthKey]) byMonth[monthKey] = { income: 0, expense: 0 };
+
+                if (isIncome) {
+                    totalIncome += amount;
+                    byMonth[monthKey].income += amount;
+                } else {
+                    totalExpenses += amount;
+                    byMonth[monthKey].expense += amount;
+
+                    byWeekday[weekday] += amount;
+
+                    if (t.created_at) {
+                        const h = new Date(t.created_at).getHours();
+                        byHour[h] = (byHour[h] || 0) + amount;
+                    }
+
+                    const catRaw = (t.category || '').toLowerCase();
+                    const payToRaw = (t.payment_to || '').toLowerCase();
+                    const normCat = this.normalizeCategory(catRaw, payToRaw);
+
+                    byCategory[normCat] = (byCategory[normCat] || 0) + amount;
+
+                    const broad = this.mapToBroadBucket(normCat);
+                    byBroadBucket[broad] += amount;
+
+                    if (t.payment_to) {
+                        merchantSpend[t.payment_to] = (merchantSpend[t.payment_to] || 0) + amount;
+                    }
+                }
+            });
+
+            const monthKeys = Object.keys(byMonth);
+            const monthsWithData = monthKeys.length || 1;
+
+            const expensePerMonth = totalExpenses / monthsWithData;
+
+            const trackerBalance = totalIncome - totalExpenses;  // NOT true savings
+            const overspend = trackerBalance < 0 ? -trackerBalance : 0;
+
+            const topCats = Object.entries(byCategory)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            const topMerchants = Object.entries(merchantSpend)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            const lifestyleSpend = byBroadBucket.lifestyle;
+            const potentialCut10 = lifestyleSpend * 0.10;
+            const potentialCut20 = lifestyleSpend * 0.20;
+
+            const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const [worstDayIndex] = Object.entries(byWeekday).sort((a, b) => b[1] - a[1])[0];
+            const worstDayName = weekdayNames[Number(worstDayIndex)];
+
+            let peakHour = null, peakHourAmount = 0;
+            Object.entries(byHour).forEach(([h, amt]) => {
+                if (amt > peakHourAmount) {
+                    peakHourAmount = amt;
+                    peakHour = Number(h);
+                }
+            });
+
+            const healthScore = this.computeHealthScore({
+                totalIncome,
+                totalExpenses,
+                byBroadBucket,
+                monthsWithData
+            });
+
+            const lifestyleShare = totalExpenses > 0 ? (lifestyleSpend / totalExpenses) : 0;
+            let roast;
+            if (lifestyleShare > 0.6) {
+                roast = `🔥 You’re treating your salary like a limited-time festival offer—most of it vanishes on lifestyle swipes before “savings” even enters the chat.`;
+            } else if (lifestyleShare > 0.4) {
+                roast = `😏 You’re not reckless, but a big slice of your money is still going to “nice-to-have” instead of “need-to-have”.`;
+            } else {
+                roast = `🧘‍♂️ You’re relatively disciplined; focus now is optimisation, not damage control.`;
+            }
+
+            let html = '';
+
+            html += `<p><b>One-line reality check:</b> ${roast}</p>`;
+
+            html += `<h3>📅 Period Analysed</h3>`;
+            html += `<p>From <b>${this.prettyDate(startDate)}</b> to <b>${this.prettyDate(endDate)}</b> (${monthsWithData} month(s) with data)</p>`;
+
+            html += `<h3>💼 High-Level Snapshot</h3>`;
+            html += `<ul>`;
+            html += `<li>Total income <b>tracked in the app</b>: <b>${this.humanMoney(totalIncome)}</b></li>`;
+            html += `<li>Total spending <b>tracked in the app</b>: <b>${this.humanMoney(totalExpenses)}</b></li>`;
+            html += `<li>Unallocated amount (income − tracked expenses): <b>${this.humanMoney(trackerBalance)}</b><br>
+                     <small>⚠ This is <b>not guaranteed savings</b>. It just means this money is not recorded as an expense here — it could be actual savings, cash withdrawals you didn’t log, transfers, etc.</small></li>`;
+            if (overspend > 0) {
+                html += `<li>You spent <b>${this.humanMoney(overspend)}</b> more than you earned (as per tracked data).</li>`;
+            }
+            html += `<li>Avg monthly spending (over months with data): <b>${this.humanMoney(expensePerMonth)}</b></li>`;
+            html += `</ul>`;
+
+            html += `<h3>🎯 Where Your Money Actually Goes</h3>`;
+            html += `<p>Broad breakup of your <b>expenses</b>:</p>`;
+            html += `<ul>`;
+            html += `<li>Essentials (rent, groceries, bills, fuel, basic transport…): <b>${this.humanMoney(byBroadBucket.essentials)}</b></li>`;
+            html += `<li>Lifestyle / discretionary (eating out, online shopping, entertainment, trips…): <b>${this.humanMoney(byBroadBucket.lifestyle)}</b></li>`;
+            html += `<li>Financial (EMIs, insurance, investments): <b>${this.humanMoney(byBroadBucket.financial)}</b></li>`;
+            html += `<li>Unclear / other: <b>${this.humanMoney(byBroadBucket.other)}</b></li>`;
+            html += `</ul>`;
+
+            if (topCats.length) {
+                html += `<p>Top categories by spend:</p><ol>`;
+                topCats.forEach(([name, amt]) => {
+                    html += `<li><b>${name}</b>: ${this.humanMoney(amt)}</li>`;
+                });
+                html += `</ol>`;
+            }
+
+            if (topMerchants.length) {
+                html += `<h3>🏪 Where you swipe the most</h3><ol>`;
+                topMerchants.forEach(([m, amt]) => {
+                    html += `<li><b>${m}</b>: ${this.humanMoney(amt)}</li>`;
+                });
+                html += `</ol>`;
+            }
+
+            html += `<h3>⏰ Timing Patterns</h3>`;
+            html += `<ul>`;
+            html += `<li>Heaviest spending day: <b>${worstDayName}</b></li>`;
+            if (peakHour !== null) {
+                const label = this.prettyHourRange(peakHour);
+                html += `<li>Peak spending hour (based on entry time): <b>${label}</b></li>`;
+            }
+            html += `</ul>`;
+
+            html += `<h3>💰 Potential Savings (Forward-Looking)</h3>`;
+            html += `<p>You spend about <b>${this.humanMoney(lifestyleSpend)}</b> on lifestyle / discretionary categories.</p>`;
+            html += `<ul>`;
+            html += `<li>If you cut this by 10% → you could free up about <b>${this.humanMoney(potentialCut10)}</b> every month.</li>`;
+            html += `<li>If you cut this by 20% → you could free up about <b>${this.humanMoney(potentialCut20)}</b> every month.</li>`;
+            html += `</ul>`;
+
+            html += `<h3>🧠 Overall Financial Health</h3>`;
+            html += `<p>Based on your income vs expenses and share of lifestyle spend, I’d rate your financial health at <b>${healthScore}/10</b>.</p>`;
+
+            html += `<h3>📌 3 Things To Do Before Next Salary</h3>`;
+            html += `<ol>`;
+            if (topCats[0]) {
+                html += `<li>Put a hard monthly cap on <b>${topCats[0][0]}</b>. Aim to spend at least 10–20% less than this month.</li>`;
+            } else {
+                html += `<li>Pick one discretionary area (food delivery, shopping, cabs etc.) and set a strict weekly limit.</li>`;
+            }
+            html += `<li>On your heavy-spend day (<b>${worstDayName}</b>), pause every time before paying and ask “Will I remember this purchase in 3 months?” If not, skip.</li>`;
+            html += `<li>On salary day, move a fixed % (start with 10%) to a separate savings / FD account immediately so it never feels “available” to spend.</li>`;
+            html += `</ol>`;
+
+            result.innerHTML = html;
+            result.style.display = 'block';
+
+        } catch (err) {
+            console.error(err);
+            this.showNotification('Local AI analysis failed', 'error');
+        } finally {
+            loading.style.display = 'none';
         }
     }
 
@@ -287,12 +502,10 @@ class ExpenseTracker {
 
     calculateNoSpendStreak(transactions, startDate, endDate) {
         const days = {};
-        const start = new Date(startDate + 'T00:00:00');
-        const today = new Date();
-        const end = new Date(endDate + 'T00:00:00');
-        const effectiveEnd = end > today ? today : end; // don’t go into future
+        const start = new Date(startDate);
+        const end = new Date(); // streak up to today
 
-        for (let d = new Date(start); d <= effectiveEnd; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             days[d.toISOString().split('T')[0]] = true;
         }
 
@@ -304,24 +517,24 @@ class ExpenseTracker {
 
         let currentStreak = 0;
         let bestStreak = 0;
-        const todayStr = today.toISOString().split('T')[0];
+        const todayStr = new Date().toISOString().split('T')[0];
 
-        // Walk backwards from today (or end of range)
-        let cursor = new Date(effectiveEnd);
-        while (cursor >= start) {
-            const dateStr = cursor.toISOString().split('T')[0];
+        let tempDate = new Date();
+        while (true) {
+            const dateStr = tempDate.toISOString().split('T')[0];
+            if (new Date(dateStr) < start) break;
+            
             if (days[dateStr]) {
                 currentStreak++;
             } else if (dateStr !== todayStr) {
                 break;
-            } else {
+            } else if (dateStr === todayStr && !days[dateStr]) {
                 currentStreak = 0;
                 break;
             }
-            cursor.setDate(cursor.getDate() - 1);
+            tempDate.setDate(tempDate.getDate() - 1);
         }
-
-        // Best streak over full range
+        
         let tempStreak = 0;
         Object.keys(days).sort().forEach(date => {
             if (days[date]) tempStreak++;
@@ -435,7 +648,7 @@ class ExpenseTracker {
         document.getElementById('filter-type')?.addEventListener('change', () => this.filterTransactions());
         document.getElementById('filter-category')?.addEventListener('change', () => this.filterTransactions());
         
-        // Salary-cycle history dropdown
+        // History dropdown
         document.getElementById('cycle-history')?.addEventListener('change', () => this.handleCycleChange());
 
         // Buttons
@@ -444,9 +657,9 @@ class ExpenseTracker {
         document.getElementById('reset-chart-view-btn')?.addEventListener('click', () => this.renderChartBySource());
         document.getElementById('clear-form-btn')?.addEventListener('click', () => this.resetForm());
         document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
-        
-        // Local AI Coach button
-        document.getElementById('generate-local-ai-btn')?.addEventListener('click', () => this.runLocalCoach());
+
+        // Local AI button
+        document.getElementById('generate-local-ai-btn')?.addEventListener('click', () => this.generateLocalAIInsights());
 
         // Page Navigation
         document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -511,10 +724,7 @@ class ExpenseTracker {
             user_id: this.currentUser.id
         };
 
-        if (!category.name || !category.type) {
-            this.showNotification('Category name and type required', 'error');
-            return;
-        }
+        if (!category.name || !category.type) return;
 
         try {
             const { error } = await supabaseClient.from('categories').insert([category]);
@@ -763,7 +973,10 @@ class ExpenseTracker {
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: { beginAtZero: true, ticks: { callback: (v) => '₹' + v } }
+                        y: { 
+                            beginAtZero: true,
+                            ticks: { callback: (v) => '₹' + v }
+                        }
                     }
                 }
             });
@@ -779,11 +992,9 @@ class ExpenseTracker {
         const dailyData = {};
 
         const start = new Date(startDate + 'T00:00:00');
-        const today = new Date();
-        const end = new Date(endDate + 'T00:00:00');
-        const effectiveEnd = end > today ? today : end;
+        const end = new Date(); // up to today
 
-        for (let d = new Date(start); d <= effectiveEnd; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
             labels.push(label);
@@ -895,10 +1106,90 @@ class ExpenseTracker {
         });
     }
 
+    // ---------------- Utility Methods ----------------
+
     formatCurrency(amount) {
         return '₹' + Number(amount).toLocaleString('en-IN', {
             minimumFractionDigits: 2, maximumFractionDigits: 2
         });
+    }
+
+    humanMoney(amount) {
+        const n = Number(amount) || 0;
+        const sign = n < 0 ? '-' : '';
+        const abs = Math.abs(n);
+        return sign + '₹' + abs.toLocaleString('en-IN', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        });
+    }
+
+    prettyDate(dateStr) {
+        const d = new Date(dateStr + 'T00:00:00');
+        return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    prettyHourRange(h) {
+        const hour = Number(h);
+        if (hour === 0) return '12–1 AM';
+        if (hour < 12) return `${hour}–${hour + 1} AM`;
+        if (hour === 12) return '12–1 PM';
+        return `${hour - 12}–${hour - 11} PM`;
+    }
+
+    normalizeCategory(catRaw, payToRaw) {
+        const text = `${catRaw} ${payToRaw}`.toLowerCase();
+
+        if (text.match(/(rent|lease)/)) return 'rent';
+        if (text.match(/(zomato|swiggy|eat|restaurant|food|cafe|hotel)/)) return 'food & eating out';
+        if (text.match(/(amazon|flipkart|myntra|ajio|shopping)/)) return 'online shopping';
+        if (text.match(/(uber|ola|auto|cab|metro|bus|train|travel|flight|ticket)/)) return 'transport & travel';
+        if (text.match(/(electricity|current bill|power|bijli)/)) return 'electricity bill';
+        if (text.match(/(internet|wifi|broadband|jiofiber|airtel)/)) return 'internet & phone';
+        if (text.match(/(recharge|mobile)/)) return 'mobile recharge';
+        if (text.match(/(medical|medicine|pharmacy|hospital|doctor)/)) return 'health & medicine';
+        if (text.match(/(fee|college|school|course)/)) return 'education';
+        if (text.match(/(insurance|premium)/)) return 'insurance';
+        if (text.match(/(mutual fund|sip|mf|investment|stocks|shares)/)) return 'investments';
+        if (text.match(/(emi|loan)/)) return 'loan emi';
+        if (text.match(/(grocery|groceries|supermarket|d-mart|dmart|bigbasket|jiomart|jio mart)/)) return 'groceries & household';
+
+        return catRaw || 'other';
+    }
+
+    mapToBroadBucket(normCat) {
+        const c = normCat.toLowerCase();
+        if (c.match(/(rent|grocer|household|electricity|water|internet|wifi|broadband|mobile|medicine|health|education|loan emi|emi|fuel|transport)/)) {
+            return 'essentials';
+        }
+        if (c.match(/(food & eating out|online shopping|shopping|entertainment|movies|travel|cab|uber|ola)/)) {
+            return 'lifestyle';
+        }
+        if (c.match(/(insurance|investment|sip|mutual fund|fd|rd|savings)/)) {
+            return 'financial';
+        }
+        return 'other';
+    }
+
+    computeHealthScore({ totalIncome, totalExpenses, byBroadBucket, monthsWithData }) {
+        if (totalIncome <= 0 || monthsWithData === 0) return 4;
+
+        const expenseRatio = totalExpenses / totalIncome;
+        const lifestyleShare = totalExpenses > 0 ? (byBroadBucket.lifestyle / totalExpenses) : 0;
+
+        let score = 10;
+
+        if (expenseRatio > 0.9) score -= 3;
+        if (expenseRatio > 1.0) score -= 2;
+
+        if (lifestyleShare > 0.5) score -= 2;
+        if (lifestyleShare > 0.7) score -= 1;
+
+        if (byBroadBucket.financial < totalIncome * 0.05) score -= 1;
+
+        if (score < 1) score = 1;
+        if (score > 10) score = 10;
+        return score;
     }
 
     setTodayDate() {
@@ -947,7 +1238,7 @@ class ExpenseTracker {
             const select = document.getElementById('salary-default-account');
             if (select) select.value = this.salaryAccount;
         } catch {
-            // ignore missing settings
+            // ignore if table not present
         }
     }
 
@@ -965,341 +1256,6 @@ class ExpenseTracker {
         } catch (err) {
             this.showNotification('Could not save setting', 'error');
         }
-    }
-
-    // -------------------------------------------------------
-    // --------- LOCAL "AI" MODEL: CLEAN + ANALYSE ----------
-    // -------------------------------------------------------
-
-    normalizeCategory(rawCategory, merchant, description) {
-        const c = (rawCategory || '').toLowerCase().trim();
-        const m = (merchant || '').toLowerCase().trim();
-        const d = (description || '').toLowerCase().trim();
-        const text = `${c} ${m} ${d}`;
-
-        // Merchant / keyword based rules
-        if (/zomato|swiggy|blinkit|dominos|pizza hut|kfc|ubereats/.test(text)) {
-            return 'Food Delivery';
-        }
-        if (/amazon|flipkart|myntra|ajio|meesho/.test(text)) {
-            return 'Online Shopping';
-        }
-        if (/ola|uber|rapido/.test(text)) {
-            return 'Cabs / Ride-hailing';
-        }
-        if (/netflix|prime video|hotstar|spotify|youtube premium|zee5/.test(text)) {
-            return 'Subscriptions';
-        }
-        if (/lic|insurance|health insurance/.test(text)) {
-            return 'Insurance';
-        }
-        if (/sip|mf|mutual fund|nifty|sensex|index fund|etf/.test(text)) {
-            return 'Investments';
-        }
-        if (/fd|rd|fixed deposit|recurring deposit/.test(text)) {
-            return 'Savings';
-        }
-        if (/rent|landlord|house rent/.test(text)) {
-            return 'Rent';
-        }
-        if (/electricity|power bill|current bill|bescom|apspdcl|apepdcl|water bill|gas bill|lpg/.test(text)) {
-            return 'Utilities';
-        }
-        if (/grocery|groceries|mart|d mart|d-mart|more\b|big bazaar|reliance fresh|supermarket/.test(text)) {
-            return 'Groceries';
-        }
-        if (/petrol|diesel|fuel|hpcl|bpcl|ioc/.test(text)) {
-            return 'Fuel';
-        }
-        if (/hospital|clinic|pharmacy|medical|chemist|lab test|diagnostic/.test(text)) {
-            return 'Health / Medical';
-        }
-
-        // Fallback: cleaned original category
-        if (c) {
-            return c.split(' ')
-                    .filter(Boolean)
-                    .map(s => s[0].toUpperCase() + s.slice(1))
-                    .join(' ');
-        }
-
-        return 'Uncategorized';
-    }
-
-    getSpendingBucket(normalizedCategory) {
-        const cat = normalizedCategory.toLowerCase();
-
-        const needs = [
-            'rent', 'utilities', 'groceries', 'fuel',
-            'health / medical', 'insurance', 'emi', 'loan emi',
-            'fees', 'school fees', 'college fees', 'bills'
-        ];
-
-        const wants = [
-            'food delivery', 'online shopping', 'cabs / ride-hailing',
-            'subscriptions', 'entertainment', 'movies',
-            'eating out', 'restaurants', 'travel', 'vacation', 'shopping'
-        ];
-
-        const savings = [
-            'savings', 'investments', 'fd', 'rd',
-            'mutual funds', 'sip', 'ppf', 'nps'
-        ];
-
-        if (needs.some(k => cat.includes(k))) return 'need';
-        if (wants.some(k => cat.includes(k))) return 'want';
-        if (savings.some(k => cat.includes(k))) return 'saving';
-
-        return 'mixed'; // default ambiguous bucket
-    }
-
-    async buildSpendingInsights(monthsBack = 6) {
-        if (!this.currentUser) {
-            this.showNotification('Login required for insights', 'error');
-            return null;
-        }
-
-        const today = new Date();
-        const endDate = today.toISOString().split('T')[0];
-        const start = new Date();
-        start.setMonth(start.getMonth() - monthsBack);
-        const startDate = start.toISOString().split('T')[0];
-
-        const { data: allTx, error } = await supabaseClient
-            .from('transactions')
-            .select('*')
-            .eq('user_id', this.currentUser.id)
-            .gte('transaction_date', startDate)
-            .lte('transaction_date', endDate);
-
-        if (error) {
-            console.error('History load error:', error);
-            this.showNotification('Failed to load history for insights', 'error');
-            return null;
-        }
-
-        const txs = allTx || [];
-        if (!txs.length) return null;
-
-        let totalIncome = 0;
-        let totalExpense = 0;
-
-        const byCategory = {};
-        const byMerchant = {};
-        const byWeekday = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0 };
-        let needSpend = 0, wantSpend = 0, savingSpend = 0, mixedSpend = 0;
-
-        txs.forEach(t => {
-            const amount = Number(t.amount) || 0;
-            if (!amount) return;
-
-            if (t.type === 'income') {
-                totalIncome += amount;
-                return;
-            }
-
-            // expenses only
-            totalExpense += amount;
-
-            const merchant = t.payment_to || '';
-            const desc = t.description || '';
-
-            const normCat = this.normalizeCategory(t.category, merchant, desc);
-            const bucket = this.getSpendingBucket(normCat);
-
-            if (!byCategory[normCat]) byCategory[normCat] = 0;
-            byCategory[normCat] += amount;
-
-            const mKey = merchant || 'Unknown';
-            if (!byMerchant[mKey]) byMerchant[mKey] = 0;
-            byMerchant[mKey] += amount;
-
-            const d = new Date(t.transaction_date + 'T00:00:00');
-            const dow = d.getDay();
-            byWeekday[dow] += amount;
-
-            if (bucket === 'need') needSpend += amount;
-            else if (bucket === 'want') wantSpend += amount;
-            else if (bucket === 'saving') savingSpend += amount;
-            else mixedSpend += amount;
-        });
-
-        // Split mixed as 50/50 between needs & wants
-        needSpend += mixedSpend * 0.5;
-        wantSpend += mixedSpend * 0.5;
-
-        const savings = totalIncome - totalExpense;
-        const savingsRate = totalIncome > 0 ? savings / totalIncome : 0;
-        const wantShare = totalExpense > 0 ? wantSpend / totalExpense : 0;
-
-        const topCategories = Object.entries(byCategory)
-            .sort((a,b) => b[1] - a[1])
-            .slice(0, 5);
-
-        const topMerchants = Object.entries(byMerchant)
-            .sort((a,b) => b[1] - a[1])
-            .slice(0, 5);
-
-        const dowNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-        const peakDow = Object.entries(byWeekday).sort((a,b) => b[1]-a[1])[0];
-
-        const suggestions = [];
-        const targetSavingsRate = 0.20; // 20%
-
-        // 1) Savings rate
-        if (totalIncome > 0) {
-            if (savingsRate < targetSavingsRate) {
-                const target = totalIncome * targetSavingsRate;
-                const extraToSave = target - savings;
-                suggestions.push({
-                    severity: 'high',
-                    message: `You are saving <b>${(savingsRate*100).toFixed(1)}%</b> of your income. ` +
-                             `Aim for at least <b>${(targetSavingsRate*100)}%</b> (≈ <b>${this.formatCurrency(target)}</b>), ` +
-                             `which means cutting ≈ <b>${this.formatCurrency(extraToSave)}</b> from monthly expenses.`
-                });
-            } else {
-                suggestions.push({
-                    severity: 'low',
-                    message: `Your savings rate is about <b>${(savingsRate*100).toFixed(1)}%</b>. ` +
-                             `Good job! Try to slowly push this towards <b>25–30%</b>.`
-                });
-            }
-        }
-
-        // 2) Wants vs Needs
-        if (totalExpense > 0) {
-            const wantPct = (wantShare * 100).toFixed(1);
-            const idealWantShare = 0.25;
-            if (wantShare > idealWantShare) {
-                const maxWants = totalExpense * idealWantShare;
-                const overshoot = wantSpend - maxWants;
-                suggestions.push({
-                    severity: 'high',
-                    message: `About <b>${wantPct}%</b> of your spending is on <b>wants / nice-to-have</b> items. ` +
-                             `If you capped wants at <b>25%</b>, you could have saved ≈ <b>${this.formatCurrency(overshoot)}</b> over this period.`
-                });
-            } else {
-                suggestions.push({
-                    severity: 'medium',
-                    message: `Your wants are about <b>${wantPct}%</b> of total spending. ` +
-                             `That’s reasonably controlled — just watch out for month-end impulse purchases.`
-                });
-            }
-        }
-
-        // 3) Leak categories
-        topCategories.forEach(([cat, amt]) => {
-            const share = totalExpense > 0 ? amt / totalExpense : 0;
-            if (share > 0.15) {
-                suggestions.push({
-                    severity: 'medium',
-                    message: `Category <b>${cat}</b> alone is ≈ <b>${(share*100).toFixed(1)}%</b> of your spending ` +
-                             `(<b>${this.formatCurrency(amt)}</b>). ` +
-                             `This is where you're likely throwing money. Cut this by <b>15–20%</b> with a strict monthly limit.`
-                });
-            }
-        });
-
-        // 4) Leak merchants
-        topMerchants.forEach(([m, amt]) => {
-            if (amt > totalExpense * 0.10 && amt > 1000) {
-                suggestions.push({
-                    severity: 'medium',
-                    message: `You spent about <b>${this.formatCurrency(amt)}</b> at <b>${m}</b>. ` +
-                             `This looks like a leak — reduce frequency or set a weekly cap here.`
-                });
-            }
-        });
-
-        // 5) Peak spending day
-        if (peakDow && peakDow[1] > 0) {
-            const [dow, amt] = peakDow;
-            const share = totalExpense > 0 ? (amt / totalExpense) * 100 : 0;
-            suggestions.push({
-                severity: 'low',
-                message: `<b>${dowNames[dow]}</b> is your highest-spending day ` +
-                         `(<b>${this.formatCurrency(amt)}</b>, ≈ <b>${share.toFixed(1)}%</b> of your expenses). ` +
-                         `Declare it a <b>“no impulse purchase”</b> day or use cash-only / UPI-only with a cap.`
-            });
-        }
-
-        return {
-            period: { startDate, endDate },
-            totals: {
-                totalIncome, totalExpense, savings, savingsRate
-            },
-            breakdown: {
-                needSpend, wantSpend, savingSpend,
-                topCategories, topMerchants
-            },
-            suggestions
-        };
-    }
-
-    async runLocalCoach() {
-        const loadingEl = document.getElementById('local-ai-loading');
-        const resultEl = document.getElementById('local-ai-result');
-
-        if (loadingEl) loadingEl.style.display = 'block';
-        if (resultEl) {
-            resultEl.style.display = 'none';
-            resultEl.innerHTML = '';
-        }
-
-        const insights = await this.buildSpendingInsights(6); // last 6 months
-
-        if (loadingEl) loadingEl.style.display = 'none';
-        if (!resultEl) return;
-
-        if (!insights) {
-            resultEl.style.display = 'block';
-            resultEl.innerHTML = `<p>Not enough data to analyze yet. Add a few months of transactions and try again.</p>`;
-            return;
-        }
-
-        const { totals, breakdown, suggestions, period } = insights;
-        const sr = (totals.savingsRate * 100).toFixed(1);
-        const needPct = totals.totalExpense > 0 ? (breakdown.needSpend / totals.totalExpense * 100).toFixed(1) : '0.0';
-        const wantPct = totals.totalExpense > 0 ? (breakdown.wantSpend / totals.totalExpense * 100).toFixed(1) : '0.0';
-
-        const periodStr = `${new Date(period.startDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })} 
-→ 
-${new Date(period.endDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}`;
-
-        const summaryHtml = `
-            <h3>📅 Period Analyzed</h3>
-            <p><b>${periodStr}</b></p>
-
-            <h3>📌 Overall Summary</h3>
-            <ul>
-                <li>Total Income: <b>${this.formatCurrency(totals.totalIncome)}</b></li>
-                <li>Total Spent: <b>${this.formatCurrency(totals.totalExpense)}</b></li>
-                <li>Savings: <b>${this.formatCurrency(totals.savings)}</b> (${sr}% of income)</li>
-                <li>Needs vs Wants (by spend): <b>${needPct}% needs</b> / <b>${wantPct}% wants</b></li>
-            </ul>
-
-            <h3>🔥 Top Spending Categories</h3>
-            <ul>
-                ${breakdown.topCategories.map(([cat, amt]) => `
-                    <li>${cat}: <b>${this.formatCurrency(amt)}</b></li>
-                `).join('')}
-            </ul>
-
-            <h3>🧠 Coach Suggestions</h3>
-        `;
-
-        const suggestionHtml = suggestions.length
-            ? `<ul class="insights-list">
-                    ${suggestions.map(s => `
-                        <li class="insight-item insight-${s.severity}">
-                            ${s.message}
-                        </li>
-                    `).join('')}
-               </ul>`
-            : `<p>You’re actually doing quite well. Keep it up! ✅</p>`;
-
-        resultEl.innerHTML = summaryHtml + suggestionHtml;
-        resultEl.style.display = 'block';
     }
 }
 
