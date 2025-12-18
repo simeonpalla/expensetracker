@@ -7,66 +7,69 @@ export class AnalyticsService {
     }
 
     async init() {
-        // placeholder for monthly preload
+        console.info('[Analytics] Ready');
     }
 
     async runLocalInsights() {
-        const { data } = await supabaseClient
-            .from('transactions')
-            .select(`
-                amount,
-                type,
-                category,
-                transaction_date,
-                payment_to
-            `)
-            .eq('user_id', this.user.id);
+        try {
+            const { data, error } = await supabaseClient
+                .from('transactions')
+                .select(`
+                    amount,
+                    type,
+                    category,
+                    transaction_date,
+                    payment_to
+                `)
+                .eq('user_id', this.user.id);
 
-        if (!data || data.length < 5) {
-            return this.ui.showNotification('Not enough data', 'warning');
-        }
+            if (error) throw error;
 
-        const expense = data.filter(t => t.type === 'expense')
-            .reduce((s, t) => s + t.amount, 0);
-
-        this.ui.showNotification(
-            `Total tracked expense: ₹${expense.toLocaleString('en-IN')}`
-        );
-    }
-    async loadCycleAggregates() {
-        const { data, error } = await supabaseClient
-            .from('cycle_aggregates')
-            .select(`
-                cycle_start,
-                cycle_end,
-                income,
-                expense,
-                expense_tx_count
-            `)
-            .order('cycle_start', { ascending: false });
-
-        if (error) {
-            this.ui.showNotification('Failed to load cycle summary', 'error');
-            return [];
-        }
-
-        return data || [];
-    }
-    async loadDailyExpenses(cycleStart, cycleEnd) {
-        const { data, error } = await supabaseClient.rpc(
-            'get_cycle_daily_expenses',
-            {
-                cycle_start: cycleStart,
-                cycle_end: cycleEnd
+            if (!data || data.length < 5) {
+                this.ui.showNotification('Not enough data', 'warning');
+                return;
             }
-        );
 
-        if (error) {
-            this.ui.showNotification('Failed to load daily expenses', 'error');
-            return [];
+            const expense = data
+                .filter(t => t.type === 'expense')
+                .reduce((s, t) => s + t.amount, 0);
+
+            this.ui.showNotification(
+                `Total tracked expense: ₹${expense.toLocaleString('en-IN')}`
+            );
+        } catch (err) {
+            console.error('[Analytics] Insight failed', err);
+            this.ui.showNotification('Analytics failed to load', 'error');
         }
-
-        return data || [];
     }
 
+    async loadCycleAggregates() {
+        try {
+            const { data, error } = await supabaseClient
+                .from('cycle_aggregates')
+                .select('*')
+                .order('cycle_start', { ascending: false });
+
+            if (error) throw error;
+            return data || [];
+        } catch (err) {
+            console.warn('[Analytics] cycle_aggregates unavailable');
+            return [];
+        }
+    }
+
+    async loadDailyExpenses(cycleStart, cycleEnd) {
+        try {
+            const { data, error } = await supabaseClient.rpc(
+                'get_cycle_daily_expenses',
+                { cycle_start: cycleStart, cycle_end: cycleEnd }
+            );
+
+            if (error) throw error;
+            return data || [];
+        } catch (err) {
+            console.warn('[Analytics] daily expenses unavailable');
+            return [];
+        }
+    }
 }
