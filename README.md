@@ -1,4 +1,4 @@
-# 💰 Expense Tracker – Salary Cycle + Financial Insights
+## Expense Tracker – Salary Cycle + Financial Insights
 
 A personal finance tracker built with **vanilla HTML/CSS/JS** and **Supabase**.  
 It:
@@ -13,7 +13,7 @@ It:
 
 ---
 
-## 🧱 Tech Stack
+### Tech Stack
 
 - **Frontend:** HTML, CSS, vanilla JavaScript
 - **Charts:** [Chart.js](https://www.chartjs.org/)
@@ -24,7 +24,7 @@ It:
 
 ---
 
-## 📁 Project Structure
+### Project Structure
 
 ```bash
 .
