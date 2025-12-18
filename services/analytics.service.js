@@ -51,9 +51,18 @@ export class AnalyticsService {
                 .order('cycle_start', { ascending: false });
 
             if (error) throw error;
-            return data || [];
+
+            if (!data || data.length === 0) {
+                this.ui.showNotification(
+                    'No salary cycle found. Add your salary to start analytics.',
+                    'warning'
+                );
+                return [];
+            }
+
+            return data;
         } catch (err) {
-            console.warn('[Analytics] cycle_aggregates unavailable');
+            console.error('[Analytics] cycle_aggregates failed', err);
             return [];
         }
     }
