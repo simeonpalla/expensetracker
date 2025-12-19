@@ -22,11 +22,6 @@ export class UIController {
             });
         });
 
-        document.getElementById('cycle-history')
-            ?.addEventListener('change', (e) => {
-                app.analyticsService.loadDashboardCycle(e.target.value);
-            });
-
         document.getElementById('generate-local-ai-btn')
             ?.addEventListener('click', () => {
                 app.analyticsService.runLocalInsights();
@@ -37,4 +32,13 @@ export class UIController {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(pageId)?.classList.add('active');
     }
+
+    prettyDate(d) {
+        return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    }
+
+    formatCurrency(n) {
+        return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    }
+    
 }

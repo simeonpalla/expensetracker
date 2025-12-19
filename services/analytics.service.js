@@ -7,6 +7,12 @@ export class AnalyticsService {
         this.lineChart = null;
         this.donutChart = null;
         this.cycles = [];
+        this.currentCycle = null;
+        this.analyticsData = {
+            dailyExpenses: [],
+            categoryTotals: [],
+            transactions: []
+        };
     }
 
     async init() {
@@ -85,6 +91,8 @@ export class AnalyticsService {
             { cycle_start: start, cycle_end: end }
         );
 
+        this.analyticsData.dailyExpenses = data || [];
+
         this.destroyLineChart();
         if (!data?.length) return;
 
@@ -93,7 +101,7 @@ export class AnalyticsService {
             {
                 type: 'line',
                 data: {
-                    labels: data.map(d => this.prettyDate(d.day)),
+                    labels: data.map(d => this.ui.prettyDate(d.day)),
                     datasets: [{
                         label: 'Daily Expenses',
                         data: data.map(d => d.total_expense),
@@ -111,6 +119,8 @@ export class AnalyticsService {
             'get_cycle_expense_breakdown',
             { cycle_start: start, cycle_end: end }
         );
+
+        this.analyticsData.categoryTotals = data || [];
 
         this.destroyDonutChart();
         if (!data?.length) return;
@@ -142,11 +152,11 @@ export class AnalyticsService {
         this.donutChart = null;
     }
 
-    prettyDate(d) {
-        return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    runLocalInsights() {
+        const engine = new LocalAnalyticsEngine(this.analyticsData);
+        const pace = engine.computeSpendPace();
+
+        this.ui.renderInsights(pace);
     }
 
-    formatCurrency(n) {
-        return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-    }
 }

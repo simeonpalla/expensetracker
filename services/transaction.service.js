@@ -134,6 +134,8 @@ export class TransactionService {
         const list = document.getElementById('transactions-list');
         list.innerHTML = '<div class="loading">Loading transactions...</div>';
 
+        this.ui.app.analyticsService.analyticsData.transactions = data || [];
+
         const { data, error } = await supabaseClient.rpc(
             'get_transactions_for_cycle',
             { cycle_start: cycleStart, cycle_end: cycleEnd }
