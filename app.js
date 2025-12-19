@@ -21,7 +21,7 @@ class ExpenseTrackerApp {
             this.ui,
             this.categoryService
         );
-        this.analyticsService = new AnalyticsService(user, this.ui);
+        this.analyticsService = new AnalyticsService(user, this.ui, this.transactionService);
 
         this.init();
     }

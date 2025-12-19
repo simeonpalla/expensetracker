@@ -129,4 +129,43 @@ export class TransactionService {
             sd.disabled = false;
         }
     }
+
+    async loadForCycle(cycleStart, cycleEnd) {
+        const list = document.getElementById('transactions-list');
+        list.innerHTML = '<div class="loading">Loading transactions...</div>';
+
+        const { data, error } = await supabaseClient.rpc(
+            'get_transactions_for_cycle',
+            { cycle_start: cycleStart, cycle_end: cycleEnd }
+        );
+
+        if (error) {
+            list.innerHTML = '';
+            this.ui.showNotification('Failed to load transactions', 'error');
+            return;
+        }
+
+        list.innerHTML = '';
+
+        if (!data.length) {
+            list.innerHTML = '<div class="empty">No transactions</div>';
+            return;
+        }
+
+        data.forEach(tx => {
+            const row = document.createElement('div');
+            row.className = `transaction-item ${tx.type}`;
+            row.innerHTML = `
+                <div>
+                    <strong>${tx.category}</strong>
+                    <div class="meta">${tx.payment_to}</div>
+                </div>
+                <div class="amount">
+                    ${tx.type === 'expense' ? '-' : '+'}₹${tx.amount}
+                </div>
+            `;
+            list.appendChild(row);
+        });
+    }
+
 }
