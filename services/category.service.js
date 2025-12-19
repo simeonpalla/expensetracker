@@ -35,8 +35,10 @@ export class CategoryService {
         this.categories.forEach(c => {
             const el = document.createElement('div');
             el.className = 'category-item';
-            el.textContent = `${c.icon} ${c.name}`;
-
+            el.innerHTML = `
+                <span>${c.icon}</span>
+                <span class="category-name">${c.name}</span>
+                `;
             (c.type === 'income' ? income : expense).appendChild(el);
         });
     }
