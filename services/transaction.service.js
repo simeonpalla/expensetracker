@@ -1,101 +1,64 @@
 // services/transaction.service.js
 
 export class TransactionService {
-    constructor(user, ui) {
+    constructor(user, ui, categoryService) {
         this.user = user;
         this.ui = ui;
+        this.categoryService = categoryService;
+
+        this.paymentSources = {
+            upi: ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
+            'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
+            'credit-card': [
+                'ICICI Platinum',
+                'ICICI Amazon Pay',
+                'ICICI Coral',
+                'RBL Paisabazar'
+            ]
+        };
     }
 
     async init() {
         document
             .getElementById('transaction-form')
-            ?.addEventListener('submit', e => this.add(e));
+            .addEventListener('submit', e => this.addTransaction(e));
+
+        document
+            .getElementById('type')
+            .addEventListener('change', (e) => {
+                this.categoryService.updateCategoryDropdown(e.target.value);
+                this.resetPaymentSource();
+            });
+
+        document
+            .getElementById('payment-source')
+            .addEventListener('change', (e) => {
+                this.updateSourceDetails(e.target.value);
+            });
+
+        document
+            .getElementById('category')
+            .addEventListener('change', () => {
+                this.handleSalaryMode();
+            });
     }
 
-    async loadByCycle(cycleStart) {
-        const cycleStartDate = this.normalizeDate(cycleStart);
-
-        // 1️⃣ Fetch cycle window
-        const { data: cycle, error: cycleErr } = await supabaseClient
-            .from('salary_cycles')
-            .select('cycle_start, cycle_end')
-            .eq('user_id', this.user.id)
-            .eq('cycle_start', cycleStartDate)
-            .single();
-
-        if (cycleErr || !cycle) {
-            this.renderList([]);
-            return;
-        }
-
-        // 2️⃣ Fetch transactions in window
-        const { data, error } = await supabaseClient
-            .from('transactions')
-            .select(`
-                id,
-                type,
-                amount,
-                category,
-                transaction_date,
-                payment_to,
-                payment_source,
-                source_details
-            `)
-            .eq('user_id', this.user.id)
-            .gte('transaction_date', cycle.cycle_start)
-            .lte('transaction_date', cycle.cycle_end)
-            .order('transaction_date', { ascending: false });
-
-        if (error) {
-            this.ui.showNotification('Failed to load transactions', 'error');
-            return;
-        }
-
-        this.renderList(data || []);
-    }
-
-    renderList(transactions) {
-        const list = document.getElementById('transactions-list');
-
-        if (!transactions.length) {
-            list.innerHTML =
-                '<div class="loading">No transactions in this cycle</div>';
-            return;
-        }
-
-        list.innerHTML = transactions.map(t => `
-            <div class="transaction-item">
-                <div class="transaction-details">
-                    <h4>${t.category}</h4>
-                    <p>Paid to: ${t.payment_to || '—'}</p>
-                    <small>
-                        ${new Date(t.transaction_date).toLocaleDateString('en-IN')}
-                        • ${t.source_details || t.payment_source}
-                    </small>
-                </div>
-                <div class="transaction-amount ${t.type}">
-                    ${t.type === 'income' ? '+' : '-'}₹${Number(t.amount).toLocaleString('en-IN')}
-                </div>
-            </div>
-        `).join('');
-    }
-
-    async add(e) {
+    async addTransaction(e) {
         e.preventDefault();
 
         const tx = {
             user_id: this.user.id,
-            type: type.value,
-            amount: Number(amount.value),
-            category: category.value,
-            transaction_date: date.value,
-            payment_to: paymentTo.value,
-            payment_source: paymentSource.value,
-            source_details: sourceDetails.value || null
+            type: document.getElementById('type').value,
+            amount: Number(document.getElementById('amount').value),
+            category: document.getElementById('category').value,
+            transaction_date: document.getElementById('date').value,
+            payment_to: document.getElementById('payment-to').value,
+            payment_source: document.getElementById('payment-source').value,
+            source_details: document.getElementById('source-details').value || null
         };
 
-        if (!tx.amount || tx.amount <= 0) {
-            this.ui.showNotification('Invalid amount', 'error');
+        if (!tx.type || !tx.category || tx.amount <= 0) {
+            this.ui.showNotification('Fill all required fields', 'error');
             return;
         }
 
@@ -103,12 +66,67 @@ export class TransactionService {
             .from('transactions')
             .insert(tx);
 
-        if (!error) {
-            this.ui.showNotification('Transaction added');
+        if (error) {
+            this.ui.showNotification(error.message, 'error');
+            return;
         }
+
+        this.ui.showNotification('Transaction added');
+        document.getElementById('transaction-form').reset();
     }
 
-    normalizeDate(d) {
-        return new Date(d).toISOString().split('T')[0];
+    resetPaymentSource() {
+        const ps = document.getElementById('payment-source');
+        const sd = document.getElementById('source-details');
+
+        ps.disabled = false;
+        sd.disabled = false;
+        sd.parentElement.style.display = 'none';
+    }
+
+    updateSourceDetails(source) {
+        const select = document.getElementById('source-details');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Select Bank / Card</option>';
+
+        const options = this.paymentSources[source];
+        if (!options) {
+            select.parentElement.style.display = 'none';
+            return;
+        }
+
+        select.parentElement.style.display = 'block';
+
+        options.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            select.appendChild(opt);
+        });
+    }
+
+    handleSalaryMode() {
+        const type = document.getElementById('type').value;
+        const category = document.getElementById('category').value;
+
+        const ps = document.getElementById('payment-source');
+        const sd = document.getElementById('source-details');
+
+        const isSalary =
+            type === 'income' &&
+            category?.toLowerCase().includes('salary');
+
+        if (isSalary) {
+            ps.innerHTML = '<option value="salary">Salary Deposit</option>';
+            ps.disabled = true;
+
+            sd.innerHTML = '<option value="Salary Account">Salary Account</option>';
+            sd.disabled = true;
+            sd.parentElement.style.display = 'block';
+        } else {
+            ps.disabled = false;
+            sd.disabled = false;
+        }
     }
 }

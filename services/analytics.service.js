@@ -4,14 +4,18 @@ export class AnalyticsService {
     constructor(user, ui) {
         this.user = user;
         this.ui = ui;
+
         this.lineChart = null;
         this.donutChart = null;
+
+        this.cycles = []; // ✅ cache salary cycles
     }
 
     /* ---------- INIT ---------- */
 
     async init() {
         await this.loadCycleHistory();
+        this.bindCycleChange(); // ✅ FIX 1
     }
 
     /* ---------- CYCLE HANDLING ---------- */
@@ -31,23 +35,17 @@ export class AnalyticsService {
             return;
         }
 
+        this.cycles = data; // ✅ cache cycles
         selector.innerHTML = '';
 
         data.forEach((c, idx) => {
-            const s = new Date(c.cycle_start).toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'short'
-            });
-            const e = new Date(c.cycle_end).toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'short'
-            });
+            const s = this.prettyDate(c.cycle_start);
+            const e = this.prettyDate(c.cycle_end);
 
             const opt = document.createElement('option');
-            opt.value = c.cycle_start; // IMPORTANT: raw YYYY-MM-DD
-            opt.textContent = idx === 0
-                ? `Current (${s} → ${e})`
-                : `${s} → ${e}`;
+            opt.value = c.cycle_start; // YYYY-MM-DD
+            opt.textContent =
+                idx === 0 ? `Current (${s} → ${e})` : `${s} → ${e}`;
 
             selector.appendChild(opt);
         });
@@ -56,24 +54,29 @@ export class AnalyticsService {
         this.loadAllForCycle(data[0].cycle_start);
     }
 
-    async loadAllForCycle(cycleStart) {
-        await Promise.all([
-            this.loadDashboardCycle(cycleStart),
-            this.loadLineChart(cycleStart),
-            this.loadDonutChart(cycleStart)
-        ]);
+    bindCycleChange() {
+        const selector = document.getElementById('cycle-history');
+        if (!selector) return;
+
+        selector.addEventListener('change', (e) => {
+            this.loadAllForCycle(e.target.value);
+        });
+    }
+
+    loadAllForCycle(cycleStart) {
+        this.loadDashboardCycle(cycleStart);
+        this.loadLineChart(cycleStart);
+        this.loadDonutChart(cycleStart);
     }
 
     /* ---------- DASHBOARD TOTALS ---------- */
 
     async loadDashboardCycle(cycleStart) {
-        const cycleStartDate = this.normalizeDate(cycleStart);
-
         const { data, error } = await supabaseClient
             .from('cycle_aggregates')
             .select('income, expense')
             .eq('user_id', this.user.id)
-            .eq('cycle_start', cycleStartDate)
+            .eq('cycle_start', cycleStart)
             .single();
 
         if (error || !data) {
@@ -94,7 +97,7 @@ export class AnalyticsService {
     /* ---------- LINE CHART ---------- */
 
     async loadLineChart(cycleStart) {
-        const cycle = await this.getCycleWindow(cycleStart);
+        const cycle = this.getCachedCycle(cycleStart);
         if (!cycle) return;
 
         const { data, error } = await supabaseClient.rpc(
@@ -111,10 +114,7 @@ export class AnalyticsService {
         }
 
         const labels = data.map(d =>
-            new Date(d.day).toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'short'
-            })
+            this.prettyDate(d.day)
         );
         const values = data.map(d => d.total_expense);
 
@@ -124,7 +124,8 @@ export class AnalyticsService {
     renderLineChart(labels, values) {
         this.destroyLineChart();
 
-        const ctx = document.getElementById('chart').getContext('2d');
+        const ctx = document.getElementById('chart')?.getContext('2d');
+        if (!ctx) return;
 
         this.lineChart = new Chart(ctx, {
             type: 'line',
@@ -154,7 +155,7 @@ export class AnalyticsService {
     /* ---------- DONUT CHART ---------- */
 
     async loadDonutChart(cycleStart) {
-        const cycle = await this.getCycleWindow(cycleStart);
+        const cycle = this.getCachedCycle(cycleStart);
         if (!cycle) return;
 
         const { data, error } = await supabaseClient.rpc(
@@ -181,7 +182,9 @@ export class AnalyticsService {
 
         const ctx = document
             .getElementById('expense-donut-chart')
-            .getContext('2d');
+            ?.getContext('2d');
+
+        if (!ctx) return;
 
         this.donutChart = new Chart(ctx, {
             type: 'doughnut',
@@ -196,9 +199,7 @@ export class AnalyticsService {
                 responsive: true,
                 aspectRatio: 1,
                 plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
+                    legend: { position: 'bottom' }
                 }
             }
         });
@@ -213,21 +214,17 @@ export class AnalyticsService {
 
     /* ---------- HELPERS ---------- */
 
-    async getCycleWindow(cycleStart) {
-        const cycleStartDate = this.normalizeDate(cycleStart);
-
-        const { data } = await supabaseClient
-            .from('salary_cycles')
-            .select('cycle_start, cycle_end')
-            .eq('user_id', this.user.id)
-            .eq('cycle_start', cycleStartDate)
-            .single();
-
-        return data || null;
+    getCachedCycle(cycleStart) {
+        return this.cycles.find(
+            c => c.cycle_start === cycleStart
+        );
     }
 
-    normalizeDate(d) {
-        return new Date(d).toISOString().split('T')[0];
+    prettyDate(d) {
+        return new Date(d).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short'
+        });
     }
 
     formatCurrency(n) {
