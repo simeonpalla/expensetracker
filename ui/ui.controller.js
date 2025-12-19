@@ -1,27 +1,49 @@
-// ui/ui.controller.js
-
 export class UIController {
-    showNotification(msg, type = 'success') {
-        const el = document.getElementById('notification');
-        document.getElementById('notification-message').textContent = msg;
-        el.className = `notification ${type} show`;
-        setTimeout(() => el.classList.remove('show'), 4000);
-    }
 
     bindAppEvents(app) {
+        // logout
         document.getElementById('logout-btn')
-            .addEventListener('click', () => supabaseClient.auth.signOut());
+            ?.addEventListener('click', () => {
+                supabaseClient.auth.signOut();
+            });
 
-        document.querySelectorAll('.nav-tab').forEach(btn => {
-            btn.addEventListener('click', e => this.showPage(e.target.dataset.page));
+        // navigation
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const pageId = e.currentTarget.dataset.page;
+                this.showPage(pageId);
+            });
         });
 
+        // cycle dropdown → dashboard update
+        document.getElementById('cycle-history')
+            ?.addEventListener('change', (e) => {
+                app.analytics.loadDashboardCycle(e.target.value);
+            });
+
+        // local AI
         document.getElementById('generate-local-ai-btn')
-            .addEventListener('click', () => app.analytics.runLocalInsights());
+            ?.addEventListener('click', () => {
+                app.analytics.runLocalInsights();
+            });
     }
 
-    showPage(id) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
+    showPage(pageId) {
+        document.querySelectorAll('.page')
+            .forEach(p => p.classList.remove('active'));
+
+        document.getElementById(pageId)
+            ?.classList.add('active');
+    }
+
+    showNotification(msg, type = 'success') {
+        const n = document.getElementById('notification');
+        const m = document.getElementById('notification-message');
+        if (!n || !m) return;
+
+        m.textContent = msg;
+        n.className = `notification ${type} show`;
+
+        setTimeout(() => n.classList.remove('show'), 4000);
     }
 }
