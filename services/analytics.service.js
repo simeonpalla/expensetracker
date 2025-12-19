@@ -4,292 +4,180 @@ export class AnalyticsService {
     constructor(user, ui) {
         this.user = user;
         this.ui = ui;
-
         this.currentCycle = null;
+        this.lineChart = null;
+        this.donutChart = null;
     }
 
-    /* ----------------------------------
-       INIT (called once after login)
-    ---------------------------------- */
-    async init() {
+    /* ---------------- INIT ---------------- */
+    async init(transactionsService) {
+        this.transactionsService = transactionsService;
         await this.loadCycleHistory();
         console.info('[Analytics] Initialized');
     }
 
-    /* ----------------------------------
-       SALARY CYCLE HISTORY
-    ---------------------------------- */
+    /* -------- SALARY CYCLE HISTORY -------- */
     async loadCycleHistory() {
         const selector = document.getElementById('cycle-history');
         if (!selector) return;
 
-        try {
-            const { data, error } = await supabaseClient
-                .from('salary_cycles')
-                .select('cycle_start, cycle_end')
-                .eq('user_id', this.user.id)
-                .order('cycle_start', { ascending: false });
-
-            if (error) throw error;
-
-            if (!data || data.length === 0) {
-                selector.innerHTML =
-                    '<option>No salary cycles found</option>';
-
-                this.ui.showNotification(
-                    'Add a salary transaction to start analytics',
-                    'warning'
-                );
-                return;
-            }
-
-            selector.innerHTML = '';
-
-            data.forEach((cycle, index) => {
-                const startLabel = this.prettyDate(cycle.cycle_start);
-                const endLabel = this.prettyDate(cycle.cycle_end);
-
-                const option = document.createElement('option');
-                option.value = cycle.cycle_start;
-                option.textContent =
-                    index === 0
-                        ? `Current (${startLabel} → ${endLabel})`
-                        : `${startLabel} → ${endLabel}`;
-
-                selector.appendChild(option);
-            });
-
-            // load latest cycle immediately
-            this.currentCycle = data[0];
-            await this.loadDashboardCycle(data[0].cycle_start);
-
-        } catch (err) {
-            console.error('[Analytics] Failed to load salary cycles', err);
-            this.ui.showNotification(
-                'Failed to load salary cycles',
-                'error'
-            );
-        }
-    }
-
-    /* ----------------------------------
-       DASHBOARD AGGREGATES
-    ---------------------------------- */
-    async loadDashboardCycle(cycleStart) {
-        try {
-            const { data, error } = await supabaseClient
-                .from('cycle_aggregates')
-                .select(`
-                    cycle_start,
-                    cycle_end,
-                    income,
-                    expense
-                `)
-                .eq('user_id', this.user.id)
-                .eq('cycle_start', cycleStart)
-                .single();
-
-            if (error || !data) {
-                this.ui.showNotification(
-                    'No data available for this cycle',
-                    'warning'
-                );
-                return;
-            }
-
-            this.currentCycle = data;
-
-            const balance = Number(data.income) - Number(data.expense);
-
-            document.getElementById('total-income').textContent =
-                this.formatCurrency(data.income);
-
-            document.getElementById('total-expenses').textContent =
-                this.formatCurrency(data.expense);
-
-            document.getElementById('net-balance').textContent =
-                this.formatCurrency(balance);
-
-        } catch (err) {
-            console.error('[Analytics] Dashboard update failed', err);
-            this.ui.showNotification(
-                'Dashboard failed to update',
-                'error'
-            );
-        }
-    }
-
-    async loadLineChart(cycleStart) {
-        const { data: cycle } = await supabaseClient
+        const { data, error } = await supabaseClient
             .from('salary_cycles')
             .select('cycle_start, cycle_end')
+            .eq('user_id', this.user.id)
+            .order('cycle_start', { ascending: false });
+
+        if (error || !data?.length) {
+            selector.innerHTML = '<option>No salary cycles</option>';
+            this.ui.showNotification('Add a salary transaction first', 'warning');
+            return;
+        }
+
+        selector.innerHTML = '';
+
+        data.forEach((c, i) => {
+            const opt = document.createElement('option');
+            opt.value = c.cycle_start;
+            opt.textContent =
+                i === 0
+                    ? `Current (${this.prettyDate(c.cycle_start)} → ${this.prettyDate(c.cycle_end)})`
+                    : `${this.prettyDate(c.cycle_start)} → ${this.prettyDate(c.cycle_end)}`;
+            selector.appendChild(opt);
+        });
+
+        // ✅ INITIAL LOAD (THIS WAS MISSING)
+        await this.loadFullCycle(data[0].cycle_start);
+    }
+
+    /* -------- SINGLE SOURCE OF TRUTH -------- */
+    async loadFullCycle(cycleStart) {
+        if (!cycleStart) return;
+
+        console.info('[Analytics] Loading full cycle:', cycleStart);
+
+        await this.loadDashboardCycle(cycleStart);
+        await this.loadLineChart(cycleStart);
+        await this.loadDonutChart(cycleStart);
+
+        if (this.transactionsService) {
+            await this.transactionsService.loadByCycle(cycleStart);
+        }
+    }
+
+    /* -------- DASHBOARD TOTALS -------- */
+    async loadDashboardCycle(cycleStart) {
+        const { data } = await supabaseClient
+            .from('cycle_aggregates')
+            .select('income, expense')
             .eq('user_id', this.user.id)
             .eq('cycle_start', cycleStart)
             .single();
 
+        if (!data) return;
+
+        document.getElementById('total-income').textContent =
+            this.formatCurrency(data.income);
+
+        document.getElementById('total-expenses').textContent =
+            this.formatCurrency(data.expense);
+
+        document.getElementById('net-balance').textContent =
+            this.formatCurrency(data.income - data.expense);
+    }
+
+    /* -------- LINE CHART -------- */
+    async loadLineChart(cycleStart) {
+        const cycle = await this.getCycle(cycleStart);
         if (!cycle) return;
 
-        const { data, error } = await supabaseClient.rpc(
+        const { data } = await supabaseClient.rpc(
             'get_cycle_daily_expenses',
             {
-                cycle_start: this.toDate(cycle.cycle_start),
-                cycle_end: this.toDate(cycle.cycle_end)
+                cycle_start: cycle.cycle_start,
+                cycle_end: cycle.cycle_end
             }
         );
 
-        if (error || !data?.length) return;
+        if (!data?.length) return;
 
         const labels = data.map(d =>
             new Date(d.day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
         );
         const values = data.map(d => d.total_expense);
 
-        this.renderLineChart(labels, values);
-    }
-
-    renderLineChart(labels, values) {
         if (this.lineChart) this.lineChart.destroy();
 
-        const ctx = document.getElementById('chart').getContext('2d');
-        this.lineChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [{
-                    label: 'Daily Expenses',
-                    data: values,
-                    fill: true,
-                    tension: 0.3
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
+        this.lineChart = new Chart(
+            document.getElementById('chart'),
+            {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Daily Expenses',
+                        data: values,
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
             }
-        });
+        );
     }
 
+    /* -------- DONUT CHART -------- */
     async loadDonutChart(cycleStart) {
-        const { data: cycle } = await supabaseClient
-            .from('salary_cycles')
-            .select('cycle_start, cycle_end')
-            .eq('user_id', this.user.id)
-            .eq('cycle_start', cycleStart)
-            .single();
-
+        const cycle = await this.getCycle(cycleStart);
         if (!cycle) return;
 
         const { data } = await supabaseClient.rpc(
             'get_cycle_expense_breakdown',
             {
-                cycle_start: this.toDate(cycle.cycle_start),
-                cycle_end: this.toDate(cycle.cycle_end)
+                cycle_start: cycle.cycle_start,
+                cycle_end: cycle.cycle_end
             }
         );
 
         if (!data?.length) return;
 
-        this.renderDonutChart(
-            data.map(d => d.category),
-            data.map(d => d.total)
+        if (this.donutChart) this.donutChart.destroy();
+
+        this.donutChart = new Chart(
+            document.getElementById('expense-donut-chart'),
+            {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(d => d.category),
+                    datasets: [{
+                        data: data.map(d => d.total)
+                    }]
+                },
+                options: { responsive: true }
+            }
         );
     }
 
-
-    /* ----------------------------------
-       DAILY EXPENSE SERIES (FOR ML)
-    ---------------------------------- */
-    async loadDailyExpenses(cycleStart, cycleEnd) {
-        try {
-            const { data, error } = await supabaseClient.rpc(
-                'get_cycle_daily_expenses',
-                {
-                    cycle_start: this.toDate(cycle.cycle_start),
-                    cycle_end: this.toDate(cycle.cycle_end)
-                }
-            );
-
-            if (error) throw error;
-            return data || [];
-
-        } catch (err) {
-            console.warn(
-                '[Analytics] Daily expenses unavailable',
-                err
-            );
-            return [];
-        }
+    /* -------- HELPERS -------- */
+    async getCycle(cycleStart) {
+        const { data } = await supabaseClient
+            .from('salary_cycles')
+            .select('cycle_start, cycle_end')
+            .eq('user_id', this.user.id)
+            .eq('cycle_start', cycleStart)
+            .single();
+        return data;
     }
 
-    /* ----------------------------------
-       LOCAL AI / ANALYTICS (PLACEHOLDER)
-    ---------------------------------- */
-    async runLocalInsights() {
-        try {
-            const { data, error } = await supabaseClient
-                .from('transactions')
-                .select(`
-                    amount,
-                    type,
-                    category,
-                    transaction_date,
-                    payment_to
-                `)
-                .eq('user_id', this.user.id);
-
-            if (error) throw error;
-
-            if (!data || data.length < 5) {
-                this.ui.showNotification(
-                    'Not enough data for insights',
-                    'warning'
-                );
-                return;
-            }
-
-            const totalExpense = data
-                .filter(t => t.type === 'expense')
-                .reduce((sum, t) => sum + Number(t.amount), 0);
-
-            this.ui.showNotification(
-                `Total tracked expense: ${this.formatCurrency(totalExpense)}`
-            );
-
-        } catch (err) {
-            console.error('[Analytics] Insight failed', err);
-            this.ui.showNotification(
-                'Analytics failed to load',
-                'error'
-            );
-        }
-    }
-
-    /* ----------------------------------
-       HELPERS
-    ---------------------------------- */
-    formatCurrency(value) {
-        return '₹' + Number(value).toLocaleString('en-IN', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+    formatCurrency(v) {
+        return '₹' + Number(v).toLocaleString('en-IN', {
+            minimumFractionDigits: 2
         });
     }
 
-    prettyDate(dateStr) {
-        return new Date(dateStr).toLocaleDateString('en-IN', {
+    prettyDate(d) {
+        return new Date(d).toLocaleDateString('en-IN', {
             day: 'numeric',
             month: 'short'
         });
     }
-
-    toDate(d) {
-        if (!d) return null;
-
-        // If already YYYY-MM-DD, return as-is
-        if (typeof d === 'string' && d.length === 10) {
-            return d;
-        }
-
-        return new Date(d).toISOString().split('T')[0];
-    }
-
 }
