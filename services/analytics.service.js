@@ -1,18 +1,9 @@
 export class AnalyticsService {
-    constructor(user, ui, transactionService) {
+    constructor(user, ui, analyticsService) {
         this.user = user;
         this.ui = ui;
-        this.transactionService = transactionService;
-
-        this.lineChart = null;
-        this.donutChart = null;
-        this.cycles = [];
-        this.currentCycle = null;
-        this.analyticsData = {
-            dailyExpenses: [],
-            categoryTotals: [],
-            transactions: []
-        };
+        this.categoryService = categoryService;
+        this.analyticsService = analyticsService;
     }
 
     async init() {

@@ -31,6 +31,9 @@ export class UIController {
     showPage(pageId) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(pageId)?.classList.add('active');
+
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`[data-page="${pageId}"]`)?.classList.add('active');
     }
 
     prettyDate(d) {
@@ -40,5 +43,5 @@ export class UIController {
     formatCurrency(n) {
         return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 });
     }
-    
+
 }
