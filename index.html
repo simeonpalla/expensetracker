@@ -317,7 +317,7 @@
                 </form>
             </div>
 
-            <div class="chart-container" id="line-chart-container" role="region" aria-label="Income vs expenses chart">
+            <div class="chart-container" role="region" aria-label="Income vs expenses chart">
                 <h3 id="line-chart-title"><span aria-hidden="true">📈</span> Daily Breakdown</h3>
                 <canvas id="chart" aria-label="Line chart showing income and expenses for the selected month"></canvas>
             </div>
@@ -384,7 +384,7 @@
                             
                             <label for="category-type" class="sr-only">Category type</label>
                             <select id="category-type" required aria-label="Category type">
-                                <option value="" disabled selected>Select type</option>
+                                <option value="">Type</option>
                                 <option value="income">Income</option>
                                 <option value="expense">Expense</option>
                             </select>
@@ -478,7 +478,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script src="supabase-config.js"></script>
-    <script type="module" src="app.js"></script>
+    <script src="script.js?v=2"></script>
 
 </body>
 </html>
