@@ -140,6 +140,7 @@ export class TransactionService {
         );
 
         if (error) {
+            console.error('Transaction RPC error:', error);
             list.innerHTML = '';
             this.ui.showNotification('Failed to load transactions', 'error');
             return;
