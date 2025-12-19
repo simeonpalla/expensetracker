@@ -1,9 +1,21 @@
+// services/analytics.service.js
+import { LocalAnalyticsEngine } from '../ml/localAnalyticsEngine.js';
+
 export class AnalyticsService {
-    constructor(user, ui, analyticsService) {
+    constructor(user, ui, transactionService) {
         this.user = user;
         this.ui = ui;
-        this.categoryService = categoryService;
-        this.analyticsService = analyticsService;
+        this.transactionService = transactionService;
+
+        this.lineChart = null;
+        this.donutChart = null;
+        this.cycles = [];
+
+        this.analyticsData = {
+            dailyExpenses: [],
+            categoryTotals: [],
+            transactions: []
+        };
     }
 
     async init() {
@@ -34,8 +46,8 @@ export class AnalyticsService {
             opt.value = `${c.cycle_start}|${c.cycle_end}`;
             opt.textContent =
                 idx === 0
-                    ? `Current (${this.prettyDate(c.cycle_start)} → ${this.prettyDate(c.cycle_end)})`
-                    : `${this.prettyDate(c.cycle_start)} → ${this.prettyDate(c.cycle_end)}`;
+                    ? `Current (${this.ui.prettyDate(c.cycle_start)} → ${this.ui.prettyDate(c.cycle_end)})`
+                    : `${this.ui.prettyDate(c.cycle_start)} → ${this.ui.prettyDate(c.cycle_end)}`;
             selector.appendChild(opt);
         });
 
@@ -51,11 +63,11 @@ export class AnalyticsService {
             });
     }
 
-    loadAllForCycle(cycleStart, cycleEnd) {
-        this.loadDashboardCycle(cycleStart);
-        this.loadLineChart(cycleStart, cycleEnd);
-        this.loadDonutChart(cycleStart, cycleEnd);
-        this.transactionService.loadForCycle(cycleStart, cycleEnd);
+    loadAllForCycle(start, end) {
+        this.loadDashboardCycle(start);
+        this.loadLineChart(start, end);
+        this.loadDonutChart(start, end);
+        this.transactionService.loadForCycle(start, end, this);
     }
 
     async loadDashboardCycle(cycleStart) {
@@ -69,11 +81,11 @@ export class AnalyticsService {
         if (!data) return;
 
         document.getElementById('total-income').textContent =
-            this.formatCurrency(data.income);
+            this.ui.formatCurrency(data.income);
         document.getElementById('total-expenses').textContent =
-            this.formatCurrency(data.expense);
+            this.ui.formatCurrency(data.expense);
         document.getElementById('net-balance').textContent =
-            this.formatCurrency(data.income - data.expense);
+            this.ui.formatCurrency(data.income - data.expense);
     }
 
     async loadLineChart(start, end) {
@@ -87,22 +99,19 @@ export class AnalyticsService {
         this.destroyLineChart();
         if (!data?.length) return;
 
-        this.lineChart = new Chart(
-            document.getElementById('chart'),
-            {
-                type: 'line',
-                data: {
-                    labels: data.map(d => this.ui.prettyDate(d.day)),
-                    datasets: [{
-                        label: 'Daily Expenses',
-                        data: data.map(d => d.total_expense),
-                        fill: true,
-                        tension: 0.3
-                    }]
-                },
-                options: { responsive: true }
-            }
-        );
+        this.lineChart = new Chart(document.getElementById('chart'), {
+            type: 'line',
+            data: {
+                labels: data.map(d => this.ui.prettyDate(d.day)),
+                datasets: [{
+                    label: 'Daily Expenses',
+                    data: data.map(d => d.total_expense),
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: { responsive: true }
+        });
     }
 
     async loadDonutChart(start, end) {
@@ -134,20 +143,18 @@ export class AnalyticsService {
     }
 
     destroyLineChart() {
-        if (this.lineChart) this.lineChart.destroy();
+        this.lineChart?.destroy();
         this.lineChart = null;
     }
 
     destroyDonutChart() {
-        if (this.donutChart) this.donutChart.destroy();
+        this.donutChart?.destroy();
         this.donutChart = null;
     }
 
     runLocalInsights() {
         const engine = new LocalAnalyticsEngine(this.analyticsData);
-        const pace = engine.computeSpendPace();
-
-        this.ui.renderInsights(pace);
+        const insights = engine.computeSpendPace();
+        this.ui.renderInsights(insights);
     }
-
 }

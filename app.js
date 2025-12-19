@@ -16,14 +16,18 @@ class ExpenseTrackerApp {
 
         this.ui = new UIController();
         this.categoryService = new CategoryService(user, this.ui);
-        this.analyticsService = new AnalyticsService(user, this.ui, null);
+
         this.transactionService = new TransactionService(
             user,
             this.ui,
             this.categoryService
-            this.analyticsService
         );
-        this.analyticsService.transactionService = this.transactionService;
+
+        this.analyticsService = new AnalyticsService(
+            user,
+            this.ui,
+            this.transactionService
+        );
 
         this.init();
     }
@@ -32,7 +36,6 @@ class ExpenseTrackerApp {
         await this.categoryService.load();
         await this.transactionService.init();
         await this.analyticsService.init();
-
         this.ui.bindAppEvents(this);
     }
 }

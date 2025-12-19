@@ -130,7 +130,7 @@ export class TransactionService {
         }
     }
 
-    async loadForCycle(cycleStart, cycleEnd) {
+    async loadForCycle(cycleStart, cycleEnd, analyticsService) {
         const list = document.getElementById('transactions-list');
         list.innerHTML = '<div class="loading">Loading transactions...</div>';
 
@@ -145,8 +145,7 @@ export class TransactionService {
             return;
         }
 
-        // ✅ SAFE: cache AFTER data exists
-        this.ui.analyticsService.analyticsData.transactions = data || [];
+        analyticsService.analyticsData.transactions = data || [];
 
         list.innerHTML = '';
 
@@ -170,6 +169,7 @@ export class TransactionService {
             list.appendChild(row);
         });
     }
+
 
 
 }
