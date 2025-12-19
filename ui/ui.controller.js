@@ -21,6 +21,16 @@ export class UIController {
                 app.analytics.loadDashboardCycle(e.target.value);
             });
 
+        document.getElementById('cycle-history')
+            ?.addEventListener('change', (e) => {
+                const cycleStart = e.target.value;
+
+                app.analytics.loadDashboardCycle(cycleStart);
+                app.analytics.loadLineChart(cycleStart);
+                app.analytics.loadDonutChart(cycleStart);
+                app.transactions.loadByCycle(cycleStart);
+            });
+
         // local AI
         document.getElementById('generate-local-ai-btn')
             ?.addEventListener('click', () => {

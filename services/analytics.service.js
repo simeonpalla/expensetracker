@@ -119,6 +119,83 @@ export class AnalyticsService {
         }
     }
 
+    async loadLineChart(cycleStart) {
+        const { data: cycle } = await supabaseClient
+            .from('salary_cycles')
+            .select('cycle_start, cycle_end')
+            .eq('user_id', this.user.id)
+            .eq('cycle_start', cycleStart)
+            .single();
+
+        if (!cycle) return;
+
+        const { data, error } = await supabaseClient.rpc(
+            'get_cycle_daily_expenses',
+            {
+                cycle_start: this.toDate(cycle.cycle_start),
+                cycle_end: this.toDate(cycle.cycle_end)
+            }
+        );
+
+        if (error || !data?.length) return;
+
+        const labels = data.map(d =>
+            new Date(d.day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        );
+        const values = data.map(d => d.total_expense);
+
+        this.renderLineChart(labels, values);
+    }
+
+    renderLineChart(labels, values) {
+        if (this.lineChart) this.lineChart.destroy();
+
+        const ctx = document.getElementById('chart').getContext('2d');
+        this.lineChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Daily Expenses',
+                    data: values,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+
+    async loadDonutChart(cycleStart) {
+        const { data: cycle } = await supabaseClient
+            .from('salary_cycles')
+            .select('cycle_start, cycle_end')
+            .eq('user_id', this.user.id)
+            .eq('cycle_start', cycleStart)
+            .single();
+
+        if (!cycle) return;
+
+        const { data } = await supabaseClient.rpc(
+            'get_cycle_expense_breakdown',
+            {
+                cycle_start: this.toDate(cycle.cycle_start),
+                cycle_end: this.toDate(cycle.cycle_end)
+            }
+        );
+
+        if (!data?.length) return;
+
+        this.renderDonutChart(
+            data.map(d => d.category),
+            data.map(d => d.total)
+        );
+    }
+
+
     /* ----------------------------------
        DAILY EXPENSE SERIES (FOR ML)
     ---------------------------------- */
@@ -127,8 +204,8 @@ export class AnalyticsService {
             const { data, error } = await supabaseClient.rpc(
                 'get_cycle_daily_expenses',
                 {
-                    cycle_start: cycleStart,
-                    cycle_end: cycleEnd
+                    cycle_start: this.toDate(cycle.cycle_start),
+                    cycle_end: this.toDate(cycle.cycle_end)
                 }
             );
 
@@ -203,4 +280,16 @@ export class AnalyticsService {
             month: 'short'
         });
     }
+
+    toDate(d) {
+        if (!d) return null;
+
+        // If already YYYY-MM-DD, return as-is
+        if (typeof d === 'string' && d.length === 10) {
+            return d;
+        }
+
+        return new Date(d).toISOString().split('T')[0];
+    }
+
 }
