@@ -56,11 +56,20 @@ export class AnalyticsService {
     }
 
     bindCycleChange() {
-        document.getElementById('cycle-history')
-            ?.addEventListener('change', (e) => {
-                const [start, end] = e.target.value.split('|');
-                this.loadAllForCycle(start, end);
-            });
+        const selector = document.getElementById('cycle-history');
+        if (!selector) return;
+
+        selector.addEventListener('change', (e) => {
+            const value = e.target.value;
+
+            // 🚨 guard against invalid values
+            if (!value || !value.includes('|')) return;
+
+            const [start, end] = value.split('|');
+            if (!start || !end) return;
+
+            this.loadAllForCycle(start, end);
+        });
     }
 
     loadAllForCycle(start, end) {
