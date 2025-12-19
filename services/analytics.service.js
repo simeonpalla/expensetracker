@@ -119,7 +119,32 @@ export class AnalyticsService {
                     tension: 0.3
                 }]
             },
-            options: { responsive: true }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 6
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: value => this.ui.formatCurrency(value)
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx =>
+                                ` ${this.ui.formatCurrency(ctx.raw)}`
+                        }
+                    }
+                }
+            }
         });
     }
 
