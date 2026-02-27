@@ -1,0 +1,25 @@
+{
+  "name": "expensetracker",
+  "version": "1.0.0",
+  "description": "A personal finance tracker built with **vanilla HTML/CSS/JS** and **Supabase**.   It:",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simeonpalla/expensetracker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/simeonpalla/expensetracker/issues"
+  },
+  "homepage": "https://github.com/simeonpalla/expensetracker#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
+    "dotenv": "^17.3.1",
+    "netlify-cli": "^24.0.1"
+  }
+}
