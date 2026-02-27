@@ -1,3 +1,5 @@
+// script.js
+
 // ========================================
 // BFF API LAYER
 // ========================================
@@ -87,8 +89,8 @@ class ExpenseTracker {
 
         this.paymentSources = {
             upi: ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
-            'debit-card': ['UBI', 'ICICI', 'SBI'],
-            'credit-card': ['ICICI Amazon', 'ICICI Coral', 'RBL'],
+            'debit-card': ['UBI', 'ICICI', 'Indian Bank'],
+            'credit-card': ['ICICI Amazon', 'ICICI Coral', 'RBL', 'Union Bank'],
             cash: ['Cash']
         };
 
@@ -96,6 +98,9 @@ class ExpenseTracker {
     }
 
     async init() {
+        
+        await this.checkConnection();
+
         const session = JSON.parse(localStorage.getItem('session') || 'null');
         if (!session) return;
 
@@ -106,6 +111,19 @@ class ExpenseTracker {
 
         this.setupEventListeners();
         this.setTodayDate();
+    }
+
+    async checkConnection() {
+        try {
+            const res = await fetch('/.netlify/functions/health');
+            if (!res.ok) throw new Error();
+
+            document.getElementById('status-dot').classList.remove('connecting');
+            document.getElementById('status-dot').classList.add('connected');
+            document.getElementById('status-text').textContent = 'Connected';
+        } catch {
+            document.getElementById('status-text').textContent = 'Connection Failed';
+        }
     }
 
     refreshCategoryDropdown() {

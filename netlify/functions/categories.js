@@ -1,3 +1,5 @@
+// categories.js
+
 const { supabase } = require('./_supabase');
 
 exports.handler = async function () {
