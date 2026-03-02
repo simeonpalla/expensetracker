@@ -698,7 +698,7 @@ class ExpenseTracker {
     }
 
     // ===============================
-    // LOCAL AI COACH 
+    // LOCAL AI COACH (DIRECTIVE MODE)
     // ===============================
     generateLocalAIInsights() {
         const loading = document.getElementById('local-ai-loading');
@@ -709,49 +709,80 @@ class ExpenseTracker {
         result.style.display = 'none';
         
         setTimeout(() => { // Simulate processing time for UX
-            if (!this.transactions || this.transactions.length < 5) {
-                result.innerHTML = `<p>Not enough transactions to provide insights yet. Keep tracking!</p>`;
+            const cycleTxs = this.getTransactionsInCycle(this.currentCycleStart, this.currentCycleEnd);
+
+            if (!cycleTxs || cycleTxs.length < 3) {
+                result.innerHTML = `<p style="text-align: center; color: #6b7280;">Log a few more transactions in this cycle before I can issue a valid directive.</p>`;
                 loading.style.display = 'none';
                 result.style.display = 'block';
                 return;
             }
 
-            let totalIncome = 0;
-            let totalExpenses = 0;
+            let income = 0;
+            let expenses = 0;
             const byCategory = {};
             
-            this.transactions.forEach(t => {
+            cycleTxs.forEach(t => {
                 const amount = Number(t.amount);
-                if (t.type === 'income') totalIncome += amount;
+                if (t.type === 'income') income += amount;
                 if (t.type === 'expense') {
-                    totalExpenses += amount;
+                    expenses += amount;
                     byCategory[t.category] = (byCategory[t.category] || 0) + amount;
                 }
             });
 
-            const topCats = Object.entries(byCategory)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 3);
+            // Isolate the biggest leak
+            const topCats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+            const topSpender = topCats.length > 0 ? topCats[0] : null;
 
-            let html = `<h3>💼 Lifetime Overview</h3>`;
-            html += `<p>Total Income: <b>₹${totalIncome.toFixed(0)}</b></p>`;
-            html += `<p>Total Expenses: <b>₹${totalExpenses.toFixed(0)}</b></p>`;
+            // Calculate current velocity and projections
+            const start = new Date(this.currentCycleStart);
+            const today = new Date();
+            const diffTime = Math.abs(today - start);
+            const daysPassed = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+            const daysRemaining = Math.max(0, 30 - daysPassed); // Assuming ~30 day cycle
             
-            if (topCats.length > 0) {
-                html += `<h3>🔥 Top Spend Areas</h3><ul>`;
-                topCats.forEach(([cat, amt]) => {
-                    html += `<li><b>${cat}</b>: ₹${amt.toFixed(0)}</li>`;
-                });
-                html += `</ul>`;
-                
-                html += `<h3>💡 AI Suggestion</h3>`;
-                html += `<p>Try cutting back 10% on <b>${topCats[0][0]}</b> next cycle to easily boost your savings by ₹${(topCats[0][1]*0.10).toFixed(0)}.</p>`;
+            const dailyBurnRate = expenses / daysPassed;
+            const projectedBalance = income - (expenses + (dailyBurnRate * daysRemaining));
+
+            let html = `<h3 style="margin-bottom: 20px;">🧠 Actionable Directives</h3>`;
+
+            // DIRECTIVE 1: RUN-RATE STATUS
+            if (projectedBalance < 0) {
+                html += `
+                    <div style="background: #fee2e2; color: #991b1b; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ef4444; text-align: left;">
+                        <strong style="display: block; margin-bottom: 5px;">🚨 RED ALERT: SPENDING FREEZE REQUIRED</strong>
+                        You are burning <b>₹${dailyBurnRate.toFixed(0)}/day</b>. At this velocity, you will end the cycle <strong>short by ₹${Math.abs(projectedBalance).toFixed(0)}</strong>. Stop all non-essential purchases immediately until your next deposit.
+                    </div>`;
+            } else if (projectedBalance < (income * 0.1)) {
+                html += `
+                    <div style="background: #fef3c7; color: #92400e; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #f59e0b; text-align: left;">
+                        <strong style="display: block; margin-bottom: 5px;">⚠️ CAUTION: MARGINS ARE TOO THIN</strong>
+                        You are on track to save less than 10% of your income this cycle. You must pull your daily spend below <b>₹${((income * 0.9 - expenses) / (daysRemaining || 1)).toFixed(0)}/day</b> for the remainder of the month to build a proper safety net.
+                    </div>`;
+            } else {
+                html += `
+                    <div style="background: #d1fae5; color: #065f46; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #10b981; text-align: left;">
+                        <strong style="display: block; margin-bottom: 5px;">✅ GREEN LIGHT: SYSTEM OPTIMAL</strong>
+                        Your burn rate is highly controlled. You are tracking toward a surplus of <b>₹${projectedBalance.toFixed(0)}</b>. Sweep this excess into investments the moment your cycle closes.
+                    </div>`;
+            }
+
+            // DIRECTIVE 2: TARGET THE LEAK
+            if (topSpender && expenses > 0) {
+                const leakPercentage = ((topSpender[1] / expenses) * 100).toFixed(1);
+                html += `
+                    <div style="background: #f3f4f6; color: #1f2937; padding: 15px; border-radius: 8px; border-left: 4px solid #4f46e5; text-align: left;">
+                        <strong style="display: block; margin-bottom: 5px;">🎯 TACTICAL CUT: ${topSpender[0].toUpperCase()}</strong>
+                        <strong>${leakPercentage}%</strong> of your total outflow is bleeding into ${topSpender[0]} (₹${topSpender[1].toFixed(0)}). <br><br>
+                        <strong>Directive:</strong> Institute a strict 48-hour cooling-off period. Do not log another transaction in this category for the next two days to break the spending momentum.
+                    </div>`;
             }
 
             result.innerHTML = html;
             loading.style.display = 'none';
             result.style.display = 'block';
-        }, 800);
+        }, 600);
     }
 }
 
