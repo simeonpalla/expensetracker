@@ -1,6 +1,5 @@
 // ======================================================
 // EXPENSE TRACKER — FRONTEND CONTROLLER (BFF VERSION)
-// Works with Netlify Functions instead of direct Supabase
 // ======================================================
 
 
