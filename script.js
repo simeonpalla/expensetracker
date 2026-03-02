@@ -155,7 +155,8 @@ class ExpenseTracker {
 
             // ✅ 3. Process local data for dashboard
             this.loadCycleHistory();
-            this.showPage('dashboard');
+            // this.showPage('dashboard');
+            this.showPage('add-transaction');
         } catch (error) {
             console.error("Init Error:", error);
             document.getElementById('status-dot').className = 'status-dot error';
