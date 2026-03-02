@@ -10,7 +10,16 @@ const API = {
 
     async request(path, options = {}) {
 
-        const session = JSON.parse(localStorage.getItem('session') || 'null');
+        let session = null;
+
+        try {
+            const raw = localStorage.getItem('session');
+            if (raw && raw !== "undefined") {
+                session = JSON.parse(raw);
+            }
+        } catch {
+            localStorage.removeItem('session');
+        }
 
         const headers = {
             'Content-Type': 'application/json',
@@ -81,9 +90,19 @@ async function handleLogin(e) {
 
     try {
         const session = await API.login(email, password);
+
+        if (!session || !session.user) {
+            throw new Error("Login failed");
+        }
+
+        // ✅ store only VALID session
         localStorage.setItem('session', JSON.stringify(session));
+
         location.reload();
+
     } catch (err) {
+        localStorage.removeItem('session'); // ✅ prevent corruption
+
         const errorDiv = document.getElementById('auth-error');
         errorDiv.textContent = err.message;
         errorDiv.style.display = 'block';
@@ -101,7 +120,8 @@ function handleLogout() {
 // ===============================
 class ExpenseTracker {
 
-    constructor() {
+    constructor(session) {
+        this.currentUser = session.user;
         const session = JSON.parse(localStorage.getItem('session'));
         this.currentUser = session.user;
 
@@ -337,20 +357,28 @@ class ExpenseTracker {
 // ===============================
 document.addEventListener('DOMContentLoaded', () => {
 
-    console.log("INIT RUNNING");
-
-    document.getElementById('login-form')
-        .addEventListener('submit', handleLogin);
-
-    const session = localStorage.getItem('session');
     const authContainer = document.getElementById('auth-container');
     const appContainer = document.querySelector('.container');
 
-    if (session) {
-        authContainer.style.display = 'none';
-        appContainer.style.display = 'block';
-        window.app = new ExpenseTracker();
-    } else {
-        authContainer.style.display = 'flex';
+    let session = null;
+
+    try {
+        const raw = localStorage.getItem('session');
+        if (raw && raw !== "undefined") {
+            session = JSON.parse(raw);
+        }
+    } catch {
+        localStorage.removeItem('session');
     }
+
+    if (!session) {
+        authContainer.style.display = 'flex';
+        appContainer.style.display = 'none';
+        return;
+    }
+
+    authContainer.style.display = 'none';
+    appContainer.style.display = 'block';
+
+    window.app = new ExpenseTracker(session);
 });
