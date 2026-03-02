@@ -8,6 +8,7 @@ const supabase = createClient(
 );
 
 exports.handler = async function (event) {
+
   const { email, password } = JSON.parse(event.body);
 
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -16,7 +17,10 @@ exports.handler = async function (event) {
   });
 
   if (error) {
-    return { statusCode: 401, body: JSON.stringify({ error: error.message }) };
+    return {
+      statusCode: 401,
+      body: JSON.stringify({ error: error.message })
+    };
   }
 
   return {
