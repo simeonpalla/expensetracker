@@ -2,19 +2,26 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
-const authClient = createClient(
+const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    }
+  }
 );
 
 async function getUser(event) {
+
   const token = event.headers.authorization?.replace('Bearer ', '');
 
   if (!token) throw new Error('Missing token');
 
-  const { data, error } = await authClient.auth.getUser(token);
+  const { data, error } = await supabase.auth.getUser(token);
 
-  if (error || !data?.user) throw new Error('Invalid token');
+  if (error) throw error;
 
   return data.user;
 }
