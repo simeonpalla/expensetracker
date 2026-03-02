@@ -698,7 +698,7 @@ class ExpenseTracker {
     }
 
     // ===============================
-    // LOCAL AI COACH (DIRECTIVE MODE)
+    // LOCAL Insights (VARIANCE AUDIT & CORRECTIVES)
     // ===============================
     generateLocalAIInsights() {
         const loading = document.getElementById('local-ai-loading');
@@ -709,80 +709,128 @@ class ExpenseTracker {
         result.style.display = 'none';
         
         setTimeout(() => { // Simulate processing time for UX
-            const cycleTxs = this.getTransactionsInCycle(this.currentCycleStart, this.currentCycleEnd);
+            const allTxs = this.transactions || [];
+            const currentStart = this.currentCycleStart;
+            const currentEnd = this.currentCycleEnd;
 
-            if (!cycleTxs || cycleTxs.length < 3) {
-                result.innerHTML = `<p style="text-align: center; color: #6b7280;">Log a few more transactions in this cycle before I can issue a valid directive.</p>`;
+            // Separate current cycle from historical data
+            const currentTxs = this.getTransactionsInCycle(currentStart, currentEnd);
+            const historicalTxs = allTxs.filter(t => t.transaction_date < currentStart);
+
+            if (currentTxs.length < 3) {
+                result.innerHTML = `<p style="text-align: center; color: #6b7280;">Insufficient data in the current cycle to generate an audit.</p>`;
                 loading.style.display = 'none';
                 result.style.display = 'block';
                 return;
             }
 
-            let income = 0;
-            let expenses = 0;
-            const byCategory = {};
-            
-            cycleTxs.forEach(t => {
-                const amount = Number(t.amount);
-                if (t.type === 'income') income += amount;
+            if (historicalTxs.length === 0) {
+                result.innerHTML = `<p style="text-align: center; color: #6b7280;">No historical data found before this cycle. Baseline comparison requires at least one prior cycle.</p>`;
+                loading.style.display = 'none';
+                result.style.display = 'block';
+                return;
+            }
+
+            // Calculate exact historical timeframe in months for accurate averages
+            let earliestTime = new Date().getTime();
+            historicalTxs.forEach(t => {
+                const tTime = new Date(t.transaction_date).getTime();
+                if (tTime < earliestTime) earliestTime = tTime;
+            });
+            const msPerMonth = 1000 * 60 * 60 * 24 * 30.44; // Avg days in a month
+            const historicalMonths = Math.max(1, (new Date(currentStart).getTime() - earliestTime) / msPerMonth);
+
+            // Aggregate Current Outflows
+            const currentSpend = {};
+            currentTxs.forEach(t => {
                 if (t.type === 'expense') {
-                    expenses += amount;
-                    byCategory[t.category] = (byCategory[t.category] || 0) + amount;
+                    currentSpend[t.category] = (currentSpend[t.category] || 0) + Number(t.amount);
                 }
             });
 
-            // Isolate the biggest leak
-            const topCats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
-            const topSpender = topCats.length > 0 ? topCats[0] : null;
+            // Aggregate Historical Outflows
+            const historicalSpend = {};
+            historicalTxs.forEach(t => {
+                if (t.type === 'expense') {
+                    historicalSpend[t.category] = (historicalSpend[t.category] || 0) + Number(t.amount);
+                }
+            });
 
-            // Calculate current velocity and projections
-            const start = new Date(this.currentCycleStart);
-            const today = new Date();
-            const diffTime = Math.abs(today - start);
-            const daysPassed = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-            const daysRemaining = Math.max(0, 30 - daysPassed); // Assuming ~30 day cycle
-            
-            const dailyBurnRate = expenses / daysPassed;
-            const projectedBalance = income - (expenses + (dailyBurnRate * daysRemaining));
+            // Find Anomalies (Variance Analysis)
+            const anomalies = [];
+            Object.keys(currentSpend).forEach(cat => {
+                const currentAmt = currentSpend[cat];
+                const histAvg = (historicalSpend[cat] || 0) / historicalMonths;
 
-            let html = `<h3 style="margin-bottom: 20px;">🧠 Actionable Directives</h3>`;
+                // Threshold: > 10% over historical average AND at least ₹500 difference
+                if (currentAmt > histAvg && histAvg > 0) {
+                    const diff = currentAmt - histAvg;
+                    const pct = (diff / histAvg) * 100;
+                    if (pct >= 10 && diff >= 500) {
+                        anomalies.push({ cat, currentAmt, histAvg, diff, pct });
+                    }
+                }
+            });
 
-            // DIRECTIVE 1: RUN-RATE STATUS
-            if (projectedBalance < 0) {
+            anomalies.sort((a, b) => b.diff - a.diff); // Sort by highest absolute overspend first
+
+            let html = `<h3 style="margin-bottom: 20px;">📊 Variance Audit & Corrective Measures</h3>`;
+
+            if (anomalies.length === 0) {
                 html += `
-                    <div style="background: #fee2e2; color: #991b1b; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ef4444; text-align: left;">
-                        <strong style="display: block; margin-bottom: 5px;">🚨 RED ALERT: SPENDING FREEZE REQUIRED</strong>
-                        You are burning <b>₹${dailyBurnRate.toFixed(0)}/day</b>. At this velocity, you will end the cycle <strong>short by ₹${Math.abs(projectedBalance).toFixed(0)}</strong>. Stop all non-essential purchases immediately until your next deposit.
-                    </div>`;
-            } else if (projectedBalance < (income * 0.1)) {
-                html += `
-                    <div style="background: #fef3c7; color: #92400e; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #f59e0b; text-align: left;">
-                        <strong style="display: block; margin-bottom: 5px;">⚠️ CAUTION: MARGINS ARE TOO THIN</strong>
-                        You are on track to save less than 10% of your income this cycle. You must pull your daily spend below <b>₹${((income * 0.9 - expenses) / (daysRemaining || 1)).toFixed(0)}/day</b> for the remainder of the month to build a proper safety net.
+                    <div style="background: #d1fae5; color: #065f46; padding: 15px; border-radius: 8px; border-left: 4px solid #10b981;">
+                        <strong style="display: block; margin-bottom: 5px;">✅ NO SIGNIFICANT VARIANCES DETECTED</strong>
+                        Your spending across all categories aligns with your historical baseline. Maintain current financial controls.
                     </div>`;
             } else {
-                html += `
-                    <div style="background: #d1fae5; color: #065f46; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #10b981; text-align: left;">
-                        <strong style="display: block; margin-bottom: 5px;">✅ GREEN LIGHT: SYSTEM OPTIMAL</strong>
-                        Your burn rate is highly controlled. You are tracking toward a surplus of <b>₹${projectedBalance.toFixed(0)}</b>. Sweep this excess into investments the moment your cycle closes.
-                    </div>`;
-            }
+                // SECTION 1: INFORMATIVE (The Audit)
+                html += `<div style="margin-bottom: 25px;">
+                            <h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px;">1. Historical Baseline Comparison</h4>
+                            <p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 15px;">Comparing current cycle outflows against your ${historicalMonths.toFixed(1)}-month historical average.</p>
+                            <ul style="list-style: none; padding: 0; margin: 0;">`;
 
-            // DIRECTIVE 2: TARGET THE LEAK
-            if (topSpender && expenses > 0) {
-                const leakPercentage = ((topSpender[1] / expenses) * 100).toFixed(1);
-                html += `
-                    <div style="background: #f3f4f6; color: #1f2937; padding: 15px; border-radius: 8px; border-left: 4px solid #4f46e5; text-align: left;">
-                        <strong style="display: block; margin-bottom: 5px;">🎯 TACTICAL CUT: ${topSpender[0].toUpperCase()}</strong>
-                        <strong>${leakPercentage}%</strong> of your total outflow is bleeding into ${topSpender[0]} (₹${topSpender[1].toFixed(0)}). <br><br>
-                        <strong>Directive:</strong> Institute a strict 48-hour cooling-off period. Do not log another transaction in this category for the next two days to break the spending momentum.
-                    </div>`;
+                anomalies.forEach(a => {
+                    html += `
+                        <li style="background: #fef2f2; border: 1px solid #fee2e2; padding: 12px; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <strong style="color: #991b1b;">${a.cat.toUpperCase()}</strong>
+                                <span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">+${a.pct.toFixed(0)}%</span>
+                            </div>
+                            <div style="font-size: 0.9rem; color: #7f1d1d;">
+                                Current: <b>₹${a.currentAmt.toFixed(0)}</b> | Baseline Avg: <b>₹${a.histAvg.toFixed(0)}</b> <br>
+                                <span style="color: #ef4444; font-weight: 500;">(Overspend: ₹${a.diff.toFixed(0)})</span>
+                            </div>
+                        </li>`;
+                });
+                html += `</ul></div>`;
+
+                // SECTION 2: CORRECTIVE MEASURES (The Directives)
+                html += `<div>
+                            <h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px;">2. Mandated Corrective Measures</h4>
+                            <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 8px; color: #1e293b; font-size: 0.95rem;">`;
+                
+                // Generate specific directives based on the top 2 anomalies
+                const topTargets = anomalies.slice(0, 2);
+                topTargets.forEach((a, index) => {
+                    html += `<div style="${index !== 0 ? 'margin-top: 15px;' : ''}">
+                                <strong style="color: #1d4ed8;">Action ${index + 1}: Re-peg ${a.cat}</strong><br>
+                                Your deviation of ₹${a.diff.toFixed(0)} in ${a.cat} requires immediate correction. For the upcoming cycle, institute a hard limit of <b>₹${(a.histAvg * 0.95).toFixed(0)}</b> (5% below your historical baseline) to offset this variance. 
+                             </div>`;
+                });
+
+                if (anomalies.length > 2) {
+                     html += `<div style="margin-top: 15px; font-size: 0.85rem; color: #64748b;">
+                                *Secondary deviations in ${anomalies.slice(2).map(x=>x.cat).join(', ')} noted. Ensure spending in these categories remains strictly flat.
+                              </div>`;
+                }
+
+                html += `</div></div>`;
             }
 
             result.innerHTML = html;
             loading.style.display = 'none';
             result.style.display = 'block';
-        }, 600);
+        }, 800);
     }
 }
 
