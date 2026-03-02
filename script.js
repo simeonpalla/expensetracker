@@ -698,7 +698,7 @@ class ExpenseTracker {
     }
 
     // ===============================
-    // LOCAL Insights (VARIANCE AUDIT & CORRECTIVES)
+    // LOCAL AI COACH (5-POINT MASTER AUDIT)
     // ===============================
     generateLocalAIInsights() {
         const loading = document.getElementById('local-ai-loading');
@@ -707,125 +707,204 @@ class ExpenseTracker {
 
         loading.style.display = 'block';
         result.style.display = 'none';
-        
+
         setTimeout(() => { // Simulate processing time for UX
             const allTxs = this.transactions || [];
             const currentStart = this.currentCycleStart;
             const currentEnd = this.currentCycleEnd;
 
-            // Separate current cycle from historical data
             const currentTxs = this.getTransactionsInCycle(currentStart, currentEnd);
             const historicalTxs = allTxs.filter(t => t.transaction_date < currentStart);
 
             if (currentTxs.length < 3) {
-                result.innerHTML = `<p style="text-align: center; color: #6b7280;">Insufficient data in the current cycle to generate an audit.</p>`;
+                result.innerHTML = `<p style="text-align: center; color: #6b7280;">Log a few more transactions in this cycle before I can run a full 5-point audit.</p>`;
                 loading.style.display = 'none';
                 result.style.display = 'block';
                 return;
             }
 
-            if (historicalTxs.length === 0) {
-                result.innerHTML = `<p style="text-align: center; color: #6b7280;">No historical data found before this cycle. Baseline comparison requires at least one prior cycle.</p>`;
-                loading.style.display = 'none';
-                result.style.display = 'block';
-                return;
-            }
-
-            // Calculate exact historical timeframe in months for accurate averages
-            let earliestTime = new Date().getTime();
-            historicalTxs.forEach(t => {
-                const tTime = new Date(t.transaction_date).getTime();
-                if (tTime < earliestTime) earliestTime = tTime;
-            });
-            const msPerMonth = 1000 * 60 * 60 * 24 * 30.44; // Avg days in a month
-            const historicalMonths = Math.max(1, (new Date(currentStart).getTime() - earliestTime) / msPerMonth);
-
-            // Aggregate Current Outflows
+            // --- DATA AGGREGATION ---
+            let income = 0;
+            let expenses = 0;
             const currentSpend = {};
+
             currentTxs.forEach(t => {
+                const amount = Number(t.amount);
+                if (t.type === 'income') income += amount;
                 if (t.type === 'expense') {
-                    currentSpend[t.category] = (currentSpend[t.category] || 0) + Number(t.amount);
+                    expenses += amount;
+                    currentSpend[t.category] = (currentSpend[t.category] || 0) + amount;
                 }
             });
 
-            // Aggregate Historical Outflows
+            // Historical baseline prep
+            let historicalMonths = 1;
             const historicalSpend = {};
-            historicalTxs.forEach(t => {
-                if (t.type === 'expense') {
-                    historicalSpend[t.category] = (historicalSpend[t.category] || 0) + Number(t.amount);
-                }
-            });
-
-            // Find Anomalies (Variance Analysis)
-            const anomalies = [];
-            Object.keys(currentSpend).forEach(cat => {
-                const currentAmt = currentSpend[cat];
-                const histAvg = (historicalSpend[cat] || 0) / historicalMonths;
-
-                // Threshold: > 10% over historical average AND at least ₹500 difference
-                if (currentAmt > histAvg && histAvg > 0) {
-                    const diff = currentAmt - histAvg;
-                    const pct = (diff / histAvg) * 100;
-                    if (pct >= 10 && diff >= 500) {
-                        anomalies.push({ cat, currentAmt, histAvg, diff, pct });
+            if (historicalTxs.length > 0) {
+                let earliestTime = new Date().getTime();
+                historicalTxs.forEach(t => {
+                    const tTime = new Date(t.transaction_date).getTime();
+                    if (tTime < earliestTime) earliestTime = tTime;
+                    if (t.type === 'expense') {
+                        historicalSpend[t.category] = (historicalSpend[t.category] || 0) + Number(t.amount);
                     }
-                }
-            });
+                });
+                const msPerMonth = 1000 * 60 * 60 * 24 * 30.44;
+                historicalMonths = Math.max(1, (new Date(currentStart).getTime() - earliestTime) / msPerMonth);
+            }
 
-            anomalies.sort((a, b) => b.diff - a.diff); // Sort by highest absolute overspend first
+            // --- 1 & 2. ANOMALIES (AUDIT & CORRECTIVES) ---
+            const anomalies = [];
+            if (historicalTxs.length > 0) {
+                Object.keys(currentSpend).forEach(cat => {
+                    const currentAmt = currentSpend[cat];
+                    const histAvg = (historicalSpend[cat] || 0) / historicalMonths;
+                    if (currentAmt > histAvg && histAvg > 0) {
+                        const diff = currentAmt - histAvg;
+                        const pct = (diff / histAvg) * 100;
+                        if (pct >= 10 && diff >= 500) {
+                            anomalies.push({ cat, currentAmt, histAvg, diff, pct });
+                        }
+                    }
+                });
+                anomalies.sort((a, b) => b.diff - a.diff);
+            }
 
-            let html = `<h3 style="margin-bottom: 20px;">📊 Variance Audit & Corrective Measures</h3>`;
+            // --- 3. RUN-RATE ---
+            const start = new Date(currentStart);
+            const today = new Date();
+            const diffTime = Math.abs(today - start);
+            const daysPassed = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+            const daysRemaining = Math.max(0, 30 - daysPassed);
 
-            if (anomalies.length === 0) {
-                html += `
-                    <div style="background: #d1fae5; color: #065f46; padding: 15px; border-radius: 8px; border-left: 4px solid #10b981;">
-                        <strong style="display: block; margin-bottom: 5px;">✅ NO SIGNIFICANT VARIANCES DETECTED</strong>
-                        Your spending across all categories aligns with your historical baseline. Maintain current financial controls.
-                    </div>`;
+            const dailyBurnRate = expenses / daysPassed;
+            const projectedBalance = income - (expenses + (dailyBurnRate * daysRemaining));
+
+            // --- 4. TARGET THE LEAK ---
+            const sortedCategories = Object.entries(currentSpend).sort((a, b) => b[1] - a[1]);
+            const topSpender = sortedCategories.length > 0 ? sortedCategories[0] : null;
+
+            // --- 5. MACRO ANALYTICS ---
+            let top3Spend = 0;
+            sortedCategories.slice(0, 3).forEach(c => top3Spend += c[1]);
+            const paretoRatio = expenses > 0 ? ((top3Spend / expenses) * 100).toFixed(0) : 0;
+            const savingsRate = income > 0 ? (((income - expenses) / income) * 100).toFixed(0) : 0;
+
+            // ==========================================
+            // HTML GENERATION
+            // ==========================================
+            let html = `<div style="text-align: left;">`;
+
+            // ------------------------------------------
+            // SECTION 1: INFORMATIVE (The Audit)
+            // ------------------------------------------
+            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 10px;">1. Informative (The Audit)</h4>`;
+            if (historicalTxs.length === 0) {
+                html += `<p style="font-size: 0.9rem; color: #6b7280;">Baseline comparison requires at least one prior cycle. Keep logging data.</p>`;
+            } else if (anomalies.length === 0) {
+                html += `<div style="background: #d1fae5; color: #065f46; padding: 12px; border-radius: 6px; border-left: 4px solid #10b981;">✅ No significant overspending detected against your ${historicalMonths.toFixed(1)}-month baseline.</div>`;
             } else {
-                // SECTION 1: INFORMATIVE (The Audit)
-                html += `<div style="margin-bottom: 25px;">
-                            <h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px;">1. Historical Baseline Comparison</h4>
-                            <p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 15px;">Comparing current cycle outflows against your ${historicalMonths.toFixed(1)}-month historical average.</p>
-                            <ul style="list-style: none; padding: 0; margin: 0;">`;
-
+                html += `<p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 10px;">Variances against your ${historicalMonths.toFixed(1)}-month historical average:</p>`;
+                html += `<ul style="list-style: none; padding: 0; margin: 0;">`;
                 anomalies.forEach(a => {
                     html += `
-                        <li style="background: #fef2f2; border: 1px solid #fee2e2; padding: 12px; border-radius: 6px; margin-bottom: 10px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <strong style="color: #991b1b;">${a.cat.toUpperCase()}</strong>
-                                <span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">+${a.pct.toFixed(0)}%</span>
+                        <li style="background: #fef2f2; border: 1px solid #fee2e2; padding: 10px; border-radius: 6px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <strong style="color: #991b1b; font-size: 0.95rem;">${a.cat.toUpperCase()}</strong>
+                                <span style="background: #ef4444; color: white; padding: 2px 6px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">+${a.pct.toFixed(0)}%</span>
                             </div>
-                            <div style="font-size: 0.9rem; color: #7f1d1d;">
-                                Current: <b>₹${a.currentAmt.toFixed(0)}</b> | Baseline Avg: <b>₹${a.histAvg.toFixed(0)}</b> <br>
-                                <span style="color: #ef4444; font-weight: 500;">(Overspend: ₹${a.diff.toFixed(0)})</span>
+                            <div style="font-size: 0.85rem; color: #7f1d1d;">
+                                Current: <b>₹${a.currentAmt.toFixed(0)}</b> | Avg: <b>₹${a.histAvg.toFixed(0)}</b> <span style="color: #ef4444;">(+₹${a.diff.toFixed(0)})</span>
                             </div>
                         </li>`;
                 });
-                html += `</ul></div>`;
+                html += `</ul>`;
+            }
 
-                // SECTION 2: CORRECTIVE MEASURES (The Directives)
-                html += `<div>
-                            <h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px;">2. Mandated Corrective Measures</h4>
-                            <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 8px; color: #1e293b; font-size: 0.95rem;">`;
-                
-                // Generate specific directives based on the top 2 anomalies
+            // ------------------------------------------
+            // SECTION 2: CORRECTIVE MEASURES
+            // ------------------------------------------
+            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">2. Corrective Measures</h4>`;
+            if (anomalies.length === 0) {
+                 html += `<p style="font-size: 0.9rem; color: #6b7280;">No immediate corrections required. Maintain current trajectory.</p>`;
+            } else {
+                html += `<div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px; border-radius: 6px; color: #1e293b; font-size: 0.9rem;">`;
                 const topTargets = anomalies.slice(0, 2);
                 topTargets.forEach((a, index) => {
-                    html += `<div style="${index !== 0 ? 'margin-top: 15px;' : ''}">
+                    html += `<div style="${index !== 0 ? 'margin-top: 10px;' : ''}">
                                 <strong style="color: #1d4ed8;">Action ${index + 1}: Re-peg ${a.cat}</strong><br>
-                                Your deviation of ₹${a.diff.toFixed(0)} in ${a.cat} requires immediate correction. For the upcoming cycle, institute a hard limit of <b>₹${(a.histAvg * 0.95).toFixed(0)}</b> (5% below your historical baseline) to offset this variance. 
+                                Mandated limit for next cycle: <b>₹${(a.histAvg * 0.95).toFixed(0)}</b> (5% below baseline) to offset the ₹${a.diff.toFixed(0)} variance. 
                              </div>`;
                 });
-
-                if (anomalies.length > 2) {
-                     html += `<div style="margin-top: 15px; font-size: 0.85rem; color: #64748b;">
-                                *Secondary deviations in ${anomalies.slice(2).map(x=>x.cat).join(', ')} noted. Ensure spending in these categories remains strictly flat.
-                              </div>`;
-                }
-
-                html += `</div></div>`;
+                html += `</div>`;
             }
+
+            // ------------------------------------------
+            // SECTION 3: RUN-RATE STATUS
+            // ------------------------------------------
+            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">3. Run-Rate Status</h4>`;
+            if (projectedBalance < 0) {
+                html += `
+                    <div style="background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 6px; border-left: 4px solid #ef4444; font-size: 0.9rem;">
+                        <strong style="display: block; margin-bottom: 4px;">🚨 RED ALERT: DEFICIT PROJECTED</strong>
+                        Burning <b>₹${dailyBurnRate.toFixed(0)}/day</b>. You are projected to finish the cycle <strong>short by ₹${Math.abs(projectedBalance).toFixed(0)}</strong>. Freeze non-essential spending.
+                    </div>`;
+            } else if (projectedBalance < (income * 0.1)) {
+                html += `
+                    <div style="background: #fef3c7; color: #92400e; padding: 12px; border-radius: 6px; border-left: 4px solid #f59e0b; font-size: 0.9rem;">
+                        <strong style="display: block; margin-bottom: 4px;">⚠️ CAUTION: LOW MARGINS</strong>
+                        Burning <b>₹${dailyBurnRate.toFixed(0)}/day</b>. You will only have ₹${projectedBalance.toFixed(0)} leftover. Reduce daily spend to <b>₹${((income * 0.9 - expenses) / (daysRemaining || 1)).toFixed(0)}/day</b>.
+                    </div>`;
+            } else {
+                html += `
+                    <div style="background: #d1fae5; color: #065f46; padding: 12px; border-radius: 6px; border-left: 4px solid #10b981; font-size: 0.9rem;">
+                        <strong style="display: block; margin-bottom: 4px;">✅ GREEN LIGHT: SURPLUS PROJECTED</strong>
+                        Controlled burn of <b>₹${dailyBurnRate.toFixed(0)}/day</b>. You are tracking toward a surplus of <b>₹${projectedBalance.toFixed(0)}</b>.
+                    </div>`;
+            }
+
+            // ------------------------------------------
+            // SECTION 4: TARGET THE LEAK
+            // ------------------------------------------
+            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">4. Target The Leak</h4>`;
+            if (topSpender && expenses > 0) {
+                const leakPercentage = ((topSpender[1] / expenses) * 100).toFixed(1);
+                html += `
+                    <div style="background: #f3f4f6; color: #1f2937; padding: 12px; border-radius: 6px; border-left: 4px solid #4f46e5; font-size: 0.9rem;">
+                        <strong>${topSpender[0].toUpperCase()}</strong> is consuming <strong>${leakPercentage}%</strong> of your total outflow (₹${topSpender[1].toFixed(0)}). <br><br>
+                        <strong>Directive:</strong> Institute a strict 48-hour cooling-off period for this specific category to break spending momentum.
+                    </div>`;
+            } else {
+                html += `<p style="font-size: 0.9rem; color: #6b7280;">No dominant leaks detected.</p>`;
+            }
+
+            // ------------------------------------------
+            // SECTION 5: MACRO ANALYTICS
+            // ------------------------------------------
+            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">5. Macro-Level Analytics & Optimization</h4>`;
+            html += `<div style="font-size: 0.9rem; color: #374151; line-height: 1.5;">`;
+            
+            html += `<p style="margin-bottom: 10px;">Treating your personal finances like a dataset reveals macro trends that day-to-day tracking misses. Here is your operational efficiency:</p>`;
+
+            html += `<ul style="margin-left: 20px; margin-bottom: 10px;">`;
+            
+            // Savings rate analysis
+            if (income > 0) {
+                if (savingsRate < 20) {
+                    html += `<li style="margin-bottom: 8px;"><b>Gross Margin (Savings Rate): <span style="color:#ef4444;">${savingsRate}%</span></b>. Standard benchmark is 20%. To improve unit economics, you must focus on cutting recurring subscriptions or negotiating fixed costs rather than just skipping one-off purchases.</li>`;
+                } else {
+                    html += `<li style="margin-bottom: 8px;"><b>Gross Margin (Savings Rate): <span style="color:#10b981;">${savingsRate}%</span></b>. Excellent operational efficiency. Ensure this capital is deployed into compounding assets rather than sitting idle in checking accounts.</li>`;
+                }
+            } else {
+                html += `<li style="margin-bottom: 8px;"><b>Gross Margin:</b> Cannot calculate unit economics without logging income for this cycle.</li>`;
+            }
+            
+            // Pareto Analysis
+            if (expenses > 0 && sortedCategories.length > 3) {
+                html += `<li style="margin-bottom: 8px;"><b>Concentration Risk:</b> Your top 3 categories account for <b>${paretoRatio}%</b> of your total spend. If you want to dramatically reduce outflows, ignore the micro-transactions. Focus your optimization strictly on this highest-spend tier.</li>`;
+            }
+
+            html += `</ul></div></div>`;
 
             result.innerHTML = html;
             loading.style.display = 'none';
