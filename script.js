@@ -128,8 +128,8 @@ class ExpenseTracker {
 
         this.paymentSources = {
             upi: ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
-            'debit-card': ['UBI', 'ICICI', 'Indian Bank'],
-            'credit-card': ['ICICI Amazon', 'ICICI Coral', 'RBL', 'Union Bank'],
+            'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
+            'credit-card': ['ICICI Amazon', 'ICICI Platinum', 'ICICI Coral', 'RBL', 'Union Bank'],
             cash: ['Cash']
         };
 
