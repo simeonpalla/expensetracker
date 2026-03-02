@@ -498,6 +498,8 @@ class ExpenseTracker {
             if (t.type === 'expense') expenses += Number(t.amount);
         });
 
+        this.calculateRunRate(cycleTxs, startDate, income);
+
         const balance = income - expenses;
 
         document.getElementById('total-income').textContent = `₹${income.toFixed(2)}`;
@@ -550,6 +552,41 @@ class ExpenseTracker {
         bestStreak = Math.max(bestStreak, tempStreak);
 
         return { currentStreak, bestStreak };
+    }
+
+    calculateRunRate(cycleTxs, startDate, income) {
+        const start = new Date(startDate);
+        const today = new Date();
+        
+        // Calculate days passed in this cycle (minimum 1 to avoid dividing by zero)
+        const diffTime = Math.abs(today - start);
+        const daysPassed = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+        
+        // Assume a standard 30-day cycle for projection
+        const cycleLength = 30; 
+        const daysRemaining = Math.max(0, cycleLength - daysPassed);
+
+        let expensesSoFar = 0;
+        cycleTxs.forEach(t => {
+            if (t.type === 'expense') expensesSoFar += Number(t.amount);
+        });
+
+        const dailyBurnRate = expensesSoFar / daysPassed;
+        const projectedTotalExpense = expensesSoFar + (dailyBurnRate * daysRemaining);
+        const projectedBalance = income - projectedTotalExpense;
+
+        const runRateEl = document.getElementById('run-rate');
+        const riskCard = document.getElementById('risk-card');
+        
+        if (!runRateEl || income === 0) return;
+
+        if (projectedBalance < 0) {
+            runRateEl.innerHTML = `<span style="color: #ef4444;">Warning: Short by ₹${Math.abs(projectedBalance).toFixed(0)}</span>`;
+            riskCard.style.borderLeft = "4px solid #ef4444";
+        } else {
+            runRateEl.innerHTML = `<span style="color: #10b981;">Safe: +₹${projectedBalance.toFixed(0)} leftover</span>`;
+            riskCard.style.borderLeft = "4px solid #10b981";
+        }
     }
 
     // ===============================
