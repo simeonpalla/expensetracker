@@ -367,7 +367,8 @@ class ExpenseTracker {
             // Re-fetch all to ensure integrity, then refresh dashboard
             this.transactions = await API.getTransactions() || [];
             this.loadCycleHistory(); 
-            this.showPage('dashboard');
+            // this.showPage('dashboard');
+            alert("Transaction added successfully!");
         } catch (error) {
             alert("Error adding transaction: " + error.message);
         }
