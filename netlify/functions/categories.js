@@ -1,24 +1,23 @@
 // categories.js
 
 const { supabase } = require('./_supabase');
+const { getUser } = require('./_auth');
 
-exports.handler = async function () {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('created_at', { ascending: true });
+exports.handler = async function (event) {
+  try {
+    const user = await getUser(event);
 
-  if (error) {
-    return {
-      statusCode: 500,
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ error: error.message })
-    };
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    return { statusCode: 200, body: JSON.stringify(data) };
+
+  } catch (err) {
+    return { statusCode: 401, body: err.message };
   }
-
-  return {
-    statusCode: 200,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify(data)
-  };
 };

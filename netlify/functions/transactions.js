@@ -1,40 +1,41 @@
+// transactions.js
+
 const { supabase } = require('./_supabase');
+const { getUser } = require('./_auth');
 
 exports.handler = async function (event) {
 
-  if (event.httpMethod === 'GET') {
+  try {
+    const user = await getUser(event);
 
-    const userId = event.queryStringParameters?.user_id;
+    if (event.httpMethod === 'GET') {
 
-    if (!userId) {
-      return { statusCode: 400, body: 'Missing user_id' };
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('transaction_date', { ascending: false });
+
+      if (error) throw error;
+
+      return { statusCode: 200, body: JSON.stringify(data) };
     }
 
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('transaction_date', { ascending: false });
+    if (event.httpMethod === 'POST') {
 
-    if (error) {
-      return { statusCode: 500, body: JSON.stringify(error) };
+      const tx = JSON.parse(event.body);
+      tx.user_id = user.id; // enforce ownership
+
+      const { error } = await supabase
+        .from('transactions')
+        .insert([tx]);
+
+      if (error) throw error;
+
+      return { statusCode: 200, body: JSON.stringify({ ok: true }) };
     }
 
-    return { statusCode: 200, body: JSON.stringify(data) };
-  }
-
-  if (event.httpMethod === 'POST') {
-
-    const tx = JSON.parse(event.body);
-
-    const { error } = await supabase
-      .from('transactions')
-      .insert([tx]);
-
-    if (error) {
-      return { statusCode: 500, body: JSON.stringify(error) };
-    }
-
-    return { statusCode: 200, body: JSON.stringify({ ok: true }) };
+  } catch (err) {
+    return { statusCode: 401, body: err.message };
   }
 };
