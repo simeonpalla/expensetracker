@@ -4,7 +4,7 @@
 
 
 // ===============================
-// API LAYER (talks to Netlify)
+// API LAYER (AUTH-AWARE)
 // ===============================
 const API = {
 
@@ -12,23 +12,35 @@ const API = {
 
         const session = JSON.parse(localStorage.getItem('session') || 'null');
 
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        };
+
+        // 🔴 Attach JWT if available
+        if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
         const res = await fetch(`/.netlify/functions/${path}`, {
-            headers: {
-                'Content-Type': 'application/json',
-                ...(session?.access_token && {
-                    Authorization: `Bearer ${session.access_token}`
-                })
-            },
-            ...options
+            ...options,
+            headers
         });
+
+        // Handle expired session cleanly
+        if (res.status === 401) {
+            console.warn('Session expired');
+            localStorage.removeItem('session');
+            location.reload();
+            return;
+        }
 
         if (!res.ok) {
             const text = await res.text();
-            throw new Error(text || 'API Error');
+            throw new Error(text);
         }
 
-        if (res.status === 204) return null;
-        return await res.json();
+        return res.status === 204 ? null : res.json();
     },
 
     login(email, password) {
@@ -47,9 +59,7 @@ const API = {
         });
     },
 
-    getTransactions(userId) {
-        return this.request(`transactions?user_id=${userId}`);
-    },
+    getTransactions() { return this.request('transactions'); },
 
     addTransaction(tx) {
         return this.request('transactions', {
@@ -121,11 +131,18 @@ class ExpenseTracker {
     // NAVIGATION
     // ===============================
     showPage(pageId) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
 
-        document.getElementById(pageId)?.classList.add('active');
-        document.querySelector(`[data-page="${pageId}"]`)?.classList.add('active');
+        document.querySelectorAll('.page')
+            .forEach(p => p.classList.remove('active'));
+
+        document.querySelectorAll('.nav-tab')
+            .forEach(t => t.classList.remove('active'));
+
+        const page = document.getElementById(pageId);
+        const tab = document.querySelector(`.nav-tab[data-page="${pageId}"]`);
+
+        page?.classList.add('active');
+        tab?.classList.add('active');
     }
 
 
@@ -139,6 +156,8 @@ class ExpenseTracker {
     }
 
     populateCategoryDropdowns() {
+        if (!this.categories?.length) return;
+
         const type = document.getElementById('type').value;
         const select = document.getElementById('category');
 
@@ -285,29 +304,29 @@ class ExpenseTracker {
     }
 
     setupEventListeners() {
-        document.getElementById('transaction-form')
-            .addEventListener('submit', e => this.handleTransactionSubmit(e));
 
-        document.getElementById('category-form')
-            .addEventListener('submit', e => this.handleCategorySubmit(e));
+        console.log("EVENT LISTENERS ATTACHED");
 
-        document.getElementById('type')
-            .addEventListener('change', () => this.populateCategoryDropdowns());
+        const qs = (id) => document.getElementById(id);
 
-        document.getElementById('payment-source')
-            .addEventListener('change', () => this.updateSourceDetailsOptions());
+        qs('transaction-form')?.addEventListener('submit', e => this.handleTransactionSubmit(e));
 
-        document.getElementById('filter-type')
-            .addEventListener('change', () => this.displayTransactions());
+        qs('category-form')?.addEventListener('submit', e => this.handleCategorySubmit(e));
 
-        document.getElementById('filter-category')
-            .addEventListener('change', () => this.displayTransactions());
+        qs('type')?.addEventListener('change', () => this.populateCategoryDropdowns());
 
-        document.getElementById('logout-btn')
-            .addEventListener('click', handleLogout);
+        qs('payment-source')?.addEventListener('change', () => this.updateSourceDetailsOptions());
+
+        qs('filter-type')?.addEventListener('change', () => this.displayTransactions());
+
+        qs('filter-category')?.addEventListener('change', () => this.displayTransactions());
+
+        qs('logout-btn')?.addEventListener('click', handleLogout);
 
         document.querySelectorAll('.nav-tab').forEach(tab => {
-            tab.addEventListener('click', () => this.showPage(tab.dataset.page));
+            tab.addEventListener('click', () => {
+                this.showPage(tab.dataset.page);
+            });
         });
     }
 }
@@ -317,6 +336,8 @@ class ExpenseTracker {
 // INIT
 // ===============================
 document.addEventListener('DOMContentLoaded', () => {
+
+    console.log("INIT RUNNING");
 
     document.getElementById('login-form')
         .addEventListener('submit', handleLogin);

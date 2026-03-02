@@ -4,7 +4,6 @@ const { supabase } = require('./_supabase');
 const { getUser } = require('./_auth');
 
 exports.handler = async function (event) {
-
   try {
     const user = await getUser(event);
 
@@ -26,9 +25,7 @@ exports.handler = async function (event) {
       const tx = JSON.parse(event.body);
       tx.user_id = user.id; // enforce ownership
 
-      const { error } = await supabase
-        .from('transactions')
-        .insert([tx]);
+      const { error } = await supabase.from('transactions').insert([tx]);
 
       if (error) throw error;
 
