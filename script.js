@@ -171,8 +171,13 @@ class ExpenseTracker {
 
         qs('transaction-form')?.addEventListener('submit', e => this.handleTransactionSubmit(e));
         qs('category-form')?.addEventListener('submit', e => this.handleCategorySubmit(e));
-        qs('type')?.addEventListener('change', () => this.updateFormForSalary());
-        qs('category')?.addEventListener('change', () => this.updateFormForSalary());
+        qs('type')?.addEventListener('change', () => {
+            this.populateCategoryDropdowns(); // Rebuild list when Income/Expense changes
+            this.updateFormForSalary();       // Then run salary logic
+        });
+        qs('category')?.addEventListener('change', () => {
+            this.updateFormForSalary();       // Only run salary logic, DO NOT rebuild list
+        });
         qs('payment-source')?.addEventListener('change', () => this.updateSourceDetailsOptions());
         qs('filter-type')?.addEventListener('change', () => this.displayTransactions());
         qs('filter-category')?.addEventListener('change', () => this.displayTransactions());
@@ -282,7 +287,6 @@ class ExpenseTracker {
     // FORM LOGIC
     // ===============================
     updateFormForSalary() {
-        this.populateCategoryDropdowns();
         
         const typeSelect = document.getElementById('type');
         const categorySelect = document.getElementById('category');
