@@ -1,59 +1,69 @@
-// script.js
+// ======================================================
+// EXPENSE TRACKER — FRONTEND CONTROLLER (BFF VERSION)
+// Works with Netlify Functions instead of direct Supabase
+// ======================================================
 
-// ========================================
-// BFF API LAYER
-// ========================================
 
+// ===============================
+// API LAYER (talks to Netlify)
+// ===============================
 const API = {
-    async login(email, password) {
-        const res = await fetch('/.netlify/functions/login', {
+
+    async request(path, options = {}) {
+
+        const session = JSON.parse(localStorage.getItem('session') || 'null');
+
+        const res = await fetch(`/.netlify/functions/${path}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                ...(session?.access_token && {
+                    Authorization: `Bearer ${session.access_token}`
+                })
+            },
+            ...options
+        });
+
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(text || 'API Error');
+        }
+
+        if (res.status === 204) return null;
+        return await res.json();
+    },
+
+    login(email, password) {
+        return this.request('login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
         });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Login failed');
-        return data;
     },
 
-    async getCategories() {
-        const res = await fetch('/.netlify/functions/categories');
-        if (!res.ok) throw new Error('Failed to fetch categories');
-        return await res.json();
-    },
+    getCategories() { return this.request('categories'); },
 
-    async addCategory(category) {
-        const res = await fetch('/.netlify/functions/categories', {
+    addCategory(data) {
+        return this.request('categories', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(category)
+            body: JSON.stringify(data)
         });
-
-        if (!res.ok) throw new Error('Failed to add category');
     },
 
-    async getTransactions(userId) {
-        const res = await fetch(`/.netlify/functions/transactions?user_id=${userId}`);
-        if (!res.ok) throw new Error('Failed to fetch transactions');
-        return await res.json();
+    getTransactions(userId) {
+        return this.request(`transactions?user_id=${userId}`);
     },
 
-    async addTransaction(tx) {
-        const res = await fetch('/.netlify/functions/transactions', {
+    addTransaction(tx) {
+        return this.request('transactions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(tx)
         });
-
-        if (!res.ok) throw new Error('Failed to add transaction');
     }
 };
 
-// ========================================
-// AUTH
-// ========================================
 
+// ===============================
+// AUTH
+// ===============================
 async function handleLogin(e) {
     e.preventDefault();
 
@@ -76,16 +86,18 @@ function handleLogout() {
     location.reload();
 }
 
-// ========================================
-// MAIN CLASS
-// ========================================
 
+// ===============================
+// MAIN APP CLASS
+// ===============================
 class ExpenseTracker {
 
     constructor() {
+        const session = JSON.parse(localStorage.getItem('session'));
+        this.currentUser = session.user;
+
         this.transactions = [];
         this.categories = [];
-        this.currentUser = null;
 
         this.paymentSources = {
             upi: ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
@@ -98,95 +110,51 @@ class ExpenseTracker {
     }
 
     async init() {
-        
-        await this.checkConnection();
-
-        const session = JSON.parse(localStorage.getItem('session') || 'null');
-        if (!session) return;
-
-        this.currentUser = session.user;
-
         await this.loadCategories();
         await this.loadTransactions();
-
         this.setupEventListeners();
         this.setTodayDate();
+        this.showPage('dashboard');
     }
 
-    async checkConnection() {
-        try {
-            const res = await fetch('/.netlify/functions/health');
-            if (!res.ok) throw new Error();
 
-            document.getElementById('status-dot').classList.remove('connecting');
-            document.getElementById('status-dot').classList.add('connected');
-            document.getElementById('status-text').textContent = 'Connected';
-        } catch {
-            document.getElementById('status-text').textContent = 'Connection Failed';
-        }
-    }
-
-    refreshCategoryDropdown() {
-        const typeSelect = document.getElementById('type');
-        const categorySelect = document.getElementById('category');
-
-        const selectedType = typeSelect.value;
-
-        categorySelect.innerHTML = '<option value="">Select Category</option>';
-
-        this.categories
-            .filter(cat => cat.type === selectedType)
-            .forEach(cat => {
-                const option = document.createElement('option');
-                option.value = cat.name;
-                option.textContent = `${cat.icon} ${cat.name}`;
-                categorySelect.appendChild(option);
-            });
-    }
-
-    // ========================================
+    // ===============================
     // NAVIGATION
-    // ========================================
-
-    showPage(pageId, event) {
+    // ===============================
+    showPage(pageId) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
 
         document.getElementById(pageId)?.classList.add('active');
-        if (event) event.currentTarget.classList.add('active');
+        document.querySelector(`[data-page="${pageId}"]`)?.classList.add('active');
     }
 
-    // ========================================
-    // CATEGORIES
-    // ========================================
 
+    // ===============================
+    // CATEGORY LOGIC
+    // ===============================
     async loadCategories() {
         this.categories = await API.getCategories();
-
-        // Populate category management page
+        this.populateCategoryDropdowns();
         this.displayCategories();
-        this.populateFilterCategories();
-
-        // 🔥 IMPORTANT: sync category dropdown with selected type
-        this.refreshCategoryDropdown();
     }
 
-    updateCategoryOptions() {
-        const typeSelect = document.getElementById('type');
-        const categorySelect = document.getElementById('category');
+    populateCategoryDropdowns() {
+        const type = document.getElementById('type').value;
+        const select = document.getElementById('category');
 
-        const selectedType = typeSelect.value;
-
-        categorySelect.innerHTML = '<option value="">Select Category</option>';
+        select.innerHTML = '<option value="">Select Category</option>';
 
         this.categories
-            .filter(c => !selectedType || c.type === selectedType)
+            .filter(c => !type || c.type === type)
             .forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.name;
                 opt.textContent = `${c.icon} ${c.name}`;
-                categorySelect.appendChild(opt);
+                select.appendChild(opt);
             });
+
+        this.populateFilterCategories();
     }
 
     populateFilterCategories() {
@@ -210,6 +178,7 @@ class ExpenseTracker {
 
         this.categories.forEach(c => {
             const div = document.createElement('div');
+            div.className = 'category-item';
             div.textContent = `${c.icon} ${c.name}`;
 
             if (c.type === 'income') incomeDiv.appendChild(div);
@@ -232,10 +201,10 @@ class ExpenseTracker {
         e.target.reset();
     }
 
-    // ========================================
-    // PAYMENT SOURCE DEPENDENT
-    // ========================================
 
+    // ===============================
+    // PAYMENT SOURCE → DETAILS
+    // ===============================
     updateSourceDetailsOptions() {
         const source = document.getElementById('payment-source').value;
         const details = document.getElementById('source-details');
@@ -250,10 +219,10 @@ class ExpenseTracker {
         });
     }
 
-    // ========================================
-    // TRANSACTIONS
-    // ========================================
 
+    // ===============================
+    // TRANSACTIONS
+    // ===============================
     async loadTransactions() {
         this.transactions = await API.getTransactions(this.currentUser.id);
         this.displayTransactions();
@@ -292,7 +261,7 @@ class ExpenseTracker {
         );
 
         if (!filtered.length) {
-            list.innerHTML = '<div>No transactions found</div>';
+            list.innerHTML = '<div class="loading">No transactions found</div>';
             return;
         }
 
@@ -309,7 +278,8 @@ class ExpenseTracker {
         `).join('');
     }
 
-    // ========================================
+
+    // ===============================
     setTodayDate() {
         document.getElementById('date').value =
             new Date().toISOString().split('T')[0];
@@ -323,7 +293,7 @@ class ExpenseTracker {
             .addEventListener('submit', e => this.handleCategorySubmit(e));
 
         document.getElementById('type')
-            .addEventListener('change', () => this.refreshCategoryDropdown());
+            .addEventListener('change', () => this.populateCategoryDropdowns());
 
         document.getElementById('payment-source')
             .addEventListener('change', () => this.updateSourceDetailsOptions());
@@ -338,17 +308,15 @@ class ExpenseTracker {
             .addEventListener('click', handleLogout);
 
         document.querySelectorAll('.nav-tab').forEach(tab => {
-            tab.addEventListener('click', e => {
-                this.showPage(tab.dataset.page, e);
-            });
+            tab.addEventListener('click', () => this.showPage(tab.dataset.page));
         });
     }
 }
 
-// ========================================
-// INIT
-// ========================================
 
+// ===============================
+// INIT
+// ===============================
 document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('login-form')
