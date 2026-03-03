@@ -3,16 +3,14 @@
 // ======================================================
 
 // ===============================
-// API LAYER (AUTH-AWARE)
+// API LAYER (AUTH-AWARE & AUTO-REFRESH)
 // ===============================
 const API = {
-    async request(path, options = {}) {
+    async request(path, options = {}, isRetry = false) {
         let session = null;
         try {
             const raw = localStorage.getItem('session');
-            if (raw && raw !== "undefined") {
-                session = JSON.parse(raw);
-            }
+            if (raw && raw !== "undefined") session = JSON.parse(raw);
         } catch {
             localStorage.removeItem('session');
         }
@@ -22,19 +20,40 @@ const API = {
             ...(options.headers || {})
         };
 
-        // Attach JWT if available
         if (session?.access_token) {
             headers['Authorization'] = `Bearer ${session.access_token}`;
         }
 
-        const res = await fetch(`/.netlify/functions/${path}`, {
+        let res = await fetch(`/.netlify/functions/${path}`, {
             ...options,
             headers
         });
 
-        // Handle expired session cleanly
-        if (res.status === 401) {
-            console.warn('Session expired');
+        // 🔄 SILENT TOKEN REFRESH LOGIC
+        if (res.status === 401 && !isRetry && session?.refresh_token) {
+            console.log("Token expired. Attempting silent refresh...");
+            
+            const refreshRes = await fetch('/.netlify/functions/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: session.refresh_token })
+            });
+
+            if (refreshRes.ok) {
+                const newSession = await refreshRes.json();
+                localStorage.setItem('session', JSON.stringify(newSession)); // Save new tokens
+                
+                // Retry the original request with the new access token
+                headers['Authorization'] = `Bearer ${newSession.access_token}`;
+                res = await fetch(`/.netlify/functions/${path}`, { ...options, headers });
+            } else {
+                // If refresh fails, then we truly log them out
+                console.warn('Session expired and refresh failed.');
+                localStorage.removeItem('session');
+                location.reload();
+                return;
+            }
+        } else if (res.status === 401) {
             localStorage.removeItem('session');
             location.reload();
             return;
@@ -48,30 +67,11 @@ const API = {
         return res.status === 204 ? null : res.json();
     },
 
-    login(email, password) {
-        return this.request('login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password })
-        });
-    },
-
+    login(email, password) { return this.request('login', { method: 'POST', body: JSON.stringify({ email, password }) }); },
     getCategories() { return this.request('categories'); },
-
-    addCategory(data) {
-        return this.request('categories', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    },
-
+    addCategory(data) { return this.request('categories', { method: 'POST', body: JSON.stringify(data) }); },
     getTransactions() { return this.request('transactions'); },
-
-    addTransaction(tx) {
-        return this.request('transactions', {
-            method: 'POST',
-            body: JSON.stringify(tx)
-        });
-    }
+    addTransaction(tx) { return this.request('transactions', { method: 'POST', body: JSON.stringify(tx) }); }
 };
 
 // ===============================
