@@ -557,34 +557,103 @@ class ExpenseTracker {
     calculateRunRate(cycleTxs, startDate, income) {
         const start = new Date(startDate);
         const today = new Date();
-        
-        // Calculate days passed in this cycle (minimum 1 to avoid dividing by zero)
-        const diffTime = Math.abs(today - start);
-        const daysPassed = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
-        
-        // Assume a standard 30-day cycle for projection
-        const cycleLength = 30; 
-        const daysRemaining = Math.max(0, cycleLength - daysPassed);
+
+        // Actual days passed and remaining in THIS cycle
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const daysPassed = Math.max(1, Math.ceil((today - start) / msPerDay));
 
         let expensesSoFar = 0;
         cycleTxs.forEach(t => {
             if (t.type === 'expense') expensesSoFar += Number(t.amount);
         });
 
-        const dailyBurnRate = expensesSoFar / daysPassed;
-        const projectedTotalExpense = expensesSoFar + (dailyBurnRate * daysRemaining);
+        // --- HISTORICAL PATTERN APPROACH ---
+        // Get all transactions from cycles BEFORE this one
+        const historicalTxs = this.transactions.filter(t =>
+            t.type === 'expense' && t.transaction_date < startDate
+        );
+
+        let projectedFutureSpend = 0;
+
+        if (historicalTxs.length >= 10) {
+            // Group historical transactions by their "day of cycle"
+            // We need to know which salary date preceded each transaction
+            const salaries = this.transactions
+                .filter(t => t.type === 'income' && t.category.toLowerCase().includes('salary'))
+                .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date));
+
+            // Build a map: transaction → day_of_cycle (1-indexed)
+            const dayOfCycleSpend = {}; // { dayNum: [amount, amount, ...] }
+
+            historicalTxs.forEach(t => {
+                // Find which salary cycle this transaction belongs to
+                let cycleStart = null;
+                for (let i = salaries.length - 1; i >= 0; i--) {
+                    if (salaries[i].transaction_date <= t.transaction_date) {
+                        cycleStart = salaries[i].transaction_date;
+                        break;
+                    }
+                }
+                if (!cycleStart) return;
+
+                const txDate = new Date(t.transaction_date);
+                const csDate = new Date(cycleStart);
+                const dayNum = Math.ceil((txDate - csDate) / msPerDay) + 1;
+
+                if (!dayOfCycleSpend[dayNum]) dayOfCycleSpend[dayNum] = [];
+                dayOfCycleSpend[dayNum].push(Number(t.amount));
+            });
+
+            // For each remaining day in this cycle, estimate spend using historical avg for that day
+            for (let d = daysPassed + 1; d <= 30; d++) {
+                if (dayOfCycleSpend[d] && dayOfCycleSpend[d].length > 0) {
+                    const avg = dayOfCycleSpend[d].reduce((s, v) => s + v, 0) / dayOfCycleSpend[d].length;
+                    projectedFutureSpend += avg;
+                }
+                // Days with no historical spend contribute 0 — that's intentional
+            }
+        } else {
+            // FALLBACK: Weighted recency burn (better than flat average)
+            // Last 7 days weigh 60%, earlier days weigh 40%
+            const recentCutoff = new Date(today);
+            recentCutoff.setDate(recentCutoff.getDate() - 7);
+
+            let recentSpend = 0, earlierSpend = 0, recentDays = 0, earlierDays = 0;
+
+            cycleTxs.forEach(t => {
+                if (t.type !== 'expense') return;
+                const amt = Number(t.amount);
+                if (new Date(t.transaction_date) >= recentCutoff) {
+                    recentSpend += amt; recentDays = Math.min(7, daysPassed);
+                } else {
+                    earlierSpend += amt; earlierDays = Math.max(1, daysPassed - 7);
+                }
+            });
+
+            const recentRate = recentDays > 0 ? (recentSpend / recentDays) : 0;
+            const earlierRate = earlierDays > 0 ? (earlierSpend / earlierDays) : recentRate;
+            const weightedDailyRate = (recentRate * 0.6) + (earlierRate * 0.4);
+
+            const daysRemaining = Math.max(0, 30 - daysPassed);
+            projectedFutureSpend = weightedDailyRate * daysRemaining;
+        }
+
+        const projectedTotalExpense = expensesSoFar + projectedFutureSpend;
         const projectedBalance = income - projectedTotalExpense;
+        const dailyBurnRate = expensesSoFar / daysPassed;
 
         const runRateEl = document.getElementById('run-rate');
         const riskCard = document.getElementById('risk-card');
-        
         if (!runRateEl || income === 0) return;
 
         if (projectedBalance < 0) {
             runRateEl.innerHTML = `<span style="color: #ef4444;">Warning: Short by ₹${Math.abs(projectedBalance).toFixed(0)}</span>`;
             riskCard.style.borderLeft = "4px solid #ef4444";
+        } else if (projectedBalance < income * 0.1) {
+            runRateEl.innerHTML = `<span style="color: #f59e0b;">Caution: ₹${projectedBalance.toFixed(0)} leftover (thin margin)</span>`;
+            riskCard.style.borderLeft = "4px solid #f59e0b";
         } else {
-            runRateEl.innerHTML = `<span style="color: #10b981;">Safe: +₹${projectedBalance.toFixed(0)} leftover</span>`;
+            runRateEl.innerHTML = `<span style="color: #10b981;">Safe: +₹${projectedBalance.toFixed(0)} projected surplus</span>`;
             riskCard.style.borderLeft = "4px solid #10b981";
         }
     }
