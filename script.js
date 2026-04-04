@@ -576,6 +576,9 @@ class ExpenseTracker {
         let projectedFutureSpend = 0;
 
         if (historicalTxs.length >= 10) {
+            console.log('RunRate mode:', historicalTxs.length >= 10 ? 'HISTORICAL' : 'WEIGHTED_FALLBACK');
+            console.log('projectedFutureSpend:', projectedFutureSpend);
+            console.log('daysPassed:', daysPassed);
             // Group historical transactions by their "day of cycle"
             // We need to know which salary date preceded each transaction
             const salaries = this.transactions
