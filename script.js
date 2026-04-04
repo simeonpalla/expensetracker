@@ -671,7 +671,7 @@ class ExpenseTracker {
         const dailyData = {};
 
         const start = new Date(startDate + 'T00:00:00');
-        const end = new Date(Math.min(new Date(endDate + 'T00:00:00'), new Date())); // up to today or cycle end
+        const end = new Date(Math.min(new Date(endDate + 'T00:00:00'), new Date()));
 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
@@ -687,6 +687,19 @@ class ExpenseTracker {
 
         Object.keys(dailyData).forEach(dateStr => expenses.push(dailyData[dateStr]));
 
+        // --- TREND LINE (linear regression) ---
+        const n = expenses.length;
+        const xMean = (n - 1) / 2;
+        const yMean = expenses.reduce((a, b) => a + b, 0) / n;
+        let num = 0, den = 0;
+        expenses.forEach((y, x) => {
+            num += (x - xMean) * (y - yMean);
+            den += (x - xMean) ** 2;
+        });
+        const slope = den !== 0 ? num / den : 0;
+        const intercept = yMean - slope * xMean;
+        const trendData = expenses.map((_, x) => parseFloat((slope * x + intercept).toFixed(2)));
+
         if (this.chart) this.chart.destroy();
         const canvas = document.getElementById('chart');
         if (!canvas) return;
@@ -695,18 +708,37 @@ class ExpenseTracker {
             type: 'line',
             data: {
                 labels,
-                datasets: [{
-                    label: 'Expenses',
-                    data: expenses,
-                    borderColor: '#ef4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
+                datasets: [
+                    {
+                        label: 'Daily Expenses',
+                        data: expenses,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 3,
+                    },
+                    {
+                        label: 'Trend',
+                        data: trendData,
+                        borderColor: '#f59e0b',
+                        borderWidth: 2,
+                        borderDash: [6, 4],
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0,
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'top' }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
             }
         });
     }
@@ -842,15 +874,65 @@ class ExpenseTracker {
                 anomalies.sort((a, b) => b.diff - a.diff);
             }
 
-            // --- 3. RUN-RATE ---
+            // --- 3. RUN-RATE (pattern-aware) ---
+            const msPerDay = 1000 * 60 * 60 * 24;
             const start = new Date(currentStart);
             const today = new Date();
-            const diffTime = Math.abs(today - start);
-            const daysPassed = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-            const daysRemaining = Math.max(0, 30 - daysPassed);
-
+            const daysPassed = Math.max(1, Math.ceil((today - start) / msPerDay));
             const dailyBurnRate = expenses / daysPassed;
-            const projectedBalance = income - (expenses + (dailyBurnRate * daysRemaining));
+
+            const historicalExpTxs = this.transactions.filter(t =>
+                t.type === 'expense' && t.transaction_date < currentStart
+            );
+
+            let projectedFutureSpend = 0;
+
+            if (historicalExpTxs.length >= 10) {
+                const salaries = this.transactions
+                    .filter(t => t.type === 'income' && t.category.toLowerCase().includes('salary'))
+                    .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date));
+
+                const dayOfCycleSpend = {};
+                historicalExpTxs.forEach(t => {
+                    let cycleStart = null;
+                    for (let i = salaries.length - 1; i >= 0; i--) {
+                        if (salaries[i].transaction_date <= t.transaction_date) {
+                            cycleStart = salaries[i].transaction_date;
+                            break;
+                        }
+                    }
+                    if (!cycleStart) return;
+                    const dayNum = Math.ceil((new Date(t.transaction_date) - new Date(cycleStart)) / msPerDay) + 1;
+                    if (!dayOfCycleSpend[dayNum]) dayOfCycleSpend[dayNum] = [];
+                    dayOfCycleSpend[dayNum].push(Number(t.amount));
+                });
+
+                for (let d = daysPassed + 1; d <= 30; d++) {
+                    if (dayOfCycleSpend[d]?.length > 0) {
+                        projectedFutureSpend += dayOfCycleSpend[d].reduce((s, v) => s + v, 0) / dayOfCycleSpend[d].length;
+                    }
+                }
+            } else {
+                const recentCutoff = new Date(today);
+                recentCutoff.setDate(recentCutoff.getDate() - 7);
+                let recentSpend = 0, earlierSpend = 0;
+                let recentDays = 0, earlierDays = 0;
+                currentTxs.forEach(t => {
+                    if (t.type !== 'expense') return;
+                    const amt = Number(t.amount);
+                    if (new Date(t.transaction_date) >= recentCutoff) {
+                        recentSpend += amt; recentDays = Math.min(7, daysPassed);
+                    } else {
+                        earlierSpend += amt; earlierDays = Math.max(1, daysPassed - 7);
+                    }
+                });
+                const recentRate = recentDays > 0 ? recentSpend / recentDays : 0;
+                const earlierRate = earlierDays > 0 ? earlierSpend / earlierDays : recentRate;
+                projectedFutureSpend = ((recentRate * 0.6) + (earlierRate * 0.4)) * Math.max(0, 30 - daysPassed);
+            }
+
+            const projectedBalance = income - (expenses + projectedFutureSpend);
+            const daysRemaining = Math.max(0, 30 - daysPassed);
 
             // --- 4. TARGET THE LEAK ---
             const sortedCategories = Object.entries(currentSpend).sort((a, b) => b[1] - a[1]);
