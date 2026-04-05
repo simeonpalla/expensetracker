@@ -73,19 +73,45 @@ const API = {
 // NOTIFICATION SYSTEM (replaces alert())
 // ===============================
 function showNotification(message, type = 'success') {
-    const notification = document.getElementById('notification');
-    const msgEl = document.getElementById('notification-message');
-    if (!notification || !msgEl) { alert(message); return; }
+    // Remove any existing toast
+    const existing = document.getElementById('toast-notification');
+    if (existing) existing.remove();
 
-    msgEl.textContent = message;
-    notification.className = `notification ${type} show`;
+    const toast = document.createElement('div');
+    toast.id = 'toast-notification';
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        margin-left: -140px;
+        width: 280px;
+        background: ${type === 'error' ? '#b91c1c' : '#1f2937'};
+        color: #fff;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        text-align: center;
+        z-index: 99999;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        pointer-events: none;
+    `;
 
-    const closeBtn = document.getElementById('notification-close');
-    const dismiss = () => {
-        notification.classList.remove('show');
-    };
-    closeBtn.onclick = dismiss;
-    setTimeout(dismiss, 4000);
+    document.body.appendChild(toast);
+
+    // Trigger fade in
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => { toast.style.opacity = '1'; });
+    });
+
+    // Fade out and remove
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 200);
+    }, 3500);
 }
 
 // ===============================
