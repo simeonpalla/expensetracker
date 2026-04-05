@@ -106,45 +106,48 @@ footer{text-align:center;margin-top:40px;padding-bottom:20px}.logout-btn{backgro
    existing style.css file
    ================================================ */
 
-/* ── NOTIFICATION SYSTEM ── */
+/* ── NOTIFICATION TOAST ── */
 .notification {
     position: fixed;
-    bottom: 80px;
+    bottom: 24px;
     left: 50%;
-    transform: translateX(-50%) translateY(20px);
+    transform: translateX(-50%) translateY(12px);
     background: #1f2937;
     color: #fff;
-    padding: 12px 20px;
-    border-radius: 10px;
-    font-size: 0.9rem;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
     display: flex;
     align-items: center;
     gap: 10px;
-    z-index: 2000;
+    z-index: 9999;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.25s ease, transform 0.25s ease;
-    max-width: 90vw;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    width: auto;
+    max-width: min(320px, 85vw);
+    min-width: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 .notification.show {
     opacity: 1;
     pointer-events: all;
     transform: translateX(-50%) translateY(0);
 }
-.notification.error { background: #991b1b; }
+.notification.error  { background: #b91c1c; }
 .notification.success { background: #065f46; }
 .notification-close {
     background: none;
     border: none;
-    color: #fff;
-    font-size: 1.1rem;
+    color: rgba(255,255,255,0.7);
+    font-size: 1rem;
     cursor: pointer;
-    padding: 0 4px;
+    padding: 0;
     line-height: 1;
-    opacity: 0.7;
+    flex-shrink: 0;
 }
-.notification-close:hover { opacity: 1; }
+.notification-close:hover { color: #fff; }
 
 /* ── EDIT MODAL ── */
 .edit-modal {
