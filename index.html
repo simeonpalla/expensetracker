@@ -1,5 +1,3 @@
-<!-- index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -69,16 +67,16 @@
         </header>
 
         <nav class="nav-tabs" role="navigation">
-            <button class="nav-tab active" data-page="add-transaction">➕ Add Transaction</button>
+            <button class="nav-tab active" data-page="add-transaction">➕ Add</button>
             <button class="nav-tab" data-page="dashboard">📊 Dashboard</button>
             <button class="nav-tab" data-page="budgets">🎯 Budgets</button>
             <button class="nav-tab" data-page="categories">📁 Categories</button>
-            <button class="nav-tab" data-page="ai-insights" style="background: linear-gradient(135deg, #a855f7 0%, #d946ef 100%);">✨ Insights</button>
+            <button class="nav-tab" data-page="ai-insights">✨ Insights</button>
         </nav>
 
         <!-- ADD TRANSACTION PAGE -->
         <div id="add-transaction" class="page active" role="tabpanel">
-            <h2>Add New Transaction</h2>
+            <h2>Add Transaction</h2>
 
             <div id="recurring-suggestions"></div>
 
@@ -153,7 +151,7 @@
 
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">💾 Save Transaction</button>
-                    <button type="button" class="btn btn-secondary" id="clear-form-btn">🔄 Clear Form</button>
+                    <button type="button" class="btn btn-secondary" id="clear-form-btn">🔄 Clear</button>
                 </div>
             </form>
         </div>
@@ -161,10 +159,10 @@
         <!-- DASHBOARD PAGE -->
         <div id="dashboard" class="page" role="tabpanel">
             <div class="dashboard-header">
-                <div style="flex: 1;"><h2 id="dashboard-title">My Finances</h2></div>
-                <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
-                    <select id="cycle-history" style="padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; width: 100%; background: #fff;">
-                        <option value="current">Loading history...</option>
+                <h2 id="dashboard-title">My Finances</h2>
+                <div class="cycle-select-wrap">
+                    <select id="cycle-history">
+                        <option value="">Loading...</option>
                     </select>
                 </div>
             </div>
@@ -186,32 +184,32 @@
                         <div class="stat-label">Total Expenses</div>
                     </div>
                 </div>
-                <div class="stat-card balance-card" id="balance-card">
+                <div class="stat-card balance-card">
                     <div class="stat-icon">💵</div>
                     <div class="stat-content">
                         <div class="stat-value" id="net-balance">₹0.00</div>
-                        <div class="stat-label">Remaining Budget</div>
+                        <div class="stat-label">Remaining</div>
                     </div>
                 </div>
-                <div class="stat-card streak-card" id="streak-card">
+                <div class="stat-card streak-card">
                     <div class="stat-icon">🔥</div>
                     <div class="stat-content">
                         <div class="stat-value" id="current-streak">0 Days</div>
                         <div class="stat-label">No-Spend Streak</div>
-                        <small id="best-streak" style="font-size: 12px; color:#6b7280;">Best: 0 days</small>
+                        <small id="best-streak">Best: 0 days</small>
                     </div>
                 </div>
                 <div class="stat-card risk-card" id="risk-card">
-                    <div class="stat-icon">🏃‍♂️</div>
+                    <div class="stat-icon">🏃</div>
                     <div class="stat-content">
-                        <div class="stat-value" id="run-rate" style="font-size: 1.2rem;">Calculating...</div>
+                        <div class="stat-value" id="run-rate">Calculating...</div>
                         <div class="stat-label">Projected Month-End</div>
                     </div>
                 </div>
             </div>
 
             <!-- Salary Settings -->
-            <div class="chart-container" style="margin-bottom: 30px;">
+            <div class="chart-container">
                 <h3>🏦 Salary Account Settings</h3>
                 <form id="salary-settings-form" class="transaction-form">
                     <div class="form-group" style="max-width: 300px;">
@@ -248,8 +246,8 @@
                         <div class="filter-controls">
                             <select id="filter-type">
                                 <option value="">All Types</option>
-                                <option value="income">Income Only</option>
-                                <option value="expense">Expenses Only</option>
+                                <option value="income">Income</option>
+                                <option value="expense">Expenses</option>
                             </select>
                             <select id="filter-category">
                                 <option value="">All Categories</option>
@@ -267,10 +265,10 @@
         <!-- BUDGETS PAGE -->
         <div id="budgets" class="page" role="tabpanel">
             <h2>🎯 Budget Limits</h2>
-            <p style="color: #6b7280; margin-bottom: 20px; font-size: 0.9rem;">Set monthly spending limits per category. You'll see warnings on the dashboard when you're 80%+ through a budget.</p>
+            <p class="page-subtitle">Set monthly spending limits per category. Warnings appear when you hit 80%.</p>
             <form id="budget-limits-form" class="transaction-form">
                 <div id="budget-limits-container" class="budget-limits-container">
-                    <p style="color: #6b7280; font-size: 0.9rem;">Loading categories...</p>
+                    <p class="loading">Loading categories...</p>
                 </div>
                 <div class="form-actions" style="margin-top: 20px;">
                     <button type="submit" class="btn btn-primary">💾 Save Budget Limits</button>
@@ -292,7 +290,7 @@
                                 <option value="income">Income</option>
                                 <option value="expense">Expense</option>
                             </select>
-                            <input type="text" id="category-icon" placeholder="Icon (emoji)" maxlength="2">
+                            <input type="text" id="category-icon" placeholder="Emoji" maxlength="2">
                             <button type="submit" class="btn btn-primary">Add</button>
                         </div>
                     </form>
@@ -312,24 +310,20 @@
 
         <!-- INSIGHTS PAGE -->
         <div id="ai-insights" class="page" role="tabpanel">
-            <div class="dashboard-header">
-                <h2>💰 Financial Insights</h2>
-            </div>
-            <div class="ai-container" style="text-align: center; max-width: 700px; margin: 0 auto;">
-                <div class="ai-card" style="background: linear-gradient(135deg, #f3e8ff 0%, #fae8ff 100%); padding: 30px; border-radius: 20px; border: 2px solid #d8b4fe; margin-bottom: 20px;">
-                    <div style="font-size: 40px; margin-bottom: 15px;">🤖</div>
+            <h2>✨ Financial Insights</h2>
+            <div class="ai-container">
+                <div class="ai-card">
+                    <div class="ai-card-icon">🤖</div>
                     <h3>Analyze My Spending</h3>
-                    <p style="color: #6b7280; margin-bottom: 20px;">
-                        Scans your historical transactions across 7 dimensions — anomalies, run-rate, leaks, macro analytics, weekend patterns, and month-over-month trends.
-                    </p>
-                    <button id="generate-local-ai-btn" class="btn btn-primary" style="background: #9333ea; border:none;">
+                    <p>Scans your historical transactions across 7 dimensions — anomalies, run-rate, leaks, macro analytics, weekend patterns, and month-over-month trends.</p>
+                    <button id="generate-local-ai-btn" class="btn btn-ai">
                         🔍 Analyze Historical Data
                     </button>
-                    <div id="local-ai-loading" style="display: none; margin-top: 20px;">
-                        <span class="status-dot connecting" style="background: #9333ea;"></span> Crunching your numbers...
+                    <div id="local-ai-loading" class="ai-loading" style="display: none;">
+                        <span class="status-dot connecting"></span> Crunching your numbers...
                     </div>
                 </div>
-                <div id="local-ai-result" class="ai-result" style="display: none; text-align: left; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); line-height: 1.6;"></div>
+                <div id="local-ai-result" class="ai-result" style="display: none;"></div>
             </div>
         </div>
 
@@ -339,11 +333,11 @@
     </div>
 
     <!-- EDIT TRANSACTION MODAL -->
-    <div id="edit-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; padding: 20px;">
+    <div id="edit-modal-overlay" class="modal-overlay" style="display: none;">
         <div class="edit-modal">
             <div class="edit-modal-header">
                 <h3>✏️ Edit Transaction</h3>
-                <button id="edit-modal-close" class="modal-close-btn">&times;</button>
+                <button id="edit-modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
             </div>
             <form id="edit-transaction-form">
                 <div class="form-group">
@@ -355,7 +349,10 @@
                 </div>
                 <div class="form-group">
                     <label for="edit-amount">Amount (₹)</label>
-                    <input type="number" id="edit-amount" step="0.01" min="0.01" required>
+                    <div class="amount-input">
+                        <span class="rupee-symbol">₹</span>
+                        <input type="number" id="edit-amount" step="0.01" min="0.01" required>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="edit-category">Category</label>
@@ -370,6 +367,23 @@
                     <input type="text" id="edit-payment-to">
                 </div>
                 <div class="form-group">
+                    <label for="edit-payment-source">Payment Source</label>
+                    <select id="edit-payment-source">
+                        <option value="">Select Source</option>
+                        <option value="upi">UPI</option>
+                        <option value="credit-card">Credit Card</option>
+                        <option value="debit-card">Debit Card</option>
+                        <option value="cash">Cash</option>
+                        <option value="salary">Salary Deposit</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-source-details">Bank / Card</label>
+                    <select id="edit-source-details">
+                        <option value="">Select Details</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label for="edit-description">Description</label>
                     <textarea id="edit-description" placeholder="Optional notes"></textarea>
                 </div>
@@ -381,7 +395,20 @@
         </div>
     </div>
 
+    <!-- DELETE CONFIRM MODAL -->
+    <div id="delete-modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="confirm-modal">
+            <div class="confirm-modal-icon">🗑️</div>
+            <h3>Delete Transaction?</h3>
+            <p>This action cannot be undone.</p>
+            <div class="form-actions" style="justify-content: center; margin-top: 20px;">
+                <button id="delete-confirm-btn" class="btn btn-danger">Yes, Delete</button>
+                <button id="delete-cancel-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=5"></script>
 </body>
 </html>

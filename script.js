@@ -79,35 +79,41 @@ function showNotification(message, type = 'success') {
     const toast = document.createElement('div');
     toast.id = 'toast-notification';
     toast.textContent = message;
+
+    const isError = type === 'error';
     toast.style.cssText = `
         position: fixed;
         bottom: 70px;
         left: 50%;
         transform: translateX(-50%);
-        width: 280px;
-        background: ${type === 'error' ? '#b91c1c' : '#1f2937'};
+        width: 290px;
+        background: ${isError ? 'rgba(220,38,38,0.92)' : 'rgba(17,17,34,0.92)'};
+        border: 1px solid ${isError ? 'rgba(255,92,114,0.4)' : 'rgba(124,106,255,0.3)'};
         color: #fff;
-        padding: 10px 16px;
-        border-radius: 8px;
-        font-size: 14px;
+        padding: 11px 18px;
+        border-radius: 14px;
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.83rem;
         font-weight: 500;
         text-align: center;
         z-index: 99999;
         opacity: 0;
         transition: opacity 0.2s ease;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         pointer-events: none;
+        letter-spacing: 0.01em;
     `;
 
     document.body.appendChild(toast);
-
     requestAnimationFrame(() => {
         requestAnimationFrame(() => { toast.style.opacity = '1'; });
     });
 
     setTimeout(() => {
         toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 200);
+        setTimeout(() => toast.remove(), 220);
     }, 3500);
 }
 
@@ -202,6 +208,7 @@ class ExpenseTracker {
         };
 
         this.editingTransactionId = null;
+        this.pendingDeleteId = null;
 
         this.init();
     }
@@ -221,9 +228,7 @@ class ExpenseTracker {
             document.getElementById('status-dot').className = 'status-dot connected';
             document.getElementById('status-text').textContent = 'Connected';
 
-            // FIX: init source-details dropdown after DOM is ready
             this.updateSourceDetailsOptions();
-
             this.loadCycleHistory();
             this.showPage('add-transaction');
         } catch (error) {
@@ -271,11 +276,20 @@ class ExpenseTracker {
             this.saveBudgetLimits();
         });
 
+        // Edit modal
         qs('edit-modal-close')?.addEventListener('click', () => this.closeEditModal());
         qs('edit-modal-cancel')?.addEventListener('click', () => this.closeEditModal());
         qs('edit-transaction-form')?.addEventListener('submit', e => this.handleEditSubmit(e));
         qs('edit-modal-overlay')?.addEventListener('click', e => {
             if (e.target === qs('edit-modal-overlay')) this.closeEditModal();
+        });
+        qs('edit-payment-source')?.addEventListener('change', () => this.updateEditSourceDetailsOptions());
+
+        // Delete confirm modal
+        qs('delete-confirm-btn')?.addEventListener('click', () => this.confirmDelete());
+        qs('delete-cancel-btn')?.addEventListener('click', () => this.closeDeleteModal());
+        qs('delete-modal-overlay')?.addEventListener('click', e => {
+            if (e.target === qs('delete-modal-overlay')) this.closeDeleteModal();
         });
 
         document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -396,7 +410,7 @@ class ExpenseTracker {
 
         const expenseCategories = this.categories.filter(c => c.type === 'expense');
         if (expenseCategories.length === 0) {
-            container.innerHTML = '<p style="color: var(--text-2); font-size: 0.9rem;">Add expense categories first.</p>';
+            container.innerHTML = '<p style="color: var(--text2); font-size: 0.9rem;">Add expense categories first.</p>';
             return;
         }
 
@@ -462,7 +476,7 @@ class ExpenseTracker {
                             <span class="budget-badge">${w.over ? '🚨 Over budget' : '⚠️ ' + w.pct + '%'}</span>
                         </div>
                         <div class="budget-bar-track">
-                            <div class="budget-bar-fill" style="width: ${Math.min(parseFloat(w.pct), 100)}%; background: ${w.over ? '#ef4444' : '#f59e0b'};"></div>
+                            <div class="budget-bar-fill" style="width: ${Math.min(parseFloat(w.pct), 100)}%; background: ${w.over ? 'var(--expense)' : 'var(--warning)'};"></div>
                         </div>
                         <div class="budget-bar-labels">
                             <span>₹${w.spent.toFixed(0)} spent</span>
@@ -517,7 +531,6 @@ class ExpenseTracker {
         if (!details) return;
 
         details.innerHTML = '<option value="">Select Details</option>';
-
         const sourceGroup = details.closest('.form-group');
 
         if (this.paymentSources[source]) {
@@ -532,6 +545,32 @@ class ExpenseTracker {
         } else {
             if (sourceGroup) sourceGroup.style.display = source ? 'block' : 'none';
             details.required = false;
+        }
+    }
+
+    // FIX: edit modal also needs its own source-details updater
+    updateEditSourceDetailsOptions() {
+        const source = document.getElementById('edit-payment-source')?.value;
+        const details = document.getElementById('edit-source-details');
+        if (!details) return;
+
+        details.innerHTML = '<option value="">Select Details</option>';
+
+        const allSources = {
+            upi: ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
+            'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
+            'credit-card': ['ICICI Amazon', 'ICICI Platinum', 'ICICI Coral', 'RBL', 'Union Bank'],
+            cash: ['Cash'],
+            salary: [this.salaryAccount]
+        };
+
+        if (allSources[source]) {
+            allSources[source].forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s;
+                details.appendChild(opt);
+            });
         }
     }
 
@@ -567,10 +606,8 @@ class ExpenseTracker {
     }
 
     // ===============================
-    // EDIT / DELETE — FIX: use ID lookup, no inline JSON
+    // EDIT MODAL — FIX: includes payment_source + source_details
     // ===============================
-
-    // FIX: look up transaction by ID from this.transactions — no JSON in onclick
     openEditModalById(id) {
         const tx = this.transactions.find(t => String(t.id) === String(id));
         if (tx) this.openEditModal(tx);
@@ -597,6 +634,17 @@ class ExpenseTracker {
             catSel.appendChild(opt);
         });
 
+        // FIX: restore payment source + details
+        const srcSel = qs('edit-payment-source');
+        if (srcSel) {
+            srcSel.value = tx.payment_source || '';
+            this.updateEditSourceDetailsOptions();
+            setTimeout(() => {
+                const detSel = qs('edit-source-details');
+                if (detSel) detSel.value = tx.source_details || '';
+            }, 30);
+        }
+
         qs('edit-modal-overlay').style.display = 'flex';
     }
 
@@ -615,6 +663,8 @@ class ExpenseTracker {
             category: document.getElementById('edit-category').value,
             transaction_date: document.getElementById('edit-date').value,
             payment_to: document.getElementById('edit-payment-to').value,
+            payment_source: document.getElementById('edit-payment-source')?.value || null,
+            source_details: document.getElementById('edit-source-details')?.value || null,
             description: document.getElementById('edit-description').value || null,
         };
 
@@ -629,8 +679,24 @@ class ExpenseTracker {
         }
     }
 
-    async deleteTransaction(id) {
-        if (!confirm('Delete this transaction? This cannot be undone.')) return;
+    // ===============================
+    // DELETE — FIX: custom modal instead of confirm()
+    // ===============================
+    deleteTransaction(id) {
+        this.pendingDeleteId = id;
+        document.getElementById('delete-modal-overlay').style.display = 'flex';
+    }
+
+    closeDeleteModal() {
+        document.getElementById('delete-modal-overlay').style.display = 'none';
+        this.pendingDeleteId = null;
+    }
+
+    async confirmDelete() {
+        if (!this.pendingDeleteId) return;
+        const id = this.pendingDeleteId;
+        this.closeDeleteModal();
+
         try {
             await API.deleteTransaction(id);
             this.transactions = await API.getTransactions() || [];
@@ -673,15 +739,16 @@ class ExpenseTracker {
     }
 
     // ===============================
-    // CYCLE MANAGEMENT
+    // CYCLE MANAGEMENT — FIX: sort salaries descending (newest first)
     // ===============================
     loadCycleHistory() {
         const selector = document.getElementById('cycle-history');
         if (!selector) return;
 
-        const salaries = this.transactions.filter(t =>
-            t.type === 'income' && t.category.toLowerCase().includes('salary')
-        );
+        // FIX: sort descending so index 0 = most recent salary = current cycle
+        const salaries = this.transactions
+            .filter(t => t.type === 'income' && t.category.toLowerCase().includes('salary'))
+            .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));
 
         if (salaries.length === 0) {
             selector.innerHTML = '<option value="">Current Month</option>';
@@ -703,12 +770,13 @@ class ExpenseTracker {
                 const niceDate = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
                 label = `Current: Since ${niceDate}`;
             } else {
-                const nextSalaryDate = new Date(salaries[index - 1].transaction_date);
-                nextSalaryDate.setDate(nextSalaryDate.getDate() - 1);
-                endDate = nextSalaryDate.toISOString().split('T')[0];
+                // End date is one day before the previous (more recent) salary
+                const prevSalaryDate = new Date(salaries[index - 1].transaction_date);
+                prevSalaryDate.setDate(prevSalaryDate.getDate() - 1);
+                endDate = prevSalaryDate.toISOString().split('T')[0];
                 const s = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                const e = new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                label = `${s} - ${e}`;
+                const en = new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                label = `${s} – ${en}`;
             }
 
             const option = document.createElement('option');
@@ -738,7 +806,7 @@ class ExpenseTracker {
         const chartTitle = document.getElementById('line-chart-title');
         const s = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
         const e = new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-        if (chartTitle) chartTitle.innerHTML = `<span aria-hidden="true">📈</span> Trends: ${s} to ${e}`;
+        if (chartTitle) chartTitle.innerHTML = `📈 Trends: ${s} to ${e}`;
 
         this.updateDashboardStats(startDate, endDate);
         this.displayTransactions();
@@ -748,13 +816,14 @@ class ExpenseTracker {
     }
 
     getTransactionsInCycle(startDate, endDate) {
+        if (!startDate || !endDate) return [];
         return this.transactions.filter(t =>
             t.transaction_date >= startDate && t.transaction_date <= endDate
         );
     }
 
     // ===============================
-    // RECURRING TRANSACTION SUGGESTIONS
+    // RECURRING SUGGESTIONS
     // ===============================
     suggestRecurringTransactions(currentCycleStart) {
         const container = document.getElementById('recurring-suggestions');
@@ -775,15 +844,12 @@ class ExpenseTracker {
         });
 
         const currentTxs = this.getTransactionsInCycle(currentCycleStart, this.currentCycleEnd);
-        const suggestions = Object.values(seen).filter(t => {
-            return !currentTxs.some(ct =>
-                ct.category === t.category && ct.payment_to === t.payment_to
-            );
-        });
+        const suggestions = Object.values(seen).filter(t =>
+            !currentTxs.some(ct => ct.category === t.category && ct.payment_to === t.payment_to)
+        );
 
         if (suggestions.length === 0) { container.innerHTML = ''; return; }
 
-        // FIX: use data-id instead of inline JSON to avoid special character issues
         container.innerHTML = `
             <div class="recurring-suggestions-block">
                 <h4>🔁 Recurring transactions due this cycle</h4>
@@ -809,7 +875,6 @@ class ExpenseTracker {
         `;
     }
 
-    // FIX: ID-based prefill — no inline JSON
     prefillFromRecurringId(id) {
         const tx = this.transactions.find(t => String(t.id) === String(id));
         if (!tx) return;
@@ -839,7 +904,6 @@ class ExpenseTracker {
         }, 100);
     }
 
-    // FIX: helper to safely escape HTML special characters
     escapeHtml(str) {
         if (!str) return '';
         return String(str)
@@ -851,7 +915,7 @@ class ExpenseTracker {
     }
 
     // ===============================
-    // DISPLAY TRANSACTIONS — FIX: safe IDs, no inline JSON
+    // DISPLAY TRANSACTIONS
     // ===============================
     displayTransactions() {
         const list = document.getElementById('transactions-list');
@@ -872,24 +936,21 @@ class ExpenseTracker {
         list.innerHTML = filtered.map(t => {
             const cat = this.categories.find(c => c.name === t.category);
             const icon = cat ? cat.icon : '📁';
-            // FIX: use data-id attribute instead of inline JSON — safe against special chars
             return `
             <div class="transaction-item" data-id="${t.id}">
                 <div class="transaction-swipe-wrapper">
                     <div class="transaction-content">
                         <div class="transaction-details">
-                            <strong>${icon} ${this.escapeHtml(t.category)}</strong>
-                            ${t.is_recurring ? '<span class="recurring-badge">🔁</span>' : ''}
-                            <br>
-                            <small>${t.transaction_date} • ${this.escapeHtml(t.payment_to || 'N/A')}</small>
+                            <strong>${icon} ${this.escapeHtml(t.category)}${t.is_recurring ? '<span class="recurring-badge">🔁 recurring</span>' : ''}</strong>
+                            <small>${t.transaction_date} · ${this.escapeHtml(t.payment_to || 'N/A')} · ${this.escapeHtml(t.payment_source || '')}</small>
                         </div>
                         <div class="transaction-right">
                             <div class="${t.type}">
-                                ${t.type === 'income' ? '+' : '-'}₹${Number(t.amount).toFixed(2)}
+                                ${t.type === 'income' ? '+' : '−'}₹${Number(t.amount).toFixed(2)}
                             </div>
                             <div class="transaction-actions">
-                                <button class="tx-action-btn edit-btn" data-id="${t.id}" onclick="app.openEditModalById(this.dataset.id)" title="Edit">✏️</button>
-                                <button class="tx-action-btn delete-btn" data-id="${t.id}" onclick="app.deleteTransaction(this.dataset.id)" title="Delete">🗑️</button>
+                                <button class="tx-action-btn edit-btn" data-id="${t.id}" onclick="app.openEditModalById(this.dataset.id)" title="Edit" aria-label="Edit transaction">✏️</button>
+                                <button class="tx-action-btn delete-btn" data-id="${t.id}" onclick="app.deleteTransaction(this.dataset.id)" title="Delete" aria-label="Delete transaction">🗑️</button>
                             </div>
                         </div>
                     </div>
@@ -986,7 +1047,7 @@ class ExpenseTracker {
             if (new Date(dateStr) < start) break;
             if (days[dateStr]) currentStreak++;
             else if (dateStr !== todayStr) break;
-            else if (dateStr === todayStr && !days[dateStr]) { currentStreak = 0; break; }
+            else { currentStreak = 0; break; }
             tempDate.setDate(tempDate.getDate() - 1);
         }
 
@@ -1000,6 +1061,7 @@ class ExpenseTracker {
         return { currentStreak, bestStreak };
     }
 
+    // FIX: calculateRunRate uses CSS variables instead of hardcoded colors
     calculateRunRate(cycleTxs, startDate, income) {
         const msPerDay = 1000 * 60 * 60 * 24;
         const start = new Date(startDate);
@@ -1067,20 +1129,21 @@ class ExpenseTracker {
         const riskCard = document.getElementById('risk-card');
         if (!runRateEl || income === 0) return;
 
+        // FIX: use CSS variable colors via inline color that maps to semantic vars
         if (projectedBalance < 0) {
-            runRateEl.innerHTML = `<span style="color: #ef4444;">Warning: Short by ₹${Math.abs(projectedBalance).toFixed(0)}</span>`;
-            if (riskCard) riskCard.style.borderLeft = "4px solid #ef4444";
+            runRateEl.innerHTML = `<span style="color: var(--expense);">Short by ₹${Math.abs(projectedBalance).toFixed(0)}</span>`;
+            if (riskCard) riskCard.style.borderLeft = '4px solid var(--expense)';
         } else if (projectedBalance < income * 0.1) {
-            runRateEl.innerHTML = `<span style="color: #f59e0b;">Caution: ₹${projectedBalance.toFixed(0)} leftover (thin margin)</span>`;
-            if (riskCard) riskCard.style.borderLeft = "4px solid #f59e0b";
+            runRateEl.innerHTML = `<span style="color: var(--warning);">₹${projectedBalance.toFixed(0)} leftover (thin margin)</span>`;
+            if (riskCard) riskCard.style.borderLeft = '4px solid var(--warning)';
         } else {
-            runRateEl.innerHTML = `<span style="color: #10b981;">Safe: +₹${projectedBalance.toFixed(0)} projected surplus</span>`;
-            if (riskCard) riskCard.style.borderLeft = "4px solid #10b981";
+            runRateEl.innerHTML = `<span style="color: var(--income);">+₹${projectedBalance.toFixed(0)} projected surplus</span>`;
+            if (riskCard) riskCard.style.borderLeft = '4px solid var(--income)';
         }
     }
 
     // ===============================
-    // CHART RENDERING
+    // CHARTS
     // ===============================
     renderLineChart(startDate, endDate) {
         const cycleTxs = this.getTransactionsInCycle(startDate, endDate);
@@ -1124,16 +1187,17 @@ class ExpenseTracker {
                     {
                         label: 'Daily Expenses',
                         data: expenses,
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        borderColor: '#ff5c72',
+                        backgroundColor: 'rgba(255,92,114,0.08)',
                         fill: true,
                         tension: 0.4,
                         pointRadius: 3,
+                        pointBackgroundColor: '#ff5c72',
                     },
                     {
                         label: 'Trend',
                         data: trendData,
-                        borderColor: '#f59e0b',
+                        borderColor: '#f5a623',
                         borderWidth: 2,
                         borderDash: [6, 4],
                         pointRadius: 0,
@@ -1192,8 +1256,9 @@ class ExpenseTracker {
                 labels,
                 datasets: [{
                     data,
-                    backgroundColor: ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'],
-                    borderWidth: 2
+                    backgroundColor: ['#7c6aff', '#00d4aa', '#f5a623', '#ff5c72', '#3b82f6', '#c44dff'],
+                    borderWidth: 2,
+                    borderColor: 'transparent'
                 }]
             },
             options: {
@@ -1209,7 +1274,7 @@ class ExpenseTracker {
     }
 
     // ===============================
-    // LOCAL AI INSIGHTS
+    // LOCAL AI INSIGHTS — FIX: theme-aware colors via CSS variables
     // ===============================
     generateLocalAIInsights() {
         const loading = document.getElementById('local-ai-loading');
@@ -1228,7 +1293,7 @@ class ExpenseTracker {
             const historicalTxs = allTxs.filter(t => t.transaction_date < currentStart);
 
             if (currentTxs.length < 3) {
-                result.innerHTML = `<p style="text-align: center; color: #6b7280;">Log a few more transactions in this cycle before I can run a full audit.</p>`;
+                result.innerHTML = `<p class="ai-empty">Log a few more transactions in this cycle before I can run a full audit.</p>`;
                 loading.style.display = 'none';
                 result.style.display = 'block';
                 return;
@@ -1325,7 +1390,6 @@ class ExpenseTracker {
             }
 
             const projectedBalance = income - (expenses + projectedFutureSpend);
-
             const sortedCategories = Object.entries(currentSpend).sort((a, b) => b[1] - a[1]);
             const topSpender = sortedCategories.length > 0 ? sortedCategories[0] : null;
 
@@ -1372,137 +1436,162 @@ class ExpenseTracker {
                 cycleExpenses.push({ label, total, start: cStart });
             });
 
-            let html = `<div style="text-align: left;">`;
+            // FIX: all styles now use CSS variables — theme-aware
+            let html = `<div class="insights-body">`;
 
-            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 10px;">1. Informative (The Audit)</h4>`;
+            // Section helper
+            const section = (num, title, content) => `
+                <div class="insight-section">
+                    <div class="insight-section-header">
+                        <span class="insight-num">${num}</span>
+                        <h4>${title}</h4>
+                    </div>
+                    <div class="insight-content">${content}</div>
+                </div>
+            `;
+
+            // 1. The Audit
+            let auditContent = '';
             if (historicalTxs.length === 0) {
-                html += `<p style="font-size: 0.9rem; color: #6b7280;">Baseline comparison requires at least one prior cycle. Keep logging data.</p>`;
+                auditContent = `<p class="insight-muted">Baseline comparison requires at least one prior cycle. Keep logging data.</p>`;
             } else if (anomalies.length === 0) {
-                html += `<div style="background: #d1fae5; color: #065f46; padding: 12px; border-radius: 6px; border-left: 4px solid #10b981;">✅ No significant overspending detected against your ${historicalMonths.toFixed(1)}-month baseline.</div>`;
+                auditContent = `<div class="insight-badge insight-badge--green">✅ No significant overspending detected against your ${historicalMonths.toFixed(1)}-month baseline.</div>`;
             } else {
-                html += `<p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 10px;">Variances against your ${historicalMonths.toFixed(1)}-month historical average:</p><ul style="list-style: none; padding: 0; margin: 0;">`;
+                auditContent = `<p class="insight-muted" style="margin-bottom:10px;">Variances against your ${historicalMonths.toFixed(1)}-month average:</p>`;
                 anomalies.forEach(a => {
-                    html += `<li style="background: #fef2f2; border: 1px solid #fee2e2; padding: 10px; border-radius: 6px; margin-bottom: 8px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <strong style="color: #991b1b; font-size: 0.95rem;">${a.cat.toUpperCase()}</strong>
-                            <span style="background: #ef4444; color: white; padding: 2px 6px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">+${a.pct.toFixed(0)}%</span>
-                        </div>
-                        <div style="font-size: 0.85rem; color: #7f1d1d;">Current: <b>₹${a.currentAmt.toFixed(0)}</b> | Avg: <b>₹${a.histAvg.toFixed(0)}</b> <span style="color: #ef4444;">(+₹${a.diff.toFixed(0)})</span></div>
-                    </li>`;
+                    auditContent += `
+                        <div class="insight-anomaly-row">
+                            <div class="insight-anomaly-header">
+                                <strong>${a.cat}</strong>
+                                <span class="insight-pill insight-pill--red">+${a.pct.toFixed(0)}%</span>
+                            </div>
+                            <div class="insight-anomaly-values">
+                                Current: <b>₹${a.currentAmt.toFixed(0)}</b> &nbsp;·&nbsp; Avg: <b>₹${a.histAvg.toFixed(0)}</b>
+                                <span class="insight-pill--delta">+₹${a.diff.toFixed(0)}</span>
+                            </div>
+                        </div>`;
                 });
-                html += `</ul>`;
             }
+            html += section('01', 'The Audit', auditContent);
 
-            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">2. Corrective Measures</h4>`;
+            // 2. Corrective Measures
+            let correctiveContent = '';
             if (anomalies.length === 0) {
-                html += `<p style="font-size: 0.9rem; color: #6b7280;">No immediate corrections required. Maintain current trajectory.</p>`;
+                correctiveContent = `<p class="insight-muted">No immediate corrections required. Maintain current trajectory.</p>`;
             } else {
-                html += `<div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px; border-radius: 6px; color: #1e293b; font-size: 0.9rem;">`;
-                anomalies.slice(0, 2).forEach((a, index) => {
-                    html += `<div style="${index !== 0 ? 'margin-top: 10px;' : ''}">
-                        <strong style="color: #1d4ed8;">Action ${index + 1}: Re-peg ${a.cat}</strong><br>
-                        Mandated limit for next cycle: <b>₹${(a.histAvg * 0.95).toFixed(0)}</b> (5% below baseline) to offset the ₹${a.diff.toFixed(0)} variance.
-                    </div>`;
+                anomalies.slice(0, 2).forEach((a, i) => {
+                    correctiveContent += `
+                        <div class="insight-action-row">
+                            <div class="insight-action-label">Action ${i + 1}: Re-peg ${a.cat}</div>
+                            <div class="insight-action-body">Target ₹<b>${(a.histAvg * 0.95).toFixed(0)}</b> next cycle (5% below baseline) to offset the ₹${a.diff.toFixed(0)} variance.</div>
+                        </div>`;
                 });
-                html += `</div>`;
             }
+            html += section('02', 'Corrective Measures', correctiveContent);
 
-            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">3. Run-Rate Status</h4>`;
+            // 3. Run-Rate Status
+            let runContent = '';
             if (projectedBalance < 0) {
-                html += `<div style="background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 6px; border-left: 4px solid #ef4444; font-size: 0.9rem;">
-                    <strong style="display: block; margin-bottom: 4px;">🚨 RED ALERT: DEFICIT PROJECTED</strong>
-                    Burning <b>₹${dailyBurnRate.toFixed(0)}/day</b>. Projected to finish the cycle <strong>short by ₹${Math.abs(projectedBalance).toFixed(0)}</strong>. Freeze non-essential spending.
-                </div>`;
+                runContent = `<div class="insight-badge insight-badge--red">🚨 Deficit Projected — burning ₹${dailyBurnRate.toFixed(0)}/day. Short by <b>₹${Math.abs(projectedBalance).toFixed(0)}</b>. Freeze non-essential spending.</div>`;
             } else if (projectedBalance < income * 0.1) {
-                html += `<div style="background: #fef3c7; color: #92400e; padding: 12px; border-radius: 6px; border-left: 4px solid #f59e0b; font-size: 0.9rem;">
-                    <strong style="display: block; margin-bottom: 4px;">⚠️ CAUTION: LOW MARGINS</strong>
-                    Burning <b>₹${dailyBurnRate.toFixed(0)}/day</b>. Only ₹${projectedBalance.toFixed(0)} leftover. Reduce to <b>₹${((income * 0.9 - expenses) / (daysRemaining || 1)).toFixed(0)}/day</b>.
-                </div>`;
+                runContent = `<div class="insight-badge insight-badge--amber">⚠️ Low Margins — ₹${projectedBalance.toFixed(0)} leftover. Reduce to ₹<b>${((income * 0.9 - expenses) / (daysRemaining || 1)).toFixed(0)}</b>/day.</div>`;
             } else {
-                html += `<div style="background: #d1fae5; color: #065f46; padding: 12px; border-radius: 6px; border-left: 4px solid #10b981; font-size: 0.9rem;">
-                    <strong style="display: block; margin-bottom: 4px;">✅ GREEN LIGHT: SURPLUS PROJECTED</strong>
-                    Controlled burn of <b>₹${dailyBurnRate.toFixed(0)}/day</b>. Tracking toward a surplus of <b>₹${projectedBalance.toFixed(0)}</b>.
-                </div>`;
+                runContent = `<div class="insight-badge insight-badge--green">✅ Surplus Projected — controlled burn of ₹${dailyBurnRate.toFixed(0)}/day. On track for <b>+₹${projectedBalance.toFixed(0)}</b>.</div>`;
             }
+            html += section('03', 'Run-Rate Status', runContent);
 
-            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">4. Target The Leak</h4>`;
+            // 4. Target the Leak
+            let leakContent = '';
             if (topSpender && expenses > 0) {
-                const leakPercentage = ((topSpender[1] / expenses) * 100).toFixed(1);
-                html += `<div style="background: #f3f4f6; color: #1f2937; padding: 12px; border-radius: 6px; border-left: 4px solid #4f46e5; font-size: 0.9rem;">
-                    <strong>${topSpender[0].toUpperCase()}</strong> is consuming <strong>${leakPercentage}%</strong> of total outflow (₹${topSpender[1].toFixed(0)}).<br><br>
-                    <strong>Directive:</strong> Institute a strict 48-hour cooling-off period for this category.
-                </div>`;
+                const leakPct = ((topSpender[1] / expenses) * 100).toFixed(1);
+                leakContent = `<div class="insight-leak-row">
+                    <div class="insight-leak-label">${topSpender[0]}</div>
+                    <div class="insight-leak-pct">${leakPct}% of outflow</div>
+                    <div class="insight-leak-amount">₹${topSpender[1].toFixed(0)}</div>
+                </div>
+                <p class="insight-muted" style="margin-top:10px;">Directive: Institute a 48-hour cooling-off period for this category.</p>`;
             } else {
-                html += `<p style="font-size: 0.9rem; color: #6b7280;">No dominant leaks detected.</p>`;
+                leakContent = `<p class="insight-muted">No dominant leaks detected.</p>`;
             }
+            html += section('04', 'Target the Leak', leakContent);
 
-            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">5. Macro-Level Analytics</h4>`;
-            html += `<div style="font-size: 0.9rem; color: #374151; line-height: 1.5;"><ul style="margin-left: 20px; margin-bottom: 10px;">`;
+            // 5. Macro Analytics
+            let macroContent = '<div class="insight-macro-grid">';
             if (income > 0) {
-                const rateColor = savingsRate < 20 ? '#ef4444' : '#10b981';
-                const rateTip = savingsRate < 20
-                    ? 'Standard benchmark is 20%. Focus on cutting recurring fixed costs.'
-                    : 'Excellent. Ensure surplus is deployed into compounding assets.';
-                html += `<li style="margin-bottom: 8px;"><b>Savings Rate: <span style="color:${rateColor}">${savingsRate}%</span></b>. ${rateTip}</li>`;
+                const rateOk = Number(savingsRate) >= 20;
+                macroContent += `
+                    <div class="insight-macro-tile">
+                        <div class="insight-macro-val" style="color: ${rateOk ? 'var(--income)' : 'var(--expense)'};">${savingsRate}%</div>
+                        <div class="insight-macro-label">Savings Rate</div>
+                        <div class="insight-macro-note">${rateOk ? 'Above 20% benchmark' : 'Below 20% benchmark'}</div>
+                    </div>`;
             }
             if (expenses > 0 && sortedCategories.length > 3) {
-                html += `<li style="margin-bottom: 8px;"><b>Concentration Risk:</b> Top 3 categories account for <b>${paretoRatio}%</b> of spend. Focus cuts here for maximum impact.</li>`;
+                macroContent += `
+                    <div class="insight-macro-tile">
+                        <div class="insight-macro-val">${paretoRatio}%</div>
+                        <div class="insight-macro-label">Top 3 Concentration</div>
+                        <div class="insight-macro-note">Focus cuts here for max impact</div>
+                    </div>`;
             }
-            html += `</ul></div>`;
+            macroContent += '</div>';
+            html += section('05', 'Macro Analytics', macroContent);
 
-            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">6. Weekend vs Weekday Pattern</h4>`;
+            // 6. Weekend vs Weekday
+            let weekendContent = '';
             if (expenseTxs.length < 5) {
-                html += `<p style="font-size: 0.9rem; color: #6b7280;">Need more transactions to detect weekend/weekday patterns.</p>`;
+                weekendContent = `<p class="insight-muted">Need more transactions to detect patterns.</p>`;
             } else {
                 const higherDay = weekendAvg > weekdayAvg ? 'weekends' : 'weekdays';
                 const ratio = weekendAvg > 0 && weekdayAvg > 0 ? Math.max(weekendAvg, weekdayAvg) / Math.min(weekendAvg, weekdayAvg) : 1;
-                html += `<div style="background: #f8fafc; border-left: 4px solid #8b5cf6; padding: 12px; border-radius: 6px; font-size: 0.9rem; color: #1e293b;">
-                    <div style="display: flex; gap: 20px; margin-bottom: 10px;">
-                        <div style="flex:1; text-align:center; background:#fff; padding:10px; border-radius:6px; border: 1px solid #e5e7eb;">
-                            <div style="font-size:1.3rem; font-weight:600; color:#4f46e5;">₹${weekdayAvg.toFixed(0)}</div>
-                            <div style="color:#6b7280; font-size:0.8rem;">avg/weekday</div>
+                weekendContent = `
+                    <div class="insight-day-grid">
+                        <div class="insight-day-tile">
+                            <div class="insight-day-val">₹${weekdayAvg.toFixed(0)}</div>
+                            <div class="insight-day-label">avg/weekday</div>
                         </div>
-                        <div style="flex:1; text-align:center; background:#fff; padding:10px; border-radius:6px; border: 1px solid #e5e7eb;">
-                            <div style="font-size:1.3rem; font-weight:600; color:#f59e0b;">₹${weekendAvg.toFixed(0)}</div>
-                            <div style="color:#6b7280; font-size:0.8rem;">avg/weekend day</div>
+                        <div class="insight-day-tile insight-day-tile--alt">
+                            <div class="insight-day-val">₹${weekendAvg.toFixed(0)}</div>
+                            <div class="insight-day-label">avg/weekend day</div>
                         </div>
                     </div>
-                    You spend <b>${ratio.toFixed(1)}×</b> more on ${higherDay}. 
-                    ${weekendAvg > weekdayAvg * 1.5
-                        ? 'Weekend spending is a significant driver of your outflows. Plan weekend activities with a budget cap.'
-                        : 'Spending is fairly even across the week — no major weekend splurge pattern detected.'}
-                </div>`;
+                    <p class="insight-muted" style="margin-top:10px;">
+                        You spend <b>${ratio.toFixed(1)}×</b> more on ${higherDay}.
+                        ${weekendAvg > weekdayAvg * 1.5 ? 'Weekend spending is a significant driver — cap weekend activities.' : 'Spending is fairly even across the week.'}
+                    </p>`;
             }
+            html += section('06', 'Weekend vs Weekday', weekendContent);
 
-            html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">7. Month-over-Month Expense Trend</h4>`;
+            // 7. Month-over-Month
+            let momContent = '';
             if (cycleExpenses.length < 2) {
-                html += `<p style="font-size: 0.9rem; color: #6b7280;">Need at least 2 salary cycles to show a trend.</p>`;
+                momContent = `<p class="insight-muted">Need at least 2 salary cycles to show a trend.</p>`;
             } else {
                 const maxVal = Math.max(...cycleExpenses.map(c => c.total));
                 const recent = cycleExpenses[cycleExpenses.length - 1].total;
                 const prev = cycleExpenses[cycleExpenses.length - 2].total;
                 const momChange = prev > 0 ? (((recent - prev) / prev) * 100).toFixed(1) : 0;
-                const momColor = recent > prev ? '#ef4444' : '#10b981';
-                const momIcon = recent > prev ? '📈' : '📉';
+                const isUp = recent > prev;
 
-                html += `<div style="background: #f8fafc; padding: 12px; border-radius: 6px; border-left: 4px solid #10b981; margin-bottom: 12px; font-size: 0.9rem;">
-                    ${momIcon} vs last cycle: <b style="color:${momColor}">${recent > prev ? '+' : ''}${momChange}%</b> 
-                    (₹${recent.toFixed(0)} vs ₹${prev.toFixed(0)})
-                </div>`;
-
-                html += `<div style="display: flex; align-items: flex-end; gap: 6px; height: 80px; padding: 0 4px;">`;
+                momContent = `
+                    <div class="insight-badge ${isUp ? 'insight-badge--red' : 'insight-badge--green'}" style="margin-bottom:14px;">
+                        ${isUp ? '📈' : '📉'} vs last cycle: <b>${isUp ? '+' : ''}${momChange}%</b>
+                        (₹${recent.toFixed(0)} vs ₹${prev.toFixed(0)})
+                    </div>
+                    <div class="insight-bar-chart">`;
                 cycleExpenses.forEach(c => {
                     const barHeight = maxVal > 0 ? Math.max(4, (c.total / maxVal) * 70) : 4;
                     const isCurrent = c.start === currentStart;
-                    html += `
-                        <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
-                            <div style="font-size:9px; color:#6b7280;">₹${(c.total/1000).toFixed(1)}k</div>
-                            <div style="width:100%; height:${barHeight}px; background:${isCurrent ? '#4f46e5' : '#c7d2fe'}; border-radius:3px 3px 0 0;"></div>
-                            <div style="font-size:9px; color:#6b7280; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:36px;">${c.label}</div>
+                    momContent += `
+                        <div class="insight-bar-col">
+                            <div class="insight-bar-val">₹${(c.total / 1000).toFixed(1)}k</div>
+                            <div class="insight-bar-fill ${isCurrent ? 'insight-bar-fill--active' : ''}" style="height:${barHeight}px;"></div>
+                            <div class="insight-bar-label">${c.label}</div>
                         </div>`;
                 });
-                html += `</div>`;
+                momContent += `</div>`;
             }
+            html += section('07', 'Month-over-Month', momContent);
 
             html += `</div>`;
 
