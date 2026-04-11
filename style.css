@@ -761,7 +761,7 @@ input[type="checkbox"] {
 .budget-input-wrap .rupee-symbol {
     color: var(--text-3);
     font-size: 0.8rem;
-    position: static;
+    position: relative;
     font-family: 'DM Mono', monospace;
 }
 
