@@ -53,6 +53,11 @@
     <!-- MAIN APP -->
     <div class="container" style="display: none;" role="main">
         <header class="header">
+            <div class="theme-toggle">
+                <button class="theme-btn" data-theme="light" onclick="ThemeManager.apply('light')" title="Light mode">☀️</button>
+                <button class="theme-btn" data-theme="dark"  onclick="ThemeManager.apply('dark')"  title="Dark mode">🌙</button>
+                <button class="theme-btn" data-theme="system" onclick="ThemeManager.apply('system')" title="System default">💻</button>
+            </div>
             <h1>💰 Expense Tracker</h1>
             <p>Track your income and expenses</p>
             <div id="connection-status" class="status-indicator" role="status">

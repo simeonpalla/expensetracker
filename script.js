@@ -147,6 +147,42 @@ function handleLogout() {
 }
 
 // ===============================
+// THEME MANAGER
+// ===============================
+const ThemeManager = {
+    THEMES: ['system', 'light', 'dark'],
+
+    init() {
+        const saved = localStorage.getItem('theme') || 'system';
+        this.apply(saved);
+        this.watchSystem();
+    },
+
+    apply(theme) {
+        localStorage.setItem('theme', theme);
+        const root = document.documentElement;
+
+        if (theme === 'system') {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            root.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+        } else {
+            root.setAttribute('data-theme', theme);
+        }
+
+        // Update toggle buttons if they exist
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === theme);
+        });
+    },
+
+    watchSystem() {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (localStorage.getItem('theme') === 'system') this.apply('system');
+        });
+    }
+};
+
+// ===============================
 // MAIN APP CLASS
 // ===============================
 class ExpenseTracker {
@@ -1494,6 +1530,7 @@ class ExpenseTracker {
 // INIT APP
 // ===============================
 document.addEventListener('DOMContentLoaded', () => {
+    ThemeManager.init();
     const authContainer = document.getElementById('auth-container');
     const appContainer = document.querySelector('.container');
 
