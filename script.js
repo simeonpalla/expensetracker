@@ -300,7 +300,10 @@ class ExpenseTracker {
 
         if (select) {
             select.innerHTML = '<option value="">Select Category</option>';
-            this.categories.filter(c => !type || c.type === type).forEach(c => {
+            this.categories
+            .filter(c => !type || c.type === type)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.name;
                 opt.textContent = `${c.icon} ${c.name}`;
@@ -310,7 +313,9 @@ class ExpenseTracker {
 
         if (filter) {
             filter.innerHTML = '<option value="">All Categories</option>';
-            this.categories.forEach(c => {
+            this.categories
+            .sort((a, b) => a.name.localeCompare(b.name)) 
+            .forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.name;
                 opt.textContent = `${c.icon} ${c.name}`;
