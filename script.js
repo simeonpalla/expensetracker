@@ -402,14 +402,13 @@ class ExpenseTracker {
 
         container.innerHTML = expenseCategories.map(c => `
             <div class="budget-limit-row">
-                <label>${c.icon} ${c.name}</label>
+                <label>
+                    <span>${c.icon}</span> 
+                    <span>${c.name}</span>
+                </label>
                 <div class="budget-input-wrap">
                     <span class="rupee-symbol">₹</span>
-                    <input type="number" min="0" step="1"
-                           class="budget-limit-input"
-                           data-category="${c.name}"
-                           placeholder="No limit"
-                           value="${this.budgetLimits[c.name] || ''}">
+                    <input type="number" ... >
                 </div>
             </div>
         `).join('');

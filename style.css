@@ -735,14 +735,23 @@ input[type="checkbox"] {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 13px;
+    padding: 12px 14px;
     background: var(--bg-card);
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
-    gap: 10px;
+    gap: 12px;
 }
 
-.budget-limit-row label { font-size: 0.83rem; font-weight: 500; color: var(--text); margin: 0; flex: 1; }
+.budget-limit-row label { 
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.88rem; 
+    font-weight: 500; 
+    color: var(--text); 
+    margin: 0; 
+    flex: 1;
+}
 
 .budget-input-wrap {
     display: flex;
@@ -751,8 +760,9 @@ input[type="checkbox"] {
     background: var(--bg-input);
     border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
-    padding: 5px 9px;
-    width: 110px;
+    padding: 0 10px;
+    width: 115px;
+    height: 38px;
     transition: border-color var(--ease);
 }
 
@@ -761,14 +771,18 @@ input[type="checkbox"] {
 .budget-input-wrap .rupee-symbol {
     color: var(--text-3);
     font-size: 0.8rem;
-    position: relative;
+    position: static;
     font-family: 'DM Mono', monospace;
+    line-height: 1;
+    display: flex;
+    align-items: center;
 }
 
 .budget-limit-input {
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
+    height: 100%;
     width: 100%;
     font-size: 0.83rem;
     font-family: 'DM Mono', monospace;
@@ -777,6 +791,7 @@ input[type="checkbox"] {
     padding: 0 !important;
     appearance: textfield;
     -webkit-appearance: textfield;
+    line-height: 1;
 }
 
 /* Budget warnings */
