@@ -70,10 +70,9 @@ const API = {
 };
 
 // ===============================
-// NOTIFICATION SYSTEM (replaces alert())
+// NOTIFICATION SYSTEM
 // ===============================
 function showNotification(message, type = 'success') {
-    // Remove any existing toast
     const existing = document.getElementById('toast-notification');
     if (existing) existing.remove();
 
@@ -82,9 +81,9 @@ function showNotification(message, type = 'success') {
     toast.textContent = message;
     toast.style.cssText = `
         position: fixed;
-        bottom: 30px;
+        bottom: 70px;
         left: 50%;
-        margin-left: -140px;
+        transform: translateX(-50%);
         width: 280px;
         background: ${type === 'error' ? '#b91c1c' : '#1f2937'};
         color: #fff;
@@ -102,12 +101,10 @@ function showNotification(message, type = 'success') {
 
     document.body.appendChild(toast);
 
-    // Trigger fade in
     requestAnimationFrame(() => {
         requestAnimationFrame(() => { toast.style.opacity = '1'; });
     });
 
-    // Fade out and remove
     setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 200);
@@ -150,8 +147,6 @@ function handleLogout() {
 // THEME MANAGER
 // ===============================
 const ThemeManager = {
-    THEMES: ['system', 'light', 'dark'],
-
     init() {
         const saved = localStorage.getItem('theme') || 'system';
         this.apply(saved);
@@ -169,7 +164,6 @@ const ThemeManager = {
             root.setAttribute('data-theme', theme);
         }
 
-        // Update toggle buttons if they exist
         document.querySelectorAll('.theme-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.theme === theme);
         });
@@ -194,12 +188,10 @@ class ExpenseTracker {
         this.expenseDonutChart = null;
         this.currentChartView = 'source';
 
-        // Load salary account from localStorage (persisted setting)
         this.salaryAccount = localStorage.getItem('salaryAccount') || 'UBI';
         this.currentCycleStart = null;
         this.currentCycleEnd = null;
 
-        // Budget limits per category: { categoryName: limitAmount }
         this.budgetLimits = JSON.parse(localStorage.getItem('budgetLimits') || '{}');
 
         this.paymentSources = {
@@ -209,7 +201,6 @@ class ExpenseTracker {
             cash: ['Cash']
         };
 
-        // Edit modal state
         this.editingTransactionId = null;
 
         this.init();
@@ -229,6 +220,9 @@ class ExpenseTracker {
 
             document.getElementById('status-dot').className = 'status-dot connected';
             document.getElementById('status-text').textContent = 'Connected';
+
+            // FIX: init source-details dropdown after DOM is ready
+            this.updateSourceDetailsOptions();
 
             this.loadCycleHistory();
             this.showPage('add-transaction');
@@ -262,7 +256,6 @@ class ExpenseTracker {
         qs('reset-chart-view-btn')?.addEventListener('click', () => this.renderChartBySource());
         qs('export-csv-btn')?.addEventListener('click', () => this.exportCSV());
 
-        // Salary account setting
         qs('salary-settings-form')?.addEventListener('submit', e => {
             e.preventDefault();
             const val = qs('salary-default-account')?.value;
@@ -273,13 +266,11 @@ class ExpenseTracker {
             }
         });
 
-        // Budget limits form
         qs('budget-limits-form')?.addEventListener('submit', e => {
             e.preventDefault();
             this.saveBudgetLimits();
         });
 
-        // Edit modal
         qs('edit-modal-close')?.addEventListener('click', () => this.closeEditModal());
         qs('edit-modal-cancel')?.addEventListener('click', () => this.closeEditModal());
         qs('edit-transaction-form')?.addEventListener('submit', e => this.handleEditSubmit(e));
@@ -298,7 +289,6 @@ class ExpenseTracker {
         document.getElementById(pageId)?.classList.add('active');
         document.querySelector(`.nav-tab[data-page="${pageId}"]`)?.classList.add('active');
 
-        // Render budget UI when switching to budget page
         if (pageId === 'budgets') this.renderBudgetLimitsUI();
     }
 
@@ -316,6 +306,7 @@ class ExpenseTracker {
         document.getElementById('transaction-form')?.reset();
         this.setTodayDate();
         this.populateCategoryDropdowns();
+        this.updateSourceDetailsOptions();
         this.updateFormForSalary();
     }
 
@@ -338,26 +329,26 @@ class ExpenseTracker {
         if (select) {
             select.innerHTML = '<option value="">Select Category</option>';
             this.categories
-            .filter(c => !type || c.type === type)
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.name;
-                opt.textContent = `${c.icon} ${c.name}`;
-                select.appendChild(opt);
-            });
+                .filter(c => !type || c.type === type)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.name;
+                    opt.textContent = `${c.icon} ${c.name}`;
+                    select.appendChild(opt);
+                });
         }
 
         if (filter) {
             filter.innerHTML = '<option value="">All Categories</option>';
             this.categories
-            .sort((a, b) => a.name.localeCompare(b.name)) 
-            .forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.name;
-                opt.textContent = `${c.icon} ${c.name}`;
-                filter.appendChild(opt);
-            });
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.name;
+                    opt.textContent = `${c.icon} ${c.name}`;
+                    filter.appendChild(opt);
+                });
         }
     }
 
@@ -405,7 +396,7 @@ class ExpenseTracker {
 
         const expenseCategories = this.categories.filter(c => c.type === 'expense');
         if (expenseCategories.length === 0) {
-            container.innerHTML = '<p style="color: var(--text-muted, #6b7280); font-size: 0.9rem;">Add expense categories first.</p>';
+            container.innerHTML = '<p style="color: var(--text-2); font-size: 0.9rem;">Add expense categories first.</p>';
             return;
         }
 
@@ -434,7 +425,6 @@ class ExpenseTracker {
         });
         localStorage.setItem('budgetLimits', JSON.stringify(this.budgetLimits));
         showNotification('Budget limits saved!');
-        // Re-render dashboard if visible
         if (this.currentCycleStart) this.updateDashboardStats(this.currentCycleStart, this.currentCycleEnd);
     }
 
@@ -503,7 +493,7 @@ class ExpenseTracker {
             if (sourceDetailsSelect) {
                 sourceDetailsSelect.innerHTML = `<option value="${this.salaryAccount}" selected>${this.salaryAccount}</option>`;
                 sourceDetailsSelect.disabled = true;
-                sourceDetailsSelect.parentElement.style.display = 'block';
+                sourceDetailsSelect.closest('.form-group').style.display = 'block';
             }
         } else {
             if (paymentSourceSelect && paymentSourceSelect.disabled) {
@@ -528,8 +518,10 @@ class ExpenseTracker {
 
         details.innerHTML = '<option value="">Select Details</option>';
 
+        const sourceGroup = details.closest('.form-group');
+
         if (this.paymentSources[source]) {
-            details.parentElement.style.display = 'block';
+            if (sourceGroup) sourceGroup.style.display = 'block';
             details.required = true;
             this.paymentSources[source].forEach(s => {
                 const opt = document.createElement('option');
@@ -538,13 +530,13 @@ class ExpenseTracker {
                 details.appendChild(opt);
             });
         } else {
-            details.parentElement.style.display = 'none';
+            if (sourceGroup) sourceGroup.style.display = source ? 'block' : 'none';
             details.required = false;
         }
     }
 
     // ===============================
-    // TRANSACTIONS & DASHBOARD
+    // TRANSACTIONS
     // ===============================
     async handleTransactionSubmit(e) {
         e.preventDefault();
@@ -575,8 +567,16 @@ class ExpenseTracker {
     }
 
     // ===============================
-    // EDIT / DELETE TRANSACTIONS
+    // EDIT / DELETE — FIX: use ID lookup, no inline JSON
     // ===============================
+
+    // FIX: look up transaction by ID from this.transactions — no JSON in onclick
+    openEditModalById(id) {
+        const tx = this.transactions.find(t => String(t.id) === String(id));
+        if (tx) this.openEditModal(tx);
+        else showNotification('Transaction not found.', 'error');
+    }
+
     openEditModal(tx) {
         this.editingTransactionId = tx.id;
         const qs = id => document.getElementById(id);
@@ -587,7 +587,6 @@ class ExpenseTracker {
         qs('edit-payment-to').value = tx.payment_to || '';
         qs('edit-description').value = tx.description || '';
 
-        // Populate category dropdown for this type
         const catSel = qs('edit-category');
         catSel.innerHTML = '';
         this.categories.filter(c => c.type === tx.type).forEach(c => {
@@ -667,9 +666,7 @@ class ExpenseTracker {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const s = this.currentCycleStart;
-        const end = this.currentCycleEnd;
-        a.download = `expenses_${s}_to_${end}.csv`;
+        a.download = `expenses_${this.currentCycleStart}_to_${this.currentCycleEnd}.csv`;
         a.click();
         URL.revokeObjectURL(url);
         showNotification('CSV exported!');
@@ -682,7 +679,9 @@ class ExpenseTracker {
         const selector = document.getElementById('cycle-history');
         if (!selector) return;
 
-        const salaries = this.transactions.filter(t => t.type === 'income' && t.category.toLowerCase().includes('salary'));
+        const salaries = this.transactions.filter(t =>
+            t.type === 'income' && t.category.toLowerCase().includes('salary')
+        );
 
         if (salaries.length === 0) {
             selector.innerHTML = '<option value="">Current Month</option>';
@@ -761,14 +760,12 @@ class ExpenseTracker {
         const container = document.getElementById('recurring-suggestions');
         if (!container) return;
 
-        // Find transactions marked as recurring from any previous cycle
         const recurringTxs = this.transactions.filter(t =>
             t.is_recurring && t.transaction_date < currentCycleStart
         );
 
         if (recurringTxs.length === 0) { container.innerHTML = ''; return; }
 
-        // Group by category+payment_to to find unique recurring patterns
         const seen = {};
         recurringTxs.forEach(t => {
             const key = `${t.category}||${t.payment_to}||${t.payment_source}`;
@@ -777,7 +774,6 @@ class ExpenseTracker {
             }
         });
 
-        // Check which ones haven't been logged in the current cycle yet
         const currentTxs = this.getTransactionsInCycle(currentCycleStart, this.currentCycleEnd);
         const suggestions = Object.values(seen).filter(t => {
             return !currentTxs.some(ct =>
@@ -787,6 +783,7 @@ class ExpenseTracker {
 
         if (suggestions.length === 0) { container.innerHTML = ''; return; }
 
+        // FIX: use data-id instead of inline JSON to avoid special character issues
         container.innerHTML = `
             <div class="recurring-suggestions-block">
                 <h4>🔁 Recurring transactions due this cycle</h4>
@@ -798,11 +795,11 @@ class ExpenseTracker {
                             <div class="recurring-info">
                                 <span class="recurring-icon">${icon}</span>
                                 <div>
-                                    <strong>${t.payment_to}</strong>
-                                    <small>${t.category} • ₹${Number(t.amount).toFixed(0)} • ${t.payment_source}</small>
+                                    <strong>${this.escapeHtml(t.payment_to)}</strong>
+                                    <small>${this.escapeHtml(t.category)} • ₹${Number(t.amount).toFixed(0)} • ${this.escapeHtml(t.payment_source || '')}</small>
                                 </div>
                             </div>
-                            <button class="btn btn-secondary btn-sm" onclick="app.prefillFromRecurring(${JSON.stringify(t).replace(/"/g, '&quot;')})">
+                            <button class="btn btn-secondary btn-sm" data-recurring-id="${t.id}" onclick="app.prefillFromRecurringId(this.dataset.recurringId)">
                                 + Log it
                             </button>
                         </div>
@@ -810,6 +807,13 @@ class ExpenseTracker {
                 }).join('')}
             </div>
         `;
+    }
+
+    // FIX: ID-based prefill — no inline JSON
+    prefillFromRecurringId(id) {
+        const tx = this.transactions.find(t => String(t.id) === String(id));
+        if (!tx) return;
+        this.prefillFromRecurring(tx);
     }
 
     prefillFromRecurring(tx) {
@@ -823,7 +827,6 @@ class ExpenseTracker {
             document.getElementById('description').value = tx.description || '';
             document.getElementById('is-recurring').checked = true;
 
-            // Trigger payment source population
             const psEl = document.getElementById('payment-source');
             psEl.value = tx.payment_source || '';
             this.updateSourceDetailsOptions();
@@ -836,8 +839,19 @@ class ExpenseTracker {
         }, 100);
     }
 
+    // FIX: helper to safely escape HTML special characters
+    escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     // ===============================
-    // DISPLAY TRANSACTIONS (with edit/delete + swipe)
+    // DISPLAY TRANSACTIONS — FIX: safe IDs, no inline JSON
     // ===============================
     displayTransactions() {
         const list = document.getElementById('transactions-list');
@@ -858,40 +872,34 @@ class ExpenseTracker {
         list.innerHTML = filtered.map(t => {
             const cat = this.categories.find(c => c.name === t.category);
             const icon = cat ? cat.icon : '📁';
-            const txJson = JSON.stringify(t).replace(/"/g, '&quot;');
+            // FIX: use data-id attribute instead of inline JSON — safe against special chars
             return `
             <div class="transaction-item" data-id="${t.id}">
                 <div class="transaction-swipe-wrapper">
                     <div class="transaction-content">
                         <div class="transaction-details">
-                            <strong>${icon} ${t.category}</strong>
+                            <strong>${icon} ${this.escapeHtml(t.category)}</strong>
                             ${t.is_recurring ? '<span class="recurring-badge">🔁</span>' : ''}
                             <br>
-                            <small>${t.transaction_date} • ${t.payment_to || 'N/A'}</small>
+                            <small>${t.transaction_date} • ${this.escapeHtml(t.payment_to || 'N/A')}</small>
                         </div>
                         <div class="transaction-right">
                             <div class="${t.type}">
                                 ${t.type === 'income' ? '+' : '-'}₹${Number(t.amount).toFixed(2)}
                             </div>
                             <div class="transaction-actions">
-                                <button class="tx-action-btn edit-btn" onclick="app.openEditModal(JSON.parse(this.closest('[data-id]').dataset.tx))" title="Edit">✏️</button>
-                                <button class="tx-action-btn delete-btn" onclick="app.deleteTransaction('${t.id}')" title="Delete">🗑️</button>
+                                <button class="tx-action-btn edit-btn" data-id="${t.id}" onclick="app.openEditModalById(this.dataset.id)" title="Edit">✏️</button>
+                                <button class="tx-action-btn delete-btn" data-id="${t.id}" onclick="app.deleteTransaction(this.dataset.id)" title="Delete">🗑️</button>
                             </div>
                         </div>
                     </div>
-                    <div class="swipe-delete-bg" onclick="app.deleteTransaction('${t.id}')">
+                    <div class="swipe-delete-bg" data-id="${t.id}" onclick="app.deleteTransaction(this.dataset.id)">
                         🗑️ Delete
                     </div>
                 </div>
             </div>
         `;
         }).join('');
-
-        // Store tx data on elements for edit
-        filtered.forEach(t => {
-            const el = list.querySelector(`[data-id="${t.id}"]`);
-            if (el) el.dataset.tx = JSON.stringify(t);
-        });
 
         this.setupSwipeToDelete(list);
     }
@@ -1095,7 +1103,6 @@ class ExpenseTracker {
 
         Object.keys(dailyData).forEach(dateStr => expenses.push(dailyData[dateStr]));
 
-        // Linear regression trend line
         const n = expenses.length;
         const xMean = (n - 1) / 2;
         const yMean = expenses.reduce((a, b) => a + b, 0) / n;
@@ -1202,7 +1209,7 @@ class ExpenseTracker {
     }
 
     // ===============================
-    // LOCAL AI COACH (5-POINT MASTER AUDIT + WEEKEND/WEEKDAY + MOM TREND)
+    // LOCAL AI INSIGHTS
     // ===============================
     generateLocalAIInsights() {
         const loading = document.getElementById('local-ai-loading');
@@ -1227,7 +1234,6 @@ class ExpenseTracker {
                 return;
             }
 
-            // --- DATA AGGREGATION ---
             let income = 0, expenses = 0;
             const currentSpend = {};
 
@@ -1255,7 +1261,6 @@ class ExpenseTracker {
                 historicalMonths = Math.max(1, (new Date(currentStart).getTime() - earliestTime) / msPerMonth);
             }
 
-            // --- 1 & 2. ANOMALIES ---
             const anomalies = [];
             if (historicalTxs.length > 0) {
                 Object.keys(currentSpend).forEach(cat => {
@@ -1270,7 +1275,6 @@ class ExpenseTracker {
                 anomalies.sort((a, b) => b.diff - a.diff);
             }
 
-            // --- 3. RUN-RATE (pattern-aware) ---
             const msPerDay = 1000 * 60 * 60 * 24;
             const start = new Date(currentStart);
             const today = new Date();
@@ -1322,26 +1326,22 @@ class ExpenseTracker {
 
             const projectedBalance = income - (expenses + projectedFutureSpend);
 
-            // --- 4. TARGET THE LEAK ---
             const sortedCategories = Object.entries(currentSpend).sort((a, b) => b[1] - a[1]);
             const topSpender = sortedCategories.length > 0 ? sortedCategories[0] : null;
 
-            // --- 5. MACRO ANALYTICS ---
             let top3Spend = 0;
             sortedCategories.slice(0, 3).forEach(c => top3Spend += c[1]);
             const paretoRatio = expenses > 0 ? ((top3Spend / expenses) * 100).toFixed(0) : 0;
             const savingsRate = income > 0 ? (((income - expenses) / income) * 100).toFixed(0) : 0;
 
-            // --- 6. WEEKEND vs WEEKDAY ---
             let weekendSpend = 0, weekdaySpend = 0, weekendDays = 0, weekdayDays = 0;
             const expenseTxs = allTxs.filter(t => t.type === 'expense');
             expenseTxs.forEach(t => {
-                const dow = new Date(t.transaction_date + 'T12:00:00').getDay(); // 0=Sun,6=Sat
+                const dow = new Date(t.transaction_date + 'T12:00:00').getDay();
                 const amt = Number(t.amount);
                 if (dow === 0 || dow === 6) weekendSpend += amt;
                 else weekdaySpend += amt;
             });
-            // Count unique weekend/weekday dates
             const uniqueDates = [...new Set(expenseTxs.map(t => t.transaction_date))];
             uniqueDates.forEach(d => {
                 const dow = new Date(d + 'T12:00:00').getDay();
@@ -1351,7 +1351,6 @@ class ExpenseTracker {
             const weekendAvg = weekendDays > 0 ? weekendSpend / weekendDays : 0;
             const weekdayAvg = weekdayDays > 0 ? weekdaySpend / weekdayDays : 0;
 
-            // --- 7. MONTH-OVER-MONTH TREND ---
             const salaries = this.transactions
                 .filter(t => t.type === 'income' && t.category.toLowerCase().includes('salary'))
                 .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date));
@@ -1373,12 +1372,8 @@ class ExpenseTracker {
                 cycleExpenses.push({ label, total, start: cStart });
             });
 
-            // ==========================================
-            // HTML GENERATION
-            // ==========================================
             let html = `<div style="text-align: left;">`;
 
-            // SECTION 1
             html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 10px;">1. Informative (The Audit)</h4>`;
             if (historicalTxs.length === 0) {
                 html += `<p style="font-size: 0.9rem; color: #6b7280;">Baseline comparison requires at least one prior cycle. Keep logging data.</p>`;
@@ -1398,7 +1393,6 @@ class ExpenseTracker {
                 html += `</ul>`;
             }
 
-            // SECTION 2
             html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">2. Corrective Measures</h4>`;
             if (anomalies.length === 0) {
                 html += `<p style="font-size: 0.9rem; color: #6b7280;">No immediate corrections required. Maintain current trajectory.</p>`;
@@ -1413,7 +1407,6 @@ class ExpenseTracker {
                 html += `</div>`;
             }
 
-            // SECTION 3
             html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">3. Run-Rate Status</h4>`;
             if (projectedBalance < 0) {
                 html += `<div style="background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 6px; border-left: 4px solid #ef4444; font-size: 0.9rem;">
@@ -1432,7 +1425,6 @@ class ExpenseTracker {
                 </div>`;
             }
 
-            // SECTION 4
             html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">4. Target The Leak</h4>`;
             if (topSpender && expenses > 0) {
                 const leakPercentage = ((topSpender[1] / expenses) * 100).toFixed(1);
@@ -1444,7 +1436,6 @@ class ExpenseTracker {
                 html += `<p style="font-size: 0.9rem; color: #6b7280;">No dominant leaks detected.</p>`;
             }
 
-            // SECTION 5
             html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">5. Macro-Level Analytics</h4>`;
             html += `<div style="font-size: 0.9rem; color: #374151; line-height: 1.5;"><ul style="margin-left: 20px; margin-bottom: 10px;">`;
             if (income > 0) {
@@ -1459,15 +1450,12 @@ class ExpenseTracker {
             }
             html += `</ul></div>`;
 
-            // SECTION 6: WEEKEND vs WEEKDAY
             html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">6. Weekend vs Weekday Pattern</h4>`;
             if (expenseTxs.length < 5) {
                 html += `<p style="font-size: 0.9rem; color: #6b7280;">Need more transactions to detect weekend/weekday patterns.</p>`;
             } else {
                 const higherDay = weekendAvg > weekdayAvg ? 'weekends' : 'weekdays';
                 const ratio = weekendAvg > 0 && weekdayAvg > 0 ? Math.max(weekendAvg, weekdayAvg) / Math.min(weekendAvg, weekdayAvg) : 1;
-                const weekendPct = weekendDays > 0 ? ((weekendSpend / (weekendDays * 2)) / ((weekendSpend / (weekendDays * 2)) + (weekdaySpend / (weekdayDays * 5))) * 100).toFixed(0) : 0;
-
                 html += `<div style="background: #f8fafc; border-left: 4px solid #8b5cf6; padding: 12px; border-radius: 6px; font-size: 0.9rem; color: #1e293b;">
                     <div style="display: flex; gap: 20px; margin-bottom: 10px;">
                         <div style="flex:1; text-align:center; background:#fff; padding:10px; border-radius:6px; border: 1px solid #e5e7eb;">
@@ -1486,7 +1474,6 @@ class ExpenseTracker {
                 </div>`;
             }
 
-            // SECTION 7: MONTH-OVER-MONTH
             html += `<h4 style="color: #4b5563; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; margin-top: 25px;">7. Month-over-Month Expense Trend</h4>`;
             if (cycleExpenses.length < 2) {
                 html += `<p style="font-size: 0.9rem; color: #6b7280;">Need at least 2 salary cycles to show a trend.</p>`;
@@ -1541,6 +1528,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('signup-form').style.display = 'none';
         e.target.classList.add('active');
         document.getElementById('signup-tab-btn').classList.remove('active');
+        document.getElementById('auth-error').style.display = 'none';
     });
 
     document.getElementById('signup-tab-btn')?.addEventListener('click', (e) => {
