@@ -396,6 +396,8 @@ textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
 .rupee-symbol {
     position: absolute;
     left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
     color: var(--accent);
     font-size: 0.9rem;
     font-weight: 600;
@@ -405,7 +407,7 @@ textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
 }
 
 .amount-input input {
-    padding-left: clamp(32px, 3vw, 40px);
+    padding-left: 42px;
 }
 
 /* ── CHECKBOX — restored for iOS Safari ── */
