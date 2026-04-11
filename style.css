@@ -200,13 +200,7 @@ body {
 }
 
 .header::before {
-    content: '';
-    position: absolute;
-    top: -50px; right: -30px;
-    width: 130px; height: 130px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.06);
-    pointer-events: none;
+    display: none;
 }
 
 .theme-toggle {
