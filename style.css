@@ -180,7 +180,9 @@ body {
 
 /* ── MAIN CONTAINER ── */
 .container {
-    max-width: 520px;
+    width: 100%;
+    max-width: 100%;
+    padding: 0 16px;
     margin: 0 auto;
     min-height: 100vh;
     display: flex;
@@ -246,6 +248,9 @@ body {
 }
 
 .status-indicator {
+    position: absolute;
+    top: 12px;
+    right: 16px;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -399,16 +404,18 @@ textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
 
 .rupee-symbol {
     position: absolute;
-    left: 13px;
+    left: 14px;
     color: var(--accent);
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     font-weight: 600;
     pointer-events: none;
     z-index: 1;
     font-family: 'DM Mono', monospace;
 }
 
-.amount-input input { padding-left: 28px; }
+.amount-input input {
+    padding-left: clamp(32px, 3vw, 40px);
+}
 
 /* ── CHECKBOX — restored for iOS Safari ── */
 input[type="checkbox"] {
@@ -898,7 +905,8 @@ footer {
     background: var(--bg-card);
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    max-width: 520px;
+    width: 100%;
+    max-width: 100%;
     margin: 0 auto;
     z-index: 90;
     box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
@@ -930,5 +938,29 @@ footer {
     .container, footer {
         border-left: 1px solid var(--border);
         border-right: 1px solid var(--border);
+    }
+}
+
+/* Tablet */
+@media (min-width: 768px) {
+    .container {
+        max-width: 720px;
+        margin: 0 auto;
+    }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+    .container {
+        max-width: 980px;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .form-stack {
+        max-width: 600px;
+        margin: 0 auto;
     }
 }
