@@ -397,7 +397,7 @@ textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
     position: absolute;
     left: 14px;
     top: 50%;
-    transform: translateY(-50%);
+    transform: translateY(-52%);
     color: var(--accent);
     font-size: 0.9rem;
     font-weight: 600;
@@ -407,7 +407,7 @@ textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
 }
 
 .amount-input input {
-    padding-left: 42px;
+    padding: 10px 13px 10px 42px; 
 }
 
 /* ── CHECKBOX — restored for iOS Safari ── */
