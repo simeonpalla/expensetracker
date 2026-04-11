@@ -287,7 +287,8 @@ class ExpenseTracker {
     // CATEGORY LOGIC
     // ===============================
     async loadCategories() {
-        this.categories = await API.getCategories() || [];
+        const raw = await API.getCategories() || [];
+        this.categories = raw.sort((a, b) => a.name.localeCompare(b.name));
         this.populateCategoryDropdowns();
         this.displayCategories();
         this.renderBudgetLimitsUI();
