@@ -1,0 +1,592 @@
+/* ============================================================
+   STYLE ADDITIONS — Time Tracker + Workout Tracker + Life Report
+   Reuses existing tokens: --card, --card2, --border, --text,
+   --text2, --text3, --violet, --income, --expense, --gold,
+   --warning, --radius-*, --shadow-*, --ease*
+   ============================================================ */
+
+
+/* ═══════════════════════════════════════════════════════════
+   TIME TRACKER — ACTIVE TIMER CARD
+   ═══════════════════════════════════════════════════════════ */
+
+.active-timer-card {
+    background: linear-gradient(135deg, var(--violet) 0%, #9b5dff 100%);
+    border-radius: var(--radius-xl);
+    padding: 20px 22px;
+    margin-bottom: 18px;
+    color: #fff;
+    box-shadow: 0 10px 34px rgba(124,106,255,0.35);
+    position: relative;
+    overflow: hidden;
+    animation: timerPulse 2.4s ease-in-out infinite;
+}
+
+.active-timer-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 90% at 20% 20%, rgba(255,255,255,0.14) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+@keyframes timerPulse {
+    0%, 100% { box-shadow: 0 10px 34px rgba(124,106,255,0.35); }
+    50%      { box-shadow: 0 14px 42px rgba(124,106,255,0.5); }
+}
+
+.active-timer-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.active-timer-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+
+.category-pill {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.22);
+    color: #fff;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.active-timer-activity {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.active-timer-card .btn-danger {
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    box-shadow: none;
+}
+
+.active-timer-card .btn-danger:hover {
+    background: rgba(255,255,255,0.28);
+    box-shadow: none;
+}
+
+.active-timer-elapsed {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #fff;
+    margin: 6px 0 4px;
+    position: relative;
+    z-index: 1;
+    line-height: 1;
+}
+
+.active-timer-meta {
+    font-size: 0.74rem;
+    color: rgba(255,255,255,0.75);
+    position: relative;
+    z-index: 1;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   TIME TRACKER — QUICK TEMPLATES
+   ═══════════════════════════════════════════════════════════ */
+
+.time-quick-section {
+    margin-bottom: 16px;
+}
+
+.time-section-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text2);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+.time-quick-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.time-quick-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all var(--t) var(--ease);
+    color: var(--text);
+}
+
+.time-quick-btn:hover {
+    border-color: var(--violet);
+    background: var(--violet-soft);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.time-quick-btn:active { transform: scale(0.97); }
+
+.time-quick-icon { font-size: 1.4rem; line-height: 1; }
+
+.time-quick-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text2);
+    letter-spacing: 0.02em;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   TIME TRACKER — TWO-COLUMN ROW (start / end times)
+   ═══════════════════════════════════════════════════════════ */
+
+.time-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+@media (max-width: 380px) {
+    .time-row-2 { grid-template-columns: 1fr; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   TIME TRACKER — DATE PICKER + DAY HEADER
+   ═══════════════════════════════════════════════════════════ */
+
+.time-day-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 22px 0 12px;
+    flex-wrap: wrap;
+}
+
+.time-day-header .time-section-title { margin: 0; }
+
+.time-date-picker {
+    width: auto !important;
+    min-width: 145px;
+    max-width: 180px;
+    font-size: 0.8rem !important;
+    padding: 8px 12px !important;
+    background: var(--card) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   TIME TRACKER — STAT CARD TINTS (override per category)
+   ═══════════════════════════════════════════════════════════ */
+
+.time-stats-grid { grid-template-columns: 1fr 1fr; }
+
+.time-stat-work {
+    background: linear-gradient(135deg, rgba(124,106,255,0.08) 0%, rgba(124,106,255,0.16) 100%);
+    border-color: rgba(124,106,255,0.22);
+}
+
+.time-stat-health {
+    background: linear-gradient(135deg, rgba(0,212,170,0.08) 0%, rgba(0,212,170,0.16) 100%);
+    border-color: rgba(0,212,170,0.22);
+}
+
+.time-stat-sleep {
+    background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(59,130,246,0.16) 100%);
+    border-color: rgba(59,130,246,0.22);
+}
+
+.time-stat-leisure {
+    background: linear-gradient(135deg, rgba(255,92,114,0.08) 0%, rgba(255,92,114,0.14) 100%);
+    border-color: rgba(255,92,114,0.22);
+}
+
+.time-stat-untracked {
+    background: var(--card2);
+    border-color: var(--border);
+}
+
+.time-stat-productivity {
+    background: linear-gradient(135deg, rgba(245,166,35,0.08) 0%, rgba(245,166,35,0.16) 100%);
+    border-color: rgba(245,166,35,0.22);
+    grid-column: 1 / -1;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   TIME TRACKER — 24-HOUR TIMELINE
+   ═══════════════════════════════════════════════════════════ */
+
+.time-timeline {
+    padding: 10px 6px 6px;
+}
+
+.timeline-track {
+    position: relative;
+    height: 36px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.timeline-seg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    min-width: 2px;
+    border-radius: 2px;
+    cursor: help;
+    transition: filter var(--t);
+}
+
+.timeline-seg:hover { filter: brightness(1.15); }
+
+.timeline-axis {
+    position: relative;
+    height: 22px;
+    margin-top: 4px;
+}
+
+.timeline-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-50%);
+}
+
+.timeline-tick span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text3);
+    line-height: 1;
+}
+
+.time-timeline-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    justify-content: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: var(--text2);
+    font-weight: 500;
+}
+
+.legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.legend-swatch[data-cat="Work"]     { background: #7c6aff; }
+.legend-swatch[data-cat="Health"]   { background: #00d4aa; }
+.legend-swatch[data-cat="Personal"] { background: #f5a623; }
+.legend-swatch[data-cat="Leisure"]  { background: #ff5c72; }
+.legend-swatch[data-cat="Sleep"]    { background: #3b82f6; }
+
+
+/* ═══════════════════════════════════════════════════════════
+   TIME TRACKER — LOG LIST ITEMS
+   ═══════════════════════════════════════════════════════════ */
+
+.timelog-item .transaction-details strong {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.timelog-duration {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   WORKOUT TRACKER — STATS
+   ═══════════════════════════════════════════════════════════ */
+
+.workout-stats-grid { grid-template-columns: 1fr 1fr; }
+
+.workout-stat-count {
+    background: linear-gradient(135deg, rgba(0,212,170,0.08) 0%, rgba(0,212,170,0.16) 100%);
+    border-color: rgba(0,212,170,0.22);
+}
+
+.workout-stat-streak {
+    background: linear-gradient(135deg, rgba(245,166,35,0.08) 0%, rgba(245,166,35,0.16) 100%);
+    border-color: rgba(245,166,35,0.22);
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   WORKOUT TRACKER — PASTE TEXTAREA
+   ═══════════════════════════════════════════════════════════ */
+
+.workout-help {
+    font-size: 0.8rem;
+    color: var(--text2);
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.workout-paste {
+    width: 100%;
+    min-height: 180px;
+    padding: 14px 15px;
+    background: var(--card2);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    outline: none;
+    resize: vertical;
+    transition: border-color var(--t), box-shadow var(--t);
+}
+
+.workout-paste:focus {
+    border-color: var(--violet);
+    box-shadow: 0 0 0 3px rgba(124,106,255,0.14);
+    background: var(--card);
+}
+
+.workout-paste::placeholder {
+    color: var(--text3);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   WORKOUT TRACKER — PREVIEW CARD
+   ═══════════════════════════════════════════════════════════ */
+
+.workout-preview-card {
+    background: var(--card);
+    border: 1px solid rgba(0,212,170,0.3);
+    border-left: 4px solid var(--income);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-md);
+    animation: previewIn 0.25s var(--ease-out);
+}
+
+@keyframes previewIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.workout-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.workout-preview-header h3 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+    text-transform: none;
+    letter-spacing: 0;
+    text-align: left;
+}
+
+.workout-preview-date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text2);
+    background: var(--card2);
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.workout-preview-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.workout-preview-type {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--violet);
+    background: var(--violet-soft);
+    border: 1px solid rgba(124,106,255,0.2);
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+
+.workout-preview-duration {
+    font-size: 0.78rem;
+    color: var(--text2);
+    font-family: 'JetBrains Mono', monospace;
+    display: flex;
+    align-items: center;
+}
+
+.workout-preview-exercises {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.workout-exercise-block {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+}
+
+.workout-exercise-name {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 7px;
+}
+
+.workout-sets {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.workout-set-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.78rem;
+}
+
+.workout-set-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text3);
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    min-width: 44px;
+    text-align: center;
+}
+
+.workout-set-detail {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text2);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   WORKOUT TRACKER — HISTORY ITEMS
+   ═══════════════════════════════════════════════════════════ */
+
+.workout-item .transaction-details strong {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   LIFE REPORT (cross-domain insights) — inherits .insight-*
+   No new classes needed; reusing existing insight tokens.
+   Only a small override for the second AI card spacing.
+   ═══════════════════════════════════════════════════════════ */
+
+.ai-container .ai-card + .ai-result + .ai-card {
+    margin-top: 22px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE — 375px safety net
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 380px) {
+    .time-stats-grid,
+    .workout-stats-grid {
+        grid-template-columns: 1fr;
+    }
+    .time-stat-productivity { grid-column: 1; }
+
+    .active-timer-elapsed { font-size: 2.1rem; }
+    .active-timer-activity { font-size: 0.88rem; }
+
+    .time-quick-btn { padding: 12px 6px; }
+    .time-quick-icon { font-size: 1.2rem; }
+    .time-quick-label { font-size: 0.7rem; }
+
+    .workout-paste { font-size: 0.76rem; min-height: 160px; }
+
+    .workout-preview-meta { flex-direction: column; align-items: flex-start; }
+    .workout-set-row { flex-wrap: wrap; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   DESKTOP — wider grids
+   ═══════════════════════════════════════════════════════════ */
+
+@media (min-width: 768px) {
+    .time-stats-grid { grid-template-columns: repeat(3, 1fr); }
+    .time-stat-productivity { grid-column: auto; }
+    .workout-stats-grid { grid-template-columns: repeat(2, 1fr); max-width: 500px; }
+    .time-quick-grid { max-width: 600px; }
+}
+
+@media (min-width: 1024px) {
+    .time-stats-grid { grid-template-columns: repeat(3, 1fr); }
+}
