@@ -720,5 +720,15 @@
     <script src="script.js?v=5"></script>
     <script src="timetracker.js?v=1"></script>
     <script src="workouttracker.js?v=1"></script>
+
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('SW registered:', reg.scope))
+            .catch(err => console.log('SW failed:', err));
+        });
+    }
+    </script>
 </body>
 </html>

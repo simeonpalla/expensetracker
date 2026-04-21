@@ -19,6 +19,10 @@ self.addEventListener('install', event => {
   );
 });
 
+self.addEventListener('activate', event => {
+  event.waitUntil(clients.claim());
+});
+
 // Fetch event: Serve from cache, fallback to network
 self.addEventListener('fetch', event => {
   // Don't cache API calls to Netlify functions
