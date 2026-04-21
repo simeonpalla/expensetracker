@@ -103,8 +103,10 @@
             const out = { reps: null, weight_kg: null, distance_mi: null, duration_min: null };
             const wMatch = rest.match(/([\d.]+)\s*kg\b/i); if (wMatch) out.weight_kg = parseFloat(wMatch[1]);
             const dMatch = rest.match(/([\d.]+)\s*mi\b/i); if (dMatch) out.distance_mi = parseFloat(dMatch[1]);
+            const dkmMatch = rest.match(/([\d.]+)\s*km\b/i); if (dkmMatch) out.distance_km = parseFloat(dkmMatch[1]);
             const durMatch = rest.match(/([\d.]+)\s*m\b(?!i)/i); if (durMatch) out.duration_min = parseFloat(durMatch[1]);
-            const rMatch = rest.match(/(\d+)\s*reps?\b/i); if (rMatch) out.reps = parseInt(rMatch[1],10);
+            const rMatch = rest.match(/(\d+)\s*reps?\b/i) || rest.match(/[x×]\s*(\d+)/i);
+            if (rMatch) out.reps = parseInt(rMatch[1], 10);
             if (out.reps == null && out.weight_kg == null && out.distance_mi == null && out.duration_min == null) {
                 const bare = rest.match(/^(\d+)$/); if (bare) out.reps = parseInt(bare[1],10);
             }
@@ -201,6 +203,7 @@
             if (s.weight_kg != null)    parts.push(`${s.weight_kg}kg`);
             if (s.reps != null)         parts.push(`${s.reps} reps`);
             if (s.distance_mi != null)  parts.push(`${s.distance_mi} mi`);
+            if (s.distance_km != null)  parts.push(`${s.distance_km} km`);
             if (s.duration_min != null) parts.push(`${s.duration_min} min`);
             return parts.join(' · ') || '—';
         }
