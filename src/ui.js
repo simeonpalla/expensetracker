@@ -67,6 +67,64 @@ export function showAuthScreen() {
     if (appContainer) appContainer.style.display = 'none';
 }
 
+// ---- accessible modal helpers ----
+// openModal shows an overlay as a dialog: focuses the first control, traps
+// Tab inside it, closes on Escape (via onDismiss so callers can clear their
+// state), and restores focus to the opener on close.
+
+let lastFocusedElement = null;
+
+function focusableIn(overlay) {
+    return [
+        ...overlay.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+    ].filter(el => !el.disabled && el.offsetParent !== null);
+}
+
+export function openModal(overlay, onDismiss) {
+    lastFocusedElement = document.activeElement;
+    overlay.style.display = 'flex';
+
+    const els = focusableIn(overlay);
+    if (els.length) els[0].focus();
+
+    const onKeydown = e => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            if (onDismiss) onDismiss();
+            else closeModal(overlay);
+            return;
+        }
+        if (e.key !== 'Tab') return;
+        const focusables = focusableIn(overlay);
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    };
+    overlay._modalKeydown = onKeydown;
+    document.addEventListener('keydown', onKeydown);
+}
+
+export function closeModal(overlay) {
+    overlay.style.display = 'none';
+    if (overlay._modalKeydown) {
+        document.removeEventListener('keydown', overlay._modalKeydown);
+        overlay._modalKeydown = null;
+    }
+    if (lastFocusedElement && document.contains(lastFocusedElement)) {
+        lastFocusedElement.focus();
+    }
+    lastFocusedElement = null;
+}
+
 // Generic confirm modal shared by the time and workout trackers.
 export function showGenericConfirm(title, message, onConfirm) {
     const overlay = document.getElementById('generic-confirm-modal-overlay');
@@ -78,9 +136,7 @@ export function showGenericConfirm(title, message, onConfirm) {
     const newNo = no.cloneNode(true);
     yes.parentNode.replaceChild(newYes, yes);
     no.parentNode.replaceChild(newNo, no);
-    const close = () => {
-        overlay.style.display = 'none';
-    };
+    const close = () => closeModal(overlay);
     newYes.addEventListener('click', () => {
         close();
         onConfirm();
@@ -93,7 +149,7 @@ export function showGenericConfirm(title, message, onConfirm) {
         },
         { once: true }
     );
-    overlay.style.display = 'flex';
+    openModal(overlay, close);
 }
 
 // Disables a button (with a busy label) for the duration of an async action,

@@ -9,7 +9,7 @@ import PFDates from './engine/dates.js';
 import PFCycles from './engine/cycles.js';
 import PFProjection from './engine/projection.js';
 import { API } from './api.js';
-import { escapeHtml, showNotification, withBusy } from './ui.js';
+import { escapeHtml, showNotification, withBusy, openModal, closeModal } from './ui.js';
 import { loadChart } from './charts.js';
 
 // The trackers register window.timeTracker / window.workoutTracker.
@@ -270,6 +270,22 @@ class ExpenseTracker {
             tab.addEventListener('click', () => this.showPage(tab.dataset.page));
         });
 
+        // Tablist keyboard support: arrows move + activate, Home/End jump.
+        document.querySelector('.nav-tabs')?.addEventListener('keydown', e => {
+            const tabs = [...document.querySelectorAll('.nav-tab')];
+            const current = tabs.indexOf(document.activeElement);
+            if (current === -1) return;
+            let next = null;
+            if (e.key === 'ArrowRight') next = (current + 1) % tabs.length;
+            else if (e.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
+            else if (e.key === 'Home') next = 0;
+            else if (e.key === 'End') next = tabs.length - 1;
+            if (next === null) return;
+            e.preventDefault();
+            tabs[next].focus();
+            this.showPage(tabs[next].dataset.page);
+        });
+
         // Delegated clicks for list rows rendered via innerHTML (no inline
         // handlers: they are blocked by the CSP).
         qs('transactions-list')?.addEventListener('click', e => {
@@ -295,9 +311,14 @@ class ExpenseTracker {
 
     showPage(pageId) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(t => {
+            const selected = t.dataset.page === pageId;
+            t.classList.toggle('active', selected);
+            t.setAttribute('aria-selected', String(selected));
+            // Roving tabindex: only the active tab sits in the tab order.
+            t.tabIndex = selected ? 0 : -1;
+        });
         document.getElementById(pageId)?.classList.add('active');
-        document.querySelector(`.nav-tab[data-page="${pageId}"]`)?.classList.add('active');
 
         if (pageId === 'budgets') this.renderBudgetLimitsUI();
 
@@ -670,11 +691,11 @@ class ExpenseTracker {
             }, 30);
         }
 
-        qs('edit-modal-overlay').style.display = 'flex';
+        openModal(qs('edit-modal-overlay'), () => this.closeEditModal());
     }
 
     closeEditModal() {
-        document.getElementById('edit-modal-overlay').style.display = 'none';
+        closeModal(document.getElementById('edit-modal-overlay'));
         this.editingTransactionId = null;
     }
 
@@ -709,11 +730,11 @@ class ExpenseTracker {
     // ===============================
     deleteTransaction(id) {
         this.pendingDeleteId = id;
-        document.getElementById('delete-modal-overlay').style.display = 'flex';
+        openModal(document.getElementById('delete-modal-overlay'), () => this.closeDeleteModal());
     }
 
     closeDeleteModal() {
-        document.getElementById('delete-modal-overlay').style.display = 'none';
+        closeModal(document.getElementById('delete-modal-overlay'));
         this.pendingDeleteId = null;
     }
 
@@ -753,19 +774,34 @@ class ExpenseTracker {
             'Description',
             'Recurring'
         ];
-        const rows = cycleTxs.map(t => [
-            t.transaction_date,
-            t.type,
-            t.category,
-            t.amount,
-            t.payment_to || '',
-            t.payment_source || '',
-            t.source_details || '',
-            (t.description || '').replace(/,/g, ';'),
-            t.is_recurring ? 'Yes' : 'No'
-        ]);
+        // RFC 4180: quote cells containing commas/quotes/newlines and double
+        // embedded quotes. Cells starting with formula characters get a
+        // leading apostrophe so spreadsheets treat them as text (CSV
+        // injection guard).
+        const cell = v => {
+            let s = v == null ? '' : String(v);
+            if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+            if (/[",\n\r]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
+            return s;
+        };
 
-        const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+        const rows = cycleTxs.map(t =>
+            [
+                t.transaction_date,
+                t.type,
+                t.category,
+                Number(t.amount),
+                t.payment_to || '',
+                t.payment_source || '',
+                t.source_details || '',
+                t.description || '',
+                t.is_recurring ? 'Yes' : 'No'
+            ]
+                .map(cell)
+                .join(',')
+        );
+
+        const csv = [headers.join(','), ...rows].join('\r\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -1060,13 +1096,13 @@ class ExpenseTracker {
         if (!runRateEl || income === 0) return;
 
         if (projectedBalance < 0) {
-            runRateEl.innerHTML = `<span style="color: var(--expense);">Short by ₹${Math.abs(projectedBalance).toFixed(0)}</span>`;
+            runRateEl.innerHTML = `<span style="color: var(--expense-text);">Short by ₹${Math.abs(projectedBalance).toFixed(0)}</span>`;
             if (riskCard) riskCard.style.borderLeft = '4px solid var(--expense)';
         } else if (projectedBalance < income * 0.1) {
             runRateEl.innerHTML = `<span style="color: var(--warning);">₹${projectedBalance.toFixed(0)} leftover (thin margin)</span>`;
             if (riskCard) riskCard.style.borderLeft = '4px solid var(--warning)';
         } else {
-            runRateEl.innerHTML = `<span style="color: var(--income);">+₹${projectedBalance.toFixed(0)} projected surplus</span>`;
+            runRateEl.innerHTML = `<span style="color: var(--income-text);">+₹${projectedBalance.toFixed(0)} projected surplus</span>`;
             if (riskCard) riskCard.style.borderLeft = '4px solid var(--income)';
         }
     }

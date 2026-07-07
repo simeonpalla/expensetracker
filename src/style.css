@@ -38,7 +38,10 @@
   --glass-border: rgba(255,255,255,0.9);
   --text:      #130f2e;
   --text2:     #5a5580;
-  --text3:     #9d9abf;
+  --text3:     #67638e;
+  --violet-text: #6a58f0;
+  --income-text: #00806a;
+  --expense-text: #cc2340;
   --border:    rgba(0,0,20,0.07);
   --shadow-sm: 0 2px 12px rgba(80,60,180,0.07);
   --shadow-md: 0 6px 28px rgba(80,60,180,0.11);
@@ -53,7 +56,7 @@
   --stat-risk:    linear-gradient(135deg, #e8f4ff 0%, #d6ecff 100%);
   --nav-bg:       #ffffff;
   --nav-border:   rgba(0,0,0,0.06);
-  --nav-text:     #9d9abf;
+  --nav-text:     #67638e;
   --nav-active-bg:   rgba(108,99,255,0.1);
   --nav-active-text: #5a4fcf;
   --chip-bg:      #f0effe;
@@ -70,7 +73,10 @@
   --glass-border: rgba(255,255,255,0.07);
   --text:      #f2f0ff;
   --text2:     #9490c8;
-  --text3:     #4e4a6a;
+  --text3:     #8b86b0;
+  --violet-text: #7c6aff;
+  --income-text: #00d4aa;
+  --expense-text: #ff5c72;
   --border:    rgba(255,255,255,0.07);
   --shadow-sm: 0 2px 12px rgba(0,0,0,0.4);
   --shadow-md: 0 6px 28px rgba(0,0,0,0.55);
@@ -85,7 +91,7 @@
   --stat-risk:    linear-gradient(135deg, #041020 0%, #07182e 100%);
   --nav-bg:       #111122;
   --nav-border:   rgba(255,255,255,0.05);
-  --nav-text:     #4e4a6a;
+  --nav-text:     #8b86b0;
   --nav-active-bg:   rgba(124,106,255,0.15);
   --nav-active-text: #a99eff;
   --chip-bg:      rgba(124,106,255,0.08);
@@ -165,7 +171,7 @@ body {
 
 .auth-tab.active {
   background: var(--card);
-  color: var(--violet);
+  color: var(--violet-text);
   box-shadow: var(--shadow-sm);
   font-weight: 600;
 }
@@ -765,8 +771,8 @@ input[type="checkbox"] {
 
 .transaction-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
 
-.income  { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; color: var(--income); }
-.expense { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; color: var(--expense); }
+.income  { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; color: var(--income-text); }
+.expense { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; color: var(--expense-text); }
 
 .transaction-actions { display: flex; gap: 4px; }
 
