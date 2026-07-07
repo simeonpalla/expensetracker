@@ -1,6 +1,7 @@
 [build]
   functions = "netlify/functions"
-  publish = "."
+  publish = "public"
 
 [dev]
   framework = "#static"
+  publish = "public"
