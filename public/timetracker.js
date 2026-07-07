@@ -144,6 +144,12 @@
             document.querySelectorAll('.time-quick-btn').forEach(btn => {
                 btn.addEventListener('click', () => this.startTimer(btn.dataset.activity, btn.dataset.category));
             });
+            // Delegated delete clicks (rows are rendered via innerHTML; inline
+            // handlers are blocked by the CSP).
+            qs('timelog-list')?.addEventListener('click', e => {
+                const btn = e.target.closest('.delete-btn');
+                if (btn) this.confirmDelete(btn.dataset.id);
+            });
         }
 
         async restoreActiveTimer() {
@@ -175,23 +181,13 @@
         }
 
         async handleStartTimer(e) {
-            if (e) e.preventDefault();  
-            e.preventDefault();
+            if (e) e.preventDefault();
             const activity = document.getElementById('timer-activity')?.value.trim();
             const category = document.getElementById('timer-category')?.value;
             if (!activity || !CATEGORIES.includes(category)) {
                 showNotification('Enter an activity and category', 'error'); return;
             }
             await this.startTimer(activity, category);
-            document.getElementById('timer-start-form')?.reset();
-        }
-        handleStartTimerBtn() {
-            const activity = document.getElementById('timer-activity')?.value.trim();
-            const category = document.getElementById('timer-category')?.value;
-            if (!activity || !['Work','Health','Personal','Leisure','Sleep'].includes(category)) {
-                showNotification('Enter an activity and category', 'error'); return;
-            }
-            this.startTimer(activity, category);
             document.getElementById('timer-start-form')?.reset();
         }
 
@@ -384,7 +380,7 @@
                         <div class="transaction-right">
                             <div class="timelog-duration" style="color:${color};">${formatDuration(l.duration_seconds, true)}</div>
                             <div class="transaction-actions">
-                                <button class="tx-action-btn delete-btn" data-id="${l.id}" onclick="window.timeTracker.confirmDelete(this.dataset.id)" title="Delete">🗑️</button>
+                                <button class="tx-action-btn delete-btn" data-id="${escapeHtml(String(l.id))}" title="Delete" aria-label="Delete time log">🗑️</button>
                             </div>
                         </div>
                     </div>

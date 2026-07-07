@@ -3,64 +3,64 @@
 // ======================================================
 
 // ===============================
-// API LAYER (AUTH-AWARE & AUTO-REFRESH)
+// API LAYER (COOKIE SESSION & AUTO-REFRESH)
 // ===============================
-const API = {
-    async request(path, options = {}, isRetry = false) {
-        let session = null;
-        try {
-            const raw = localStorage.getItem('session');
-            if (raw && raw !== "undefined") session = JSON.parse(raw);
-        } catch {
-            localStorage.removeItem('session');
-        }
+// The session lives in HttpOnly cookies set by the functions; this layer
+// never sees tokens. On a 401 it refreshes once (single-flight, so parallel
+// 401s share one refresh call) and retries the request.
+const AUTH_PATHS = ['login', 'signup', 'refresh', 'logout'];
 
+const API = {
+    _refreshPromise: null,
+
+    async request(path, options = {}, isRetry = false) {
         const headers = {
             'Content-Type': 'application/json',
             ...(options.headers || {})
         };
 
-        if (session?.access_token) {
-            headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
-
-        let res = await fetch(`/.netlify/functions/${path}`, {
+        const res = await fetch(`/.netlify/functions/${path}`, {
             ...options,
-            headers
+            headers,
+            credentials: 'same-origin'
         });
 
-        if (res.status === 401 && !isRetry && session?.refresh_token) {
-            const refreshRes = await fetch('/.netlify/functions/refresh', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh_token: session.refresh_token })
-            });
-
-            if (refreshRes.ok) {
-                const newSession = await refreshRes.json();
-                localStorage.setItem('session', JSON.stringify(newSession));
-                headers['Authorization'] = `Bearer ${newSession.access_token}`;
-                res = await fetch(`/.netlify/functions/${path}`, { ...options, headers });
-            } else {
-                localStorage.removeItem('session');
-                location.reload();
-                return;
-            }
-        } else if (res.status === 401) {
-            localStorage.removeItem('session');
-            location.reload();
-            return;
+        if (res.status === 401 && !isRetry && !AUTH_PATHS.includes(path)) {
+            const refreshed = await this.refreshSession();
+            if (refreshed) return this.request(path, options, true);
+            showAuthScreen();
+            throw new Error('Session expired. Please log in again.');
         }
 
         if (!res.ok) {
-            const text = await res.text();
-            throw new Error(text);
+            let message = `Request failed (${res.status})`;
+            try {
+                const data = await res.json();
+                if (data && data.error) message = data.error;
+            } catch { /* non-JSON error body */ }
+            throw new Error(message);
         }
 
         return res.status === 204 ? null : res.json();
     },
 
+    refreshSession() {
+        if (!this._refreshPromise) {
+            this._refreshPromise = fetch('/.netlify/functions/refresh', {
+                method: 'POST',
+                credentials: 'same-origin'
+            })
+                .then(r => r.ok)
+                .catch(() => false);
+            this._refreshPromise.finally(() => { this._refreshPromise = null; });
+        }
+        return this._refreshPromise;
+    },
+
+    me() { return this.request('me'); },
     login(email, password) { return this.request('login', { method: 'POST', body: JSON.stringify({ email, password }) }); },
+    signup(email, password) { return this.request('signup', { method: 'POST', body: JSON.stringify({ email, password }) }); },
+    logout() { return this.request('logout', { method: 'POST' }); },
     getCategories() { return this.request('categories'); },
     addCategory(data) { return this.request('categories', { method: 'POST', body: JSON.stringify(data) }); },
     getTransactions() { return this.request('transactions'); },
@@ -126,29 +126,77 @@ function showAuthError(message) {
     const errorDiv = document.getElementById('auth-error');
     errorDiv.textContent = message;
     errorDiv.style.display = 'block';
+    const successDiv = document.getElementById('auth-success');
+    if (successDiv) successDiv.style.display = 'none';
+}
+
+function showAuthSuccess(message) {
+    const successDiv = document.getElementById('auth-success');
+    if (successDiv) {
+        successDiv.textContent = message;
+        successDiv.style.display = 'block';
+    }
+    document.getElementById('auth-error').style.display = 'none';
+}
+
+// Flips the UI back to the login screen (e.g. when the session expires).
+function showAuthScreen() {
+    const authContainer = document.getElementById('auth-container');
+    const appContainer = document.querySelector('.container');
+    if (authContainer) authContainer.style.display = 'flex';
+    if (appContainer) appContainer.style.display = 'none';
 }
 
 async function handleLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-    const errorDiv = document.getElementById('auth-error');
-    errorDiv.style.display = 'none';
+    document.getElementById('auth-error').style.display = 'none';
 
     try {
-        const session = await API.login(email, password);
-        if (!session || !session.user) throw new Error("Login failed. Please check your credentials.");
-        localStorage.setItem('session', JSON.stringify(session));
+        const data = await API.login(email, password);
+        if (!data || !data.user) throw new Error('Login failed. Please check your credentials.');
         location.reload();
     } catch (err) {
-        localStorage.removeItem('session');
-        showAuthError(err.message || "An error occurred during login.");
+        showAuthError(err.message || 'An error occurred during login.');
     }
 }
 
-function handleLogout() {
-    localStorage.removeItem('session');
+async function handleSignup(e) {
+    e.preventDefault();
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
+    const confirm = document.getElementById('signup-confirm').value;
+    document.getElementById('auth-error').style.display = 'none';
+
+    if (password !== confirm) {
+        showAuthError('Passwords do not match.');
+        return;
+    }
+    if (password.length < 8) {
+        showAuthError('Password must be at least 8 characters.');
+        return;
+    }
+
+    try {
+        const data = await API.signup(email, password);
+        if (data && data.needsConfirmation) {
+            showAuthSuccess('Account created! Check your email to confirm, then log in.');
+            document.getElementById('signup-form').reset();
+        } else if (data && data.user) {
+            location.reload();
+        } else {
+            throw new Error('Signup failed.');
+        }
+    } catch (err) {
+        showAuthError(err.message || 'An error occurred during signup.');
+    }
+}
+
+async function handleLogout() {
+    try { await API.logout(); } catch { /* cookies cleared server-side; proceed */ }
     localStorage.removeItem('activeTimer');
+    localStorage.removeItem('session'); // legacy key from the pre-cookie version
     location.reload();
 }
 
@@ -160,6 +208,9 @@ const ThemeManager = {
         const saved = localStorage.getItem('theme') || 'system';
         this.apply(saved);
         this.watchSystem();
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.apply(btn.dataset.theme));
+        });
     },
 
     apply(theme) {
@@ -189,8 +240,8 @@ const ThemeManager = {
 // MAIN APP CLASS
 // ===============================
 class ExpenseTracker {
-    constructor(session) {
-        this.currentUser = session.user;
+    constructor(user) {
+        this.currentUser = user;
         this.transactions = [];
         this.categories = [];
         this.chart = null;
@@ -304,6 +355,22 @@ class ExpenseTracker {
         document.querySelectorAll('.nav-tab').forEach(tab => {
             tab.addEventListener('click', () => this.showPage(tab.dataset.page));
         });
+
+        // Delegated clicks for list rows rendered via innerHTML (no inline
+        // handlers: they are blocked by the CSP).
+        qs('transactions-list')?.addEventListener('click', e => {
+            const editBtn = e.target.closest('.edit-btn');
+            if (editBtn) { this.openEditModalById(editBtn.dataset.id); return; }
+            const deleteBtn = e.target.closest('.delete-btn');
+            if (deleteBtn) { this.deleteTransaction(deleteBtn.dataset.id); return; }
+            const swipeBg = e.target.closest('.swipe-delete-bg');
+            if (swipeBg) this.deleteTransaction(swipeBg.dataset.id);
+        });
+
+        qs('recurring-suggestions')?.addEventListener('click', e => {
+            const btn = e.target.closest('[data-recurring-id]');
+            if (btn) this.prefillFromRecurringId(btn.dataset.recurringId);
+        });
     }
 
     showPage(pageId) {
@@ -393,7 +460,7 @@ class ExpenseTracker {
         this.categories.forEach(c => {
             const div = document.createElement('div');
             div.className = 'category-item';
-            div.innerHTML = `<span class="category-icon">${c.icon}</span><span class="category-name">${c.name}</span>`;
+            div.innerHTML = `<span class="category-icon">${this.escapeHtml(c.icon)}</span><span class="category-name">${this.escapeHtml(c.name)}</span>`;
             if (c.type === 'income') incomeDiv.appendChild(div);
             else expenseDiv.appendChild(div);
         });
@@ -432,12 +499,12 @@ class ExpenseTracker {
 
         container.innerHTML = expenseCategories.map(c => `
             <div class="budget-limit-row">
-                <label>${c.icon} ${c.name}</label>
+                <label>${this.escapeHtml(c.icon)} ${this.escapeHtml(c.name)}</label>
                 <div class="budget-input-wrap">
                     <span class="rupee-symbol">₹</span>
                     <input type="number" min="0" step="1"
                            class="budget-limit-input"
-                           data-category="${c.name}"
+                           data-category="${this.escapeHtml(c.name)}"
                            placeholder="No limit"
                            value="${this.budgetLimits[c.name] || ''}">
                 </div>
@@ -488,7 +555,7 @@ class ExpenseTracker {
                 ${warnings.map(w => `
                     <div class="budget-warning-item ${w.over ? 'over-budget' : 'near-budget'}">
                         <div class="budget-warning-header">
-                            <span>${w.icon} ${w.cat}</span>
+                            <span>${this.escapeHtml(w.icon)} ${this.escapeHtml(w.cat)}</span>
                             <span class="budget-badge">${w.over ? '🚨 Over budget' : '⚠️ ' + w.pct + '%'}</span>
                         </div>
                         <div class="budget-bar-track">
@@ -871,13 +938,13 @@ class ExpenseTracker {
                     return `
                         <div class="recurring-suggestion-item">
                             <div class="recurring-info">
-                                <span class="recurring-icon">${icon}</span>
+                                <span class="recurring-icon">${this.escapeHtml(icon)}</span>
                                 <div>
                                     <strong>${this.escapeHtml(t.payment_to)}</strong>
                                     <small>${this.escapeHtml(t.category)} • ₹${Number(t.amount).toFixed(0)} • ${this.escapeHtml(t.payment_source || '')}</small>
                                 </div>
                             </div>
-                            <button class="btn btn-secondary btn-sm" data-recurring-id="${t.id}" onclick="app.prefillFromRecurringId(this.dataset.recurringId)">
+                            <button class="btn btn-secondary btn-sm" data-recurring-id="${this.escapeHtml(String(t.id))}">
                                 + Log it
                             </button>
                         </div>
@@ -949,24 +1016,24 @@ class ExpenseTracker {
             const cat = this.categories.find(c => c.name === t.category);
             const icon = cat ? cat.icon : '📁';
             return `
-            <div class="transaction-item" data-id="${t.id}">
+            <div class="transaction-item" data-id="${this.escapeHtml(String(t.id))}">
                 <div class="transaction-swipe-wrapper">
                     <div class="transaction-content">
                         <div class="transaction-details">
-                            <strong>${icon} ${this.escapeHtml(t.category)}${t.is_recurring ? '<span class="recurring-badge">🔁 recurring</span>' : ''}</strong>
-                            <small>${t.transaction_date} · ${this.escapeHtml(t.payment_to || 'N/A')} · ${this.escapeHtml(t.payment_source || '')}</small>
+                            <strong>${this.escapeHtml(icon)} ${this.escapeHtml(t.category)}${t.is_recurring ? '<span class="recurring-badge">🔁 recurring</span>' : ''}</strong>
+                            <small>${this.escapeHtml(t.transaction_date)} · ${this.escapeHtml(t.payment_to || 'N/A')} · ${this.escapeHtml(t.payment_source || '')}</small>
                         </div>
                         <div class="transaction-right">
-                            <div class="${t.type}">
+                            <div class="${t.type === 'income' ? 'income' : 'expense'}">
                                 ${t.type === 'income' ? '+' : '−'}₹${Number(t.amount).toFixed(2)}
                             </div>
                             <div class="transaction-actions">
-                                <button class="tx-action-btn edit-btn" data-id="${t.id}" onclick="app.openEditModalById(this.dataset.id)" title="Edit" aria-label="Edit transaction">✏️</button>
-                                <button class="tx-action-btn delete-btn" data-id="${t.id}" onclick="app.deleteTransaction(this.dataset.id)" title="Delete" aria-label="Delete transaction">🗑️</button>
+                                <button class="tx-action-btn edit-btn" data-id="${this.escapeHtml(String(t.id))}" title="Edit" aria-label="Edit transaction">✏️</button>
+                                <button class="tx-action-btn delete-btn" data-id="${this.escapeHtml(String(t.id))}" title="Delete" aria-label="Delete transaction">🗑️</button>
                             </div>
                         </div>
                     </div>
-                    <div class="swipe-delete-bg" data-id="${t.id}" onclick="app.deleteTransaction(this.dataset.id)">
+                    <div class="swipe-delete-bg" data-id="${this.escapeHtml(String(t.id))}">
                         🗑️ Delete
                     </div>
                 </div>
@@ -1470,7 +1537,7 @@ class ExpenseTracker {
                     auditContent += `
                         <div class="insight-anomaly-row">
                             <div class="insight-anomaly-header">
-                                <strong>${a.cat}</strong>
+                                <strong>${this.escapeHtml(a.cat)}</strong>
                                 <span class="insight-pill insight-pill--red">+${a.pct.toFixed(0)}%</span>
                             </div>
                             <div class="insight-anomaly-values">
@@ -1490,7 +1557,7 @@ class ExpenseTracker {
                 anomalies.slice(0, 2).forEach((a, i) => {
                     correctiveContent += `
                         <div class="insight-action-row">
-                            <div class="insight-action-label">Action ${i + 1}: Re-peg ${a.cat}</div>
+                            <div class="insight-action-label">Action ${i + 1}: Re-peg ${this.escapeHtml(a.cat)}</div>
                             <div class="insight-action-body">Target ₹<b>${(a.histAvg * 0.95).toFixed(0)}</b> next cycle (5% below baseline) to offset the ₹${a.diff.toFixed(0)} variance.</div>
                         </div>`;
                 });
@@ -1513,7 +1580,7 @@ class ExpenseTracker {
             if (topSpender && expenses > 0) {
                 const leakPct = ((topSpender[1] / expenses) * 100).toFixed(1);
                 leakContent = `<div class="insight-leak-row">
-                    <div class="insight-leak-label">${topSpender[0]}</div>
+                    <div class="insight-leak-label">${this.escapeHtml(topSpender[0])}</div>
                     <div class="insight-leak-pct">${leakPct}% of outflow</div>
                     <div class="insight-leak-amount">₹${topSpender[1].toFixed(0)}</div>
                 </div>
@@ -1858,7 +1925,7 @@ class ExpenseTracker {
 // ===============================
 // INIT APP
 // ===============================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     ThemeManager.init();
 
     if ('serviceWorker' in navigator) {
@@ -1871,7 +1938,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const authContainer = document.getElementById('auth-container');
     const appContainer = document.querySelector('.container');
 
+    // Tokens no longer live in localStorage; clean up the legacy key.
+    localStorage.removeItem('session');
+
     document.getElementById('login-form')?.addEventListener('submit', handleLogin);
+    document.getElementById('signup-form')?.addEventListener('submit', handleSignup);
 
     document.getElementById('login-tab-btn')?.addEventListener('click', (e) => {
         document.getElementById('login-form').style.display = 'block';
@@ -1879,6 +1950,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.classList.add('active');
         document.getElementById('signup-tab-btn').classList.remove('active');
         document.getElementById('auth-error').style.display = 'none';
+        document.getElementById('auth-success').style.display = 'none';
     });
 
     document.getElementById('signup-tab-btn')?.addEventListener('click', (e) => {
@@ -1886,19 +1958,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('signup-form').style.display = 'block';
         e.target.classList.add('active');
         document.getElementById('login-tab-btn').classList.remove('active');
-        document.getElementById('auth-error').style.display = 'block';
-        document.getElementById('auth-error').textContent = "Signup via frontend is disabled in BFF mode. Create users in Supabase dashboard.";
+        document.getElementById('auth-error').style.display = 'none';
+        document.getElementById('auth-success').style.display = 'none';
     });
 
-    let session = null;
+    // Session check: the HttpOnly cookie decides. API.me() transparently
+    // refreshes an expired access token before giving up.
+    let user = null;
     try {
-        const raw = localStorage.getItem('session');
-        if (raw && raw !== "undefined") session = JSON.parse(raw);
-    } catch {
-        localStorage.removeItem('session');
-    }
+        const data = await API.me();
+        user = data?.user || null;
+    } catch { /* not signed in */ }
 
-    if (!session) {
+    if (!user) {
         authContainer.style.display = 'flex';
         appContainer.style.display = 'none';
         return;
@@ -1906,6 +1978,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     authContainer.style.display = 'none';
     appContainer.style.display = 'block';
-    window.app = new ExpenseTracker(session);
-    
+    window.app = new ExpenseTracker(user);
 });

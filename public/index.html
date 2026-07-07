@@ -60,9 +60,9 @@
     <div class="container" style="display: none;" role="main">
         <header class="header">
             <div class="theme-toggle">
-                <button class="theme-btn" data-theme="light" onclick="ThemeManager.apply('light')" title="Light mode">☀️</button>
-                <button class="theme-btn" data-theme="dark"  onclick="ThemeManager.apply('dark')"  title="Dark mode">✨</button>
-                <button class="theme-btn" data-theme="system" onclick="ThemeManager.apply('system')" title="System default">💻</button>
+                <button class="theme-btn" data-theme="light" title="Light mode" aria-label="Light mode">☀️</button>
+                <button class="theme-btn" data-theme="dark" title="Dark mode" aria-label="Dark mode">✨</button>
+                <button class="theme-btn" data-theme="system" title="System default" aria-label="System default theme">💻</button>
             </div>
             <h1>💰 Personal OS</h1>
             <p>Money · Time · Workouts</p>
@@ -334,7 +334,7 @@
                         </div>
                     </div>
                     <div class="form-actions">
-                        <button type="button" class="btn btn-primary" onclick="if(window.timeTracker && window.timeTracker.initialized) { window.timeTracker.handleStartTimerBtn(); } else { showNotification('Timer loading...', 'error'); }">▶️ Start Timer</button>
+                        <button type="submit" class="btn btn-primary">▶️ Start Timer</button>
                     </div>
                 </form>
             </div>
@@ -716,19 +716,11 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="script.js?v=5"></script>
-    <script src="timetracker.js?v=1"></script>
-    <script src="workouttracker.js?v=1"></script>
-
-    <script>
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('SW registered:', reg.scope))
-            .catch(err => console.log('SW failed:', err));
-        });
-    }
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"
+            integrity="sha384-b0GXujLkk9eYYSmcSfoyZbfyElGAQnDyY0skCHSG6w3JgTMFnz11ggrTAr7seu9f"
+            crossorigin="anonymous"></script>
+    <script src="script.js?v=6"></script>
+    <script src="timetracker.js?v=2"></script>
+    <script src="workouttracker.js?v=2"></script>
 </body>
 </html>
