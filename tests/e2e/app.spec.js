@@ -1,0 +1,133 @@
+// E2E flows with the BFF stubbed at the network layer. The frontend runs
+// for real (cookie-less here — the stubs simply return 200s), Chart.js and
+// the engine modules run for real; only /.netlify/functions/* is faked.
+const { test, expect } = require('@playwright/test');
+
+// Local-calendar date helpers matching the app's engine.
+function dstr(offsetDays = 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+const USER = { id: 'u-test', email: 'e2e@example.com' };
+
+const CATEGORIES = [
+    { id: 1, name: 'Salary', type: 'income', icon: '💰' },
+    { id: 2, name: 'Food', type: 'expense', icon: '🍕' }
+];
+
+function fixtureTransactions() {
+    return [
+        {
+            id: 't1', type: 'income', category: 'Salary', amount: 50000,
+            transaction_date: dstr(-5), payment_to: 'Employer',
+            payment_source: 'salary', source_details: 'UBI', is_recurring: false
+        },
+        {
+            id: 't2', type: 'expense', category: 'Food', amount: 1200,
+            transaction_date: dstr(-2), payment_to: 'Zomato',
+            payment_source: 'upi', source_details: 'UBI', is_recurring: false
+        }
+    ];
+}
+
+// Wires up every function endpoint. `state` mutates as the test posts data.
+async function stubApi(page, state) {
+    const json = (route, body, status = 200) =>
+        route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+    await page.route('**/.netlify/functions/**', async route => {
+        const url = new URL(route.request().url());
+        const fn = url.pathname.replace('/.netlify/functions/', '');
+        const method = route.request().method();
+
+        if (fn === 'me') return json(route, state.loggedIn ? { user: USER } : { error: 'Not signed in' }, state.loggedIn ? 200 : 401);
+        if (fn === 'refresh') return json(route, { error: 'Not signed in' }, 401);
+        if (fn === 'login') {
+            const body = route.request().postDataJSON();
+            if (body.password === 'correct-horse') {
+                state.loggedIn = true;
+                return json(route, { user: USER });
+            }
+            return json(route, { error: 'Invalid email or password.' }, 401);
+        }
+        if (fn === 'categories') return json(route, CATEGORIES);
+        if (fn === 'transactions') {
+            if (method === 'POST') {
+                const tx = route.request().postDataJSON();
+                state.transactions.unshift({ ...tx, id: `t${state.transactions.length + 1}` });
+                return json(route, { ok: true });
+            }
+            return json(route, state.transactions);
+        }
+        if (fn === 'timelogs') return json(route, []);
+        if (fn === 'workouts') return json(route, []);
+        if (fn === 'activetimer') return json(route, null);
+        if (fn === 'logout') { state.loggedIn = false; return json(route, { ok: true }); }
+        return json(route, { error: `unstubbed: ${fn}` }, 500);
+    });
+}
+
+test('login flow: bad password shows an error, good password opens the app', async ({ page }) => {
+    const state = { loggedIn: false, transactions: fixtureTransactions() };
+    await stubApi(page, state);
+    await page.goto('/');
+
+    // Logged out: auth screen visible, app hidden.
+    await expect(page.locator('#auth-container')).toBeVisible();
+    await expect(page.locator('.container')).toBeHidden();
+
+    // Wrong password -> inline error, still on the auth screen.
+    await page.fill('#login-email', USER.email);
+    await page.fill('#login-password', 'wrong');
+    await page.click('#login-form button[type="submit"]');
+    await expect(page.locator('#auth-error')).toContainText('Invalid email or password');
+
+    // Correct password -> reload -> app visible with data loaded.
+    await page.fill('#login-password', 'correct-horse');
+    await page.click('#login-form button[type="submit"]');
+    await expect(page.locator('.container')).toBeVisible();
+    await expect(page.locator('#status-text')).toHaveText('Connected');
+});
+
+test('add transaction -> dashboard totals, list and charts update', async ({ page }) => {
+    const state = { loggedIn: true, transactions: fixtureTransactions() };
+    await stubApi(page, state);
+    await page.goto('/');
+    await expect(page.locator('.container')).toBeVisible();
+
+    // Fill the Add Transaction form.
+    await page.selectOption('#type', 'expense');
+    await page.fill('#amount', '450');
+    await page.selectOption('#category', 'Food');
+    await page.fill('#payment-to', 'Grocery Store');
+    await page.selectOption('#payment-source', 'upi');
+    await page.selectOption('#source-details', 'UBI');
+    await page.click('#transaction-form button[type="submit"]');
+
+    // Toast confirms the save.
+    await expect(page.locator('#toast-notification')).toContainText('Transaction saved');
+
+    // Dashboard reflects the new expense: 1200 + 450.
+    await page.click('.nav-tab[data-page="dashboard"]');
+    await expect(page.locator('#total-income')).toHaveText('₹50000.00');
+    await expect(page.locator('#total-expenses')).toHaveText('₹1650.00');
+    await expect(page.locator('#net-balance')).toHaveText('₹48350.00');
+
+    // The new transaction is listed with its details.
+    const list = page.locator('#transactions-list');
+    await expect(list).toContainText('Grocery Store');
+    await expect(list).toContainText('450.00');
+
+    // Charts rendered (Chart.js attaches to the canvases).
+    await expect(page.locator('#chart')).toBeVisible();
+    const hasCharts = await page.evaluate(() =>
+        Boolean(window.app && window.app.chart && window.app.expenseDonutChart));
+    expect(hasCharts).toBe(true);
+
+    // Projection card computed something (engine ran without errors).
+    await expect(page.locator('#run-rate')).not.toHaveText('Calculating...');
+});

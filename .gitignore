@@ -2,3 +2,7 @@
 .env
 node_modules
 .netlify
+
+# Playwright artifacts
+test-results
+playwright-report
