@@ -1,39 +1,36 @@
-// login.js
+// login.js — POST { email, password } -> sets HttpOnly session cookies.
+// Tokens are never returned in the response body.
 
-const { createClient } = require('@supabase/supabase-js');
+const {
+    json, anonClient, readJsonBody, sessionCookies,
+    rateLimit, clientIp, isEmail
+} = require('./_lib');
 
 exports.handler = async function (event) {
+    if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
 
-  const { email, password } = JSON.parse(event.body);
-
-  // ✅ Create a fresh auth client for this request
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false
-      }
+    const ip = clientIp(event);
+    if (!rateLimit('login', ip, 5, 5 * 60 * 1000)) {
+        return json(429, { error: 'Too many login attempts. Try again in a few minutes.' });
     }
-  );
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
+    const parsed = readJsonBody(event);
+    if (!parsed.ok) return parsed.response;
+    const { email, password } = parsed.body;
 
-  if (error) {
-    console.error("LOGIN ERROR:", error.message);
-    return {
-      statusCode: 401,
-      body: JSON.stringify({ error: error.message })
-    };
-  }
+    if (!isEmail(email) || typeof password !== 'string' || password.length < 1 || password.length > 128) {
+        return json(400, { error: 'Invalid email or password.' });
+    }
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify(data.session)
-  };
+    const supabase = anonClient();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error || !data?.session) {
+        // Uniform message: don't reveal whether the account exists.
+        return json(401, { error: 'Invalid email or password.' });
+    }
+
+    return json(200, { user: { id: data.user.id, email: data.user.email } }, {
+        multiValueHeaders: { 'Set-Cookie': sessionCookies(data.session) }
+    });
 };
