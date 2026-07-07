@@ -7,61 +7,37 @@
 // DELETE /timelogs?id=123     -> delete a time_log
 // ============================================================
 
-const { createClient } = require('@supabase/supabase-js');
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const { json, requireUser, readJsonBody, isDateStr, isIsoTimestamp, cleanString } = require('./_lib');
 
 const ALLOWED_CATEGORIES = ['Work', 'Health', 'Personal', 'Leisure', 'Sleep'];
-
-function json(statusCode, body) {
-    return {
-        statusCode,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    };
-}
-
-function getAuthClient(authHeader) {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.replace('Bearer ', '').trim();
-    if (!token) return null;
-
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: `Bearer ${token}` } },
-        auth: { persistSession: false, autoRefreshToken: false }
-    });
-}
+const MAX_DURATION_SECONDS = 60 * 60 * 24 * 7; // one week per entry is already absurd
 
 function validateTimeLog(body) {
     const errors = [];
-    if (!body.activity || typeof body.activity !== 'string' || !body.activity.trim()) {
-        errors.push('activity is required');
+    if (!cleanString(body.activity, 200)) {
+        errors.push('activity is required (max 200 chars)');
     }
     if (!body.category || !ALLOWED_CATEGORIES.includes(body.category)) {
         errors.push(`category must be one of: ${ALLOWED_CATEGORIES.join(', ')}`);
     }
-    if (!body.start_time) errors.push('start_time is required');
-    if (!body.end_time) errors.push('end_time is required');
-    if (body.duration_seconds == null || Number(body.duration_seconds) < 0) {
-        errors.push('duration_seconds must be a non-negative number');
+    if (!isIsoTimestamp(body.start_time)) errors.push('start_time must be an ISO timestamp');
+    if (!isIsoTimestamp(body.end_time)) errors.push('end_time must be an ISO timestamp');
+    const dur = Number(body.duration_seconds);
+    if (body.duration_seconds == null || !Number.isFinite(dur) || dur < 0 || dur > MAX_DURATION_SECONDS) {
+        errors.push('duration_seconds must be between 0 and 604800');
     }
-    if (!body.date) errors.push('date is required (YYYY-MM-DD)');
+    if (!isDateStr(body.date)) errors.push('date is required (YYYY-MM-DD)');
+    if (body.notes != null && body.notes !== '' && !cleanString(body.notes, 500)) {
+        errors.push('notes max 500 chars');
+    }
     return errors;
 }
 
 exports.handler = async (event) => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        return json(500, { error: 'Server not configured' });
-    }
-
-    const supabase = getAuthClient(event.headers.authorization || event.headers.Authorization);
-    if (!supabase) return json(401, { error: 'Unauthorized' });
-
-    // Verify the token corresponds to a real user
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData?.user) return json(401, { error: 'Unauthorized' });
-    const userId = userData.user.id;
+    const auth = await requireUser(event);
+    if (!auth) return json(401, { error: 'Unauthorized' });
+    const { supabase } = auth;
+    const userId = auth.user.id;
 
     const method = event.httpMethod;
     const params = event.queryStringParameters || {};
@@ -75,6 +51,9 @@ exports.handler = async (event) => {
                 .eq('user_id', userId)
                 .order('start_time', { ascending: false });
 
+            for (const p of ['date', 'from', 'to']) {
+                if (params[p] && !isDateStr(params[p])) return json(400, { error: `${p} must be YYYY-MM-DD` });
+            }
             if (params.date) query = query.eq('date', params.date);
             if (params.from) query = query.gte('date', params.from);
             if (params.to)   query = query.lte('date', params.to);
@@ -86,9 +65,9 @@ exports.handler = async (event) => {
 
         // ── POST ──
         if (method === 'POST') {
-            let body;
-            try { body = JSON.parse(event.body || '{}'); }
-            catch { return json(400, { error: 'Invalid JSON' }); }
+            const parsed = readJsonBody(event);
+            if (!parsed.ok) return parsed.response;
+            const body = parsed.body;
 
             const errors = validateTimeLog(body);
             if (errors.length) return json(400, { error: errors.join('; ') });
@@ -119,23 +98,44 @@ exports.handler = async (event) => {
             const id = params.id;
             if (!id) return json(400, { error: 'id query parameter required' });
 
-            let body;
-            try { body = JSON.parse(event.body || '{}'); }
-            catch { return json(400, { error: 'Invalid JSON' }); }
+            const parsed = readJsonBody(event);
+            if (!parsed.ok) return parsed.response;
+            const body = parsed.body;
 
             const updatePayload = {};
-            if (body.activity !== undefined)         updatePayload.activity = String(body.activity).trim();
+            if (body.activity !== undefined) {
+                const s = cleanString(body.activity, 200);
+                if (!s) return json(400, { error: 'activity is required (max 200 chars)' });
+                updatePayload.activity = s;
+            }
             if (body.category !== undefined) {
                 if (!ALLOWED_CATEGORIES.includes(body.category)) {
                     return json(400, { error: 'Invalid category' });
                 }
                 updatePayload.category = body.category;
             }
-            if (body.start_time !== undefined)       updatePayload.start_time = body.start_time;
-            if (body.end_time !== undefined)         updatePayload.end_time = body.end_time;
-            if (body.duration_seconds !== undefined) updatePayload.duration_seconds = Math.floor(Number(body.duration_seconds));
-            if (body.date !== undefined)             updatePayload.date = body.date;
-            if (body.notes !== undefined)            updatePayload.notes = body.notes ? String(body.notes).trim() : null;
+            if (body.start_time !== undefined) {
+                if (!isIsoTimestamp(body.start_time)) return json(400, { error: 'start_time must be an ISO timestamp' });
+                updatePayload.start_time = body.start_time;
+            }
+            if (body.end_time !== undefined) {
+                if (!isIsoTimestamp(body.end_time)) return json(400, { error: 'end_time must be an ISO timestamp' });
+                updatePayload.end_time = body.end_time;
+            }
+            if (body.duration_seconds !== undefined) {
+                const dur = Number(body.duration_seconds);
+                if (!Number.isFinite(dur) || dur < 0 || dur > MAX_DURATION_SECONDS) {
+                    return json(400, { error: 'duration_seconds must be between 0 and 604800' });
+                }
+                updatePayload.duration_seconds = Math.floor(dur);
+            }
+            if (body.date !== undefined) {
+                if (!isDateStr(body.date)) return json(400, { error: 'date must be YYYY-MM-DD' });
+                updatePayload.date = body.date;
+            }
+            if (body.notes !== undefined) {
+                updatePayload.notes = body.notes ? (cleanString(body.notes, 500) || null) : null;
+            }
 
             const { data, error } = await supabase
                 .from('time_logs')

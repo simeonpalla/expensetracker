@@ -5,43 +5,15 @@
 // DELETE /active-timer  -> clear the user's active timer
 // ============================================================
 
-const { createClient } = require('@supabase/supabase-js');
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const { json, requireUser, readJsonBody, isDateStr, cleanString } = require('./_lib');
 
 const ALLOWED_CATEGORIES = ['Work', 'Health', 'Personal', 'Leisure', 'Sleep'];
 
-function json(statusCode, body) {
-    return {
-        statusCode,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    };
-}
-
-function getAuthClient(authHeader) {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.replace('Bearer ', '').trim();
-    if (!token) return null;
-
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: `Bearer ${token}` } },
-        auth: { persistSession: false, autoRefreshToken: false }
-    });
-}
-
 exports.handler = async (event) => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        return json(500, { error: 'Server not configured' });
-    }
-
-    const supabase = getAuthClient(event.headers.authorization || event.headers.Authorization);
-    if (!supabase) return json(401, { error: 'Unauthorized' });
-
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData?.user) return json(401, { error: 'Unauthorized' });
-    const userId = userData.user.id;
+    const auth = await requireUser(event);
+    if (!auth) return json(401, { error: 'Unauthorized' });
+    const { supabase } = auth;
+    const userId = auth.user.id;
 
     const method = event.httpMethod;
 
@@ -60,12 +32,12 @@ exports.handler = async (event) => {
 
         // ── POST ── start/replace active timer
         if (method === 'POST') {
-            let body;
-            try { body = JSON.parse(event.body || '{}'); }
-            catch { return json(400, { error: 'Invalid JSON' }); }
+            const parsed = readJsonBody(event);
+            if (!parsed.ok) return parsed.response;
+            const body = parsed.body;
 
-            if (!body.activity || typeof body.activity !== 'string' || !body.activity.trim()) {
-                return json(400, { error: 'activity is required' });
+            if (!cleanString(body.activity, 200)) {
+                return json(400, { error: 'activity is required (max 200 chars)' });
             }
             if (!body.category || !ALLOWED_CATEGORIES.includes(body.category)) {
                 return json(400, { error: `category must be one of: ${ALLOWED_CATEGORIES.join(', ')}` });
@@ -73,13 +45,13 @@ exports.handler = async (event) => {
             if (!body.start_epoch_ms || isNaN(Number(body.start_epoch_ms))) {
                 return json(400, { error: 'start_epoch_ms is required and must be a number' });
             }
-            if (!body.date) {
+            if (!isDateStr(body.date)) {
                 return json(400, { error: 'date is required (YYYY-MM-DD)' });
             }
 
             const payload = {
                 user_id: userId,
-                activity: String(body.activity).trim(),
+                activity: String(body.activity).trim().slice(0, 200),
                 category: body.category,
                 start_epoch_ms: Math.floor(Number(body.start_epoch_ms)),
                 date: body.date

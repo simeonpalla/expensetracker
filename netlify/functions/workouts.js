@@ -7,47 +7,30 @@
 // DELETE /workouts?id=123     -> delete a workout
 // ============================================================
 
-const { createClient } = require('@supabase/supabase-js');
+const { json, requireUser, readJsonBody, isDateStr, cleanString } = require('./_lib');
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-
-function json(statusCode, body) {
-    return {
-        statusCode,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    };
-}
-
-function getAuthClient(authHeader) {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.replace('Bearer ', '').trim();
-    if (!token) return null;
-
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: `Bearer ${token}` } },
-        auth: { persistSession: false, autoRefreshToken: false }
-    });
-}
+const MAX_EXERCISES = 50;
+const MAX_SETS_PER_EXERCISE = 50;
 
 function validateWorkout(body) {
     const errors = [];
-    if (!body.date) errors.push('date is required (YYYY-MM-DD)');
-    if (!body.workout_type || typeof body.workout_type !== 'string' || !body.workout_type.trim()) {
-        errors.push('workout_type is required');
+    if (!isDateStr(body.date)) errors.push('date is required (YYYY-MM-DD)');
+    if (!cleanString(body.workout_type, 120)) {
+        errors.push('workout_type is required (max 120 chars)');
     }
     if (!Array.isArray(body.exercises)) {
         errors.push('exercises must be an array');
+    } else if (body.exercises.length > MAX_EXERCISES) {
+        errors.push(`exercises max ${MAX_EXERCISES}`);
     }
     return errors;
 }
 
 function sanitizeExercises(exercises) {
     if (!Array.isArray(exercises)) return [];
-    return exercises.map(ex => ({
-        name: String(ex.name || '').trim(),
-        sets: Array.isArray(ex.sets) ? ex.sets.map(s => ({
+    return exercises.slice(0, MAX_EXERCISES).map(ex => ({
+        name: String(ex.name || '').trim().slice(0, 120),
+        sets: Array.isArray(ex.sets) ? ex.sets.slice(0, MAX_SETS_PER_EXERCISE).map(s => ({
             reps:         s.reps != null ? Number(s.reps) : null,
             weight_kg:    s.weight_kg != null ? Number(s.weight_kg) : null,
             distance_mi:  s.distance_mi != null ? Number(s.distance_mi) : null,
@@ -57,16 +40,10 @@ function sanitizeExercises(exercises) {
 }
 
 exports.handler = async (event) => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        return json(500, { error: 'Server not configured' });
-    }
-
-    const supabase = getAuthClient(event.headers.authorization || event.headers.Authorization);
-    if (!supabase) return json(401, { error: 'Unauthorized' });
-
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData?.user) return json(401, { error: 'Unauthorized' });
-    const userId = userData.user.id;
+    const auth = await requireUser(event);
+    if (!auth) return json(401, { error: 'Unauthorized' });
+    const { supabase } = auth;
+    const userId = auth.user.id;
 
     const method = event.httpMethod;
     const params = event.queryStringParameters || {};
@@ -80,6 +57,9 @@ exports.handler = async (event) => {
                 .eq('user_id', userId)
                 .order('date', { ascending: false });
 
+            for (const p of ['from', 'to']) {
+                if (params[p] && !isDateStr(params[p])) return json(400, { error: `${p} must be YYYY-MM-DD` });
+            }
             if (params.from) query = query.gte('date', params.from);
             if (params.to)   query = query.lte('date', params.to);
 
@@ -102,9 +82,9 @@ exports.handler = async (event) => {
 
         // ── POST ──
         if (method === 'POST') {
-            let body;
-            try { body = JSON.parse(event.body || '{}'); }
-            catch { return json(400, { error: 'Invalid JSON' }); }
+            const parsed = readJsonBody(event);
+            if (!parsed.ok) return parsed.response;
+            const body = parsed.body;
 
             const errors = validateWorkout(body);
             if (errors.length) return json(400, { error: errors.join('; ') });
@@ -112,9 +92,9 @@ exports.handler = async (event) => {
             const insertPayload = {
                 user_id: userId,
                 date: body.date,
-                workout_type: String(body.workout_type).trim(),
-                start_time_str: body.start_time_str ? String(body.start_time_str).trim() : null,
-                raw_text: body.raw_text ? String(body.raw_text) : null,
+                workout_type: String(body.workout_type).trim().slice(0, 120),
+                start_time_str: body.start_time_str ? String(body.start_time_str).trim().slice(0, 40) : null,
+                raw_text: body.raw_text ? String(body.raw_text).slice(0, 10000) : null,
                 exercises: sanitizeExercises(body.exercises),
                 duration_minutes: body.duration_minutes != null ? Math.floor(Number(body.duration_minutes)) : null
             };
@@ -134,15 +114,18 @@ exports.handler = async (event) => {
             const id = params.id;
             if (!id) return json(400, { error: 'id query parameter required' });
 
-            let body;
-            try { body = JSON.parse(event.body || '{}'); }
-            catch { return json(400, { error: 'Invalid JSON' }); }
+            const parsed = readJsonBody(event);
+            if (!parsed.ok) return parsed.response;
+            const body = parsed.body;
 
             const updatePayload = {};
-            if (body.date !== undefined)             updatePayload.date = body.date;
-            if (body.workout_type !== undefined)     updatePayload.workout_type = String(body.workout_type).trim();
-            if (body.start_time_str !== undefined)   updatePayload.start_time_str = body.start_time_str ? String(body.start_time_str).trim() : null;
-            if (body.raw_text !== undefined)         updatePayload.raw_text = body.raw_text;
+            if (body.date !== undefined) {
+                if (!isDateStr(body.date)) return json(400, { error: 'date must be YYYY-MM-DD' });
+                updatePayload.date = body.date;
+            }
+            if (body.workout_type !== undefined)     updatePayload.workout_type = String(body.workout_type).trim().slice(0, 120);
+            if (body.start_time_str !== undefined)   updatePayload.start_time_str = body.start_time_str ? String(body.start_time_str).trim().slice(0, 40) : null;
+            if (body.raw_text !== undefined)         updatePayload.raw_text = body.raw_text ? String(body.raw_text).slice(0, 10000) : null;
             if (body.exercises !== undefined)        updatePayload.exercises = sanitizeExercises(body.exercises);
             if (body.duration_minutes !== undefined) updatePayload.duration_minutes = body.duration_minutes != null ? Math.floor(Number(body.duration_minutes)) : null;
 
