@@ -94,6 +94,37 @@ This biases the projection toward your recent momentum rather than your whole-cy
 
 ---
 
+## Security Model (Phase 1 hardening)
+
+- **Sessions**: HttpOnly, Secure, SameSite=Strict cookies scoped to
+  `/.netlify/functions/`. Tokens never touch JavaScript or localStorage.
+  Login / signup / refresh / logout / me endpoints manage the cookie pair.
+- **Authorization**: every function calls Supabase with the **anon key + the
+  caller's JWT**, so Postgres Row Level Security is the enforcement boundary.
+  The service-role key is not used by the app at all. Policies live in
+  [`supabase/migrations/0001_rls_policies.sql`](supabase/migrations/0001_rls_policies.sql) —
+  run it in the Supabase SQL editor and verify under Authentication → Policies.
+- **Input validation**: all endpoints whitelist fields, validate
+  types/dates/enums/lengths, and cap request bodies at 20 KB.
+- **Rate limiting**: per-IP in-memory limits — login 5/5 min, signup 3/hour,
+  refresh 30/5 min. Note: the limiter is per function instance, so effective
+  limits can be a small multiple under concurrent instances.
+- **Headers**: CSP (scripts only from self + pinned jsdelivr Chart.js with
+  SRI), HSTS, nosniff, frame-ancestors 'none', restrictive Permissions-Policy —
+  see `netlify.toml`.
+- **Deploy**: only `public/` is published; secrets stay in Netlify env vars
+  (`.env.example` documents them).
+
+### Environment variables
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `SUPABASE_URL` | Netlify env + local `.env` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Netlify env + local `.env` | Public anon key (RLS enforced) |
+
+The `SUPABASE_SERVICE_ROLE_KEY` is no longer needed — remove it from Netlify's
+environment after deploying this version.
+
 ## License
 
 MIT
