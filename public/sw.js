@@ -1,12 +1,15 @@
 // Bump CACHE_NAME on every release that changes any cached asset —
 // activate deletes all other caches, which is how updates reach users.
-const CACHE_NAME = 'personal-os-v2';
+const CACHE_NAME = 'personal-os-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/style.css',
   '/styleadditions.css',
-  '/script.js?v=6',
+  '/engine/dates.js?v=1',
+  '/engine/cycles.js?v=1',
+  '/engine/projection.js?v=1',
+  '/script.js?v=7',
   '/timetracker.js?v=2',
   '/workouttracker.js?v=2',
   '/manifest.json'

@@ -391,7 +391,7 @@ class ExpenseTracker {
 
     setTodayDate() {
         const el = document.getElementById('date');
-        if (el) el.value = new Date().toISOString().split('T')[0];
+        if (el) el.value = PFDates.todayStr();
     }
 
     syncSalaryAccountUI() {
@@ -826,48 +826,22 @@ class ExpenseTracker {
         const selector = document.getElementById('cycle-history');
         if (!selector) return;
 
-        const salaries = this.transactions
-            .filter(t => t.type === 'income' && t.category.toLowerCase().includes('salary'))
-            .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));
-
-        if (salaries.length === 0) {
-            selector.innerHTML = '<option value="">Current Month</option>';
-            const d = new Date();
-            const end = d.toISOString().split('T')[0];
-            d.setDate(1);
-            const start = d.toISOString().split('T')[0];
-            this.loadSpecificCycle(start, end);
-            return;
-        }
+        const today = PFDates.todayStr();
+        const cycles = PFCycles.deriveCycles(this.transactions, today);
+        const nice = d => PFDates.parseLocal(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
         selector.innerHTML = '';
-        salaries.forEach((salary, index) => {
-            const startDate = salary.transaction_date;
-            let endDate, label;
-
-            if (index === 0) {
-                endDate = new Date().toISOString().split('T')[0];
-                const niceDate = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                label = `Current: Since ${niceDate}`;
-            } else {
-                const prevSalaryDate = new Date(salaries[index - 1].transaction_date);
-                prevSalaryDate.setDate(prevSalaryDate.getDate() - 1);
-                endDate = prevSalaryDate.toISOString().split('T')[0];
-                const s = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                const en = new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                label = `${s} – ${en}`;
-            }
-
+        cycles.forEach(c => {
             const option = document.createElement('option');
-            option.value = `${startDate}|${endDate}`;
-            option.textContent = label;
+            option.value = `${c.start}|${c.end}`;
+            option.textContent = c.fallback
+                ? 'Current Month'
+                : (c.isCurrent ? `Current: Since ${nice(c.start)}` : `${nice(c.start)} – ${nice(c.end)}`);
             selector.appendChild(option);
         });
 
-        if (selector.options.length > 0) {
-            selector.selectedIndex = 0;
-            this.handleCycleChange();
-        }
+        selector.selectedIndex = 0;
+        this.handleCycleChange();
     }
 
     handleCycleChange() {
@@ -883,8 +857,8 @@ class ExpenseTracker {
         this.currentCycleEnd = endDate;
 
         const chartTitle = document.getElementById('line-chart-title');
-        const s = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-        const e = new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        const s = PFDates.parseLocal(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        const e = PFDates.parseLocal(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
         if (chartTitle) chartTitle.innerHTML = `📈 Trends: ${s} to ${e}`;
 
         this.updateDashboardStats(startDate, endDate);
@@ -895,10 +869,7 @@ class ExpenseTracker {
     }
 
     getTransactionsInCycle(startDate, endDate) {
-        if (!startDate || !endDate) return [];
-        return this.transactions.filter(t =>
-            t.transaction_date >= startDate && t.transaction_date <= endDate
-        );
+        return PFCycles.transactionsInCycle(this.transactions, startDate, endDate);
     }
 
     // ===============================
@@ -1099,109 +1070,15 @@ class ExpenseTracker {
         document.getElementById('total-expenses').textContent = `₹${expenses.toFixed(2)}`;
         document.getElementById('net-balance').textContent = `₹${balance.toFixed(2)}`;
 
-        const streak = this.calculateNoSpendStreak(cycleTxs, startDate, endDate);
+        const streak = PFCycles.noSpendStreak(cycleTxs, startDate, PFDates.todayStr());
         document.getElementById('current-streak').textContent = `${streak.currentStreak} Days`;
         document.getElementById('best-streak').textContent = `Best: ${streak.bestStreak} days`;
     }
 
-    calculateNoSpendStreak(cycleTxs, startDate, endDate) {
-        const days = {};
-        const start = new Date(startDate);
-        const end = new Date();
-
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            days[d.toISOString().split('T')[0]] = true;
-        }
-
-        cycleTxs.forEach(t => {
-            if (t.type === 'expense') days[t.transaction_date] = false;
-        });
-
-        let currentStreak = 0, bestStreak = 0;
-        const todayStr = new Date().toISOString().split('T')[0];
-
-        let tempDate = new Date();
-        while (true) {
-            const dateStr = tempDate.toISOString().split('T')[0];
-            if (new Date(dateStr) < start) break;
-            if (days[dateStr]) currentStreak++;
-            else if (dateStr !== todayStr) break;
-            else { currentStreak = 0; break; }
-            tempDate.setDate(tempDate.getDate() - 1);
-        }
-
-        let tempStreak = 0;
-        Object.keys(days).sort().forEach(date => {
-            if (days[date]) tempStreak++;
-            else { bestStreak = Math.max(bestStreak, tempStreak); tempStreak = 0; }
-        });
-        bestStreak = Math.max(bestStreak, tempStreak);
-
-        return { currentStreak, bestStreak };
-    }
-
     calculateRunRate(cycleTxs, startDate, income) {
-        const msPerDay = 1000 * 60 * 60 * 24;
-        const start = new Date(startDate);
-        const today = new Date();
-        const daysPassed = Math.max(1, Math.ceil((today - start) / msPerDay));
-
-        let expensesSoFar = 0;
-        cycleTxs.forEach(t => {
-            if (t.type === 'expense') expensesSoFar += Number(t.amount);
-        });
-
-        const historicalTxs = this.transactions.filter(t =>
-            t.type === 'expense' && t.transaction_date < startDate
+        const { projectedBalance } = PFProjection.projectCycle(
+            this.transactions, startDate, PFDates.todayStr()
         );
-
-        let projectedFutureSpend = 0;
-
-        if (historicalTxs.length >= 10) {
-            const salaries = this.transactions
-                .filter(t => t.type === 'income' && t.category.toLowerCase().includes('salary'))
-                .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date));
-
-            const dayOfCycleSpend = {};
-            historicalTxs.forEach(t => {
-                let cycleStart = null;
-                for (let i = salaries.length - 1; i >= 0; i--) {
-                    if (salaries[i].transaction_date <= t.transaction_date) { cycleStart = salaries[i].transaction_date; break; }
-                }
-                if (!cycleStart) return;
-                const dayNum = Math.ceil((new Date(t.transaction_date) - new Date(cycleStart)) / msPerDay) + 1;
-                if (!dayOfCycleSpend[dayNum]) dayOfCycleSpend[dayNum] = [];
-                dayOfCycleSpend[dayNum].push(Number(t.amount));
-            });
-
-            for (let d = daysPassed + 1; d <= 30; d++) {
-                if (dayOfCycleSpend[d]?.length > 0) {
-                    projectedFutureSpend += dayOfCycleSpend[d].reduce((s, v) => s + v, 0) / dayOfCycleSpend[d].length;
-                }
-            }
-        } else {
-            const recentCutoff = new Date(today);
-            recentCutoff.setDate(recentCutoff.getDate() - 7);
-            let recentSpend = 0, earlierSpend = 0, recentDays = 0, earlierDays = 0;
-
-            cycleTxs.forEach(t => {
-                if (t.type !== 'expense') return;
-                const amt = Number(t.amount);
-                if (new Date(t.transaction_date) >= recentCutoff) {
-                    recentSpend += amt; recentDays = Math.min(7, daysPassed);
-                } else {
-                    earlierSpend += amt; earlierDays = Math.max(1, daysPassed - 7);
-                }
-            });
-
-            const recentRate = recentDays > 0 ? recentSpend / recentDays : 0;
-            const earlierRate = earlierDays > 0 ? earlierSpend / earlierDays : recentRate;
-            projectedFutureSpend = ((recentRate * 0.6) + (earlierRate * 0.4)) * Math.max(0, 30 - daysPassed);
-        }
-
-        const projectedBalance = income - (expensesSoFar + projectedFutureSpend);
-        const dailyBurnRate = expensesSoFar / daysPassed;
-        const daysRemaining = Math.max(0, 30 - daysPassed);
 
         const runRateEl = document.getElementById('run-rate');
         const riskCard = document.getElementById('risk-card');
@@ -1224,33 +1101,24 @@ class ExpenseTracker {
     // ===============================
     renderLineChart(startDate, endDate) {
         const cycleTxs = this.getTransactionsInCycle(startDate, endDate);
-        const labels = [], expenses = [], dailyData = {};
 
-        const start = new Date(startDate + 'T00:00:00');
-        const end = new Date(Math.min(new Date(endDate + 'T00:00:00'), new Date()));
+        const today = PFDates.todayStr();
+        const chartEnd = endDate < today ? endDate : today;
+        const days = PFDates.eachDay(startDate, chartEnd);
 
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            labels.push(d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }));
-            dailyData[dateStr] = 0;
-        }
+        const labels = days.map(d =>
+            PFDates.parseLocal(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }));
 
+        const dailyData = {};
+        days.forEach(d => { dailyData[d] = 0; });
         cycleTxs.forEach(t => {
             if (t.type === 'expense' && dailyData[t.transaction_date] !== undefined) {
                 dailyData[t.transaction_date] += Number(t.amount);
             }
         });
+        const expenses = days.map(d => dailyData[d]);
 
-        Object.keys(dailyData).forEach(dateStr => expenses.push(dailyData[dateStr]));
-
-        const n = expenses.length;
-        const xMean = (n - 1) / 2;
-        const yMean = expenses.reduce((a, b) => a + b, 0) / n;
-        let num = 0, den = 0;
-        expenses.forEach((y, x) => { num += (x - xMean) * (y - yMean); den += (x - xMean) ** 2; });
-        const slope = den !== 0 ? num / den : 0;
-        const intercept = yMean - slope * xMean;
-        const trendData = expenses.map((_, x) => parseFloat((slope * x + intercept).toFixed(2)));
+        const trendData = PFProjection.linearRegression(expenses).trend;
 
         if (this.chart) this.chart.destroy();
         const canvas = document.getElementById('chart');
@@ -1388,85 +1256,17 @@ class ExpenseTracker {
                 }
             });
 
-            let historicalMonths = 1;
-            const historicalSpend = {};
-            if (historicalTxs.length > 0) {
-                let earliestTime = new Date().getTime();
-                historicalTxs.forEach(t => {
-                    const tTime = new Date(t.transaction_date).getTime();
-                    if (tTime < earliestTime) earliestTime = tTime;
-                    if (t.type === 'expense') {
-                        historicalSpend[t.category] = (historicalSpend[t.category] || 0) + Number(t.amount);
-                    }
-                });
-                const msPerMonth = 1000 * 60 * 60 * 24 * 30.44;
-                historicalMonths = Math.max(1, (new Date(currentStart).getTime() - earliestTime) / msPerMonth);
-            }
+            const today = PFDates.todayStr();
 
-            const anomalies = [];
-            if (historicalTxs.length > 0) {
-                Object.keys(currentSpend).forEach(cat => {
-                    const currentAmt = currentSpend[cat];
-                    const histAvg = (historicalSpend[cat] || 0) / historicalMonths;
-                    if (currentAmt > histAvg && histAvg > 0) {
-                        const diff = currentAmt - histAvg;
-                        const pct = (diff / histAvg) * 100;
-                        if (pct >= 10 && diff >= 500) anomalies.push({ cat, currentAmt, histAvg, diff, pct });
-                    }
-                });
-                anomalies.sort((a, b) => b.diff - a.diff);
-            }
+            const historicalMonths = PFProjection.historicalMonths(this.transactions, currentStart);
+            const historicalSpend = PFProjection.spendByCategory(historicalTxs);
+            const anomalies = historicalTxs.length > 0
+                ? PFProjection.computeAnomalies(currentSpend, historicalSpend, historicalMonths)
+                : [];
 
-            const msPerDay = 1000 * 60 * 60 * 24;
-            const start = new Date(currentStart);
-            const today = new Date();
-            const daysPassed = Math.max(1, Math.ceil((today - start) / msPerDay));
-            const dailyBurnRate = expenses / daysPassed;
-            const daysRemaining = Math.max(0, 30 - daysPassed);
+            const proj = PFProjection.projectCycle(this.transactions, currentStart, today);
+            const { dailyBurnRate, daysRemaining, projectedBalance } = proj;
 
-            const historicalExpTxs = this.transactions.filter(t =>
-                t.type === 'expense' && t.transaction_date < currentStart
-            );
-
-            let projectedFutureSpend = 0;
-            if (historicalExpTxs.length >= 10) {
-                const salaries = this.transactions
-                    .filter(t => t.type === 'income' && t.category.toLowerCase().includes('salary'))
-                    .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date));
-
-                const dayOfCycleSpend = {};
-                historicalExpTxs.forEach(t => {
-                    let cycleStart = null;
-                    for (let i = salaries.length - 1; i >= 0; i--) {
-                        if (salaries[i].transaction_date <= t.transaction_date) { cycleStart = salaries[i].transaction_date; break; }
-                    }
-                    if (!cycleStart) return;
-                    const dayNum = Math.ceil((new Date(t.transaction_date) - new Date(cycleStart)) / msPerDay) + 1;
-                    if (!dayOfCycleSpend[dayNum]) dayOfCycleSpend[dayNum] = [];
-                    dayOfCycleSpend[dayNum].push(Number(t.amount));
-                });
-
-                for (let d = daysPassed + 1; d <= 30; d++) {
-                    if (dayOfCycleSpend[d]?.length > 0) {
-                        projectedFutureSpend += dayOfCycleSpend[d].reduce((s, v) => s + v, 0) / dayOfCycleSpend[d].length;
-                    }
-                }
-            } else {
-                const recentCutoff = new Date(today);
-                recentCutoff.setDate(recentCutoff.getDate() - 7);
-                let recentSpend = 0, earlierSpend = 0, recentDays = 0, earlierDays = 0;
-                currentTxs.forEach(t => {
-                    if (t.type !== 'expense') return;
-                    const amt = Number(t.amount);
-                    if (new Date(t.transaction_date) >= recentCutoff) { recentSpend += amt; recentDays = Math.min(7, daysPassed); }
-                    else { earlierSpend += amt; earlierDays = Math.max(1, daysPassed - 7); }
-                });
-                const recentRate = recentDays > 0 ? recentSpend / recentDays : 0;
-                const earlierRate = earlierDays > 0 ? earlierSpend / earlierDays : recentRate;
-                projectedFutureSpend = ((recentRate * 0.6) + (earlierRate * 0.4)) * daysRemaining;
-            }
-
-            const projectedBalance = income - (expenses + projectedFutureSpend);
             const sortedCategories = Object.entries(currentSpend).sort((a, b) => b[1] - a[1]);
             const topSpender = sortedCategories.length > 0 ? sortedCategories[0] : null;
 
@@ -1475,43 +1275,15 @@ class ExpenseTracker {
             const paretoRatio = expenses > 0 ? ((top3Spend / expenses) * 100).toFixed(0) : 0;
             const savingsRate = income > 0 ? (((income - expenses) / income) * 100).toFixed(0) : 0;
 
-            let weekendSpend = 0, weekdaySpend = 0, weekendDays = 0, weekdayDays = 0;
             const expenseTxs = allTxs.filter(t => t.type === 'expense');
-            expenseTxs.forEach(t => {
-                const dow = new Date(t.transaction_date + 'T12:00:00').getDay();
-                const amt = Number(t.amount);
-                if (dow === 0 || dow === 6) weekendSpend += amt;
-                else weekdaySpend += amt;
-            });
-            const uniqueDates = [...new Set(expenseTxs.map(t => t.transaction_date))];
-            uniqueDates.forEach(d => {
-                const dow = new Date(d + 'T12:00:00').getDay();
-                if (dow === 0 || dow === 6) weekendDays++;
-                else weekdayDays++;
-            });
-            const weekendAvg = weekendDays > 0 ? weekendSpend / weekendDays : 0;
-            const weekdayAvg = weekdayDays > 0 ? weekdaySpend / weekdayDays : 0;
+            const { weekendAvg, weekdayAvg } = PFProjection.weekendWeekdayStats(expenseTxs);
 
-            const salaries = this.transactions
-                .filter(t => t.type === 'income' && t.category.toLowerCase().includes('salary'))
-                .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date));
-
-            const cycleExpenses = [];
-            salaries.forEach((salary, index) => {
-                const cStart = salary.transaction_date;
-                let cEnd;
-                if (index < salaries.length - 1) {
-                    const next = new Date(salaries[index + 1].transaction_date);
-                    next.setDate(next.getDate() - 1);
-                    cEnd = next.toISOString().split('T')[0];
-                } else {
-                    cEnd = new Date().toISOString().split('T')[0];
-                }
-                const cycleTx = this.getTransactionsInCycle(cStart, cEnd);
-                const total = cycleTx.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
-                const label = new Date(cStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                cycleExpenses.push({ label, total, start: cStart });
-            });
+            const cycleExpenses = PFProjection.cycleExpenseTotals(this.transactions, today)
+                .map(c => ({
+                    label: PFDates.parseLocal(c.start).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+                    total: c.total,
+                    start: c.start
+                }));
 
             let html = `<div class="insights-body">`;
 
