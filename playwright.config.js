@@ -10,8 +10,9 @@ module.exports = defineConfig({
         serviceWorkers: 'block'
     },
     webServer: {
-        command: 'node tests/e2e/server.js',
+        command: 'npm run build && node tests/e2e/server.js',
         port: 4173,
-        reuseExistingServer: true
+        reuseExistingServer: true,
+        timeout: 120000
     }
 });

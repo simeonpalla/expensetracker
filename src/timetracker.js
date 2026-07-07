@@ -6,11 +6,12 @@
 // - setInterval used ONLY for display refresh, never for state
 // ======================================================
 
-(function () {
-    'use strict';
+import { API } from './api.js';
+import { escapeHtml, showNotification, showGenericConfirm } from './ui.js';
+import { loadChart } from './charts.js';
 
-    const LS_KEY = 'activeTimer';
-    const CATEGORIES = ['Work', 'Health', 'Personal', 'Leisure', 'Sleep'];
+const LS_KEY = 'activeTimer';
+const CATEGORIES = ['Work', 'Health', 'Personal', 'Leisure', 'Sleep'];
 
     const CATEGORY_COLORS = {
         Work:     '#7c6aff',
@@ -29,36 +30,8 @@
     };
 
     // ===============================
-    // API extensions
-    // ===============================
-    if (typeof window.API === 'object' && window.API) {
-        window.API.getTimeLogs = function (params) {
-            let path = 'timelogs';
-            if (params) {
-                const qs = Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-                if (qs) path += '?' + qs;
-            }
-            return this.request(path);
-        };
-        window.API.addTimeLog    = function (data)     { return this.request('timelogs', { method: 'POST', body: JSON.stringify(data) }); };
-        window.API.updateTimeLog = function (id, data) { return this.request(`timelogs?id=${id}`, { method: 'PUT', body: JSON.stringify(data) }); };
-        window.API.deleteTimeLog = function (id)       { return this.request(`timelogs?id=${id}`, { method: 'DELETE' }); };
-
-        window.API.getActiveTimer   = function ()     { return this.request('activetimer'); };
-        window.API.startActiveTimer = function (data) { return this.request('activetimer', { method: 'POST', body: JSON.stringify(data) }); };
-        window.API.clearActiveTimer = function ()     { return this.request('activetimer', { method: 'DELETE' }); };
-    }
-
-    // ===============================
     // Helpers
     // ===============================
-    function escapeHtml(str) {
-        if (str == null) return '';
-        return String(str)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
-
     function toDateStr(d) {
         const yyyy = d.getFullYear();
         const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -83,23 +56,6 @@
         const [y, m, d] = dateStr.split('-').map(Number);
         const [hh, mm] = timeStr.split(':').map(Number);
         return new Date(y, m - 1, d, hh, mm, 0, 0);
-    }
-
-    function showGenericConfirm(title, message, onConfirm) {
-        const overlay = document.getElementById('generic-confirm-modal-overlay');
-        document.getElementById('generic-confirm-title').textContent = title;
-        document.getElementById('generic-confirm-message').textContent = message;
-        const yes = document.getElementById('generic-confirm-yes');
-        const no  = document.getElementById('generic-confirm-no');
-        const newYes = yes.cloneNode(true);
-        const newNo  = no.cloneNode(true);
-        yes.parentNode.replaceChild(newYes, yes);
-        no.parentNode.replaceChild(newNo, no);
-        const close = () => { overlay.style.display = 'none'; };
-        newYes.addEventListener('click', () => { close(); onConfirm(); });
-        newNo.addEventListener('click', close);
-        overlay.addEventListener('click', e => { if (e.target === overlay) close(); }, { once: true });
-        overlay.style.display = 'flex';
     }
 
     // ===============================
@@ -166,7 +122,7 @@
             }
 
             try {
-                const remote = await window.API.getActiveTimer();
+                const remote = await API.getActiveTimer();
                 if (remote?.start_epoch_ms) {
                     this.activeTimer = {
                         activity: remote.activity,
@@ -200,7 +156,7 @@
             this.renderActiveTimerCard();
             this.startDisplayRefresh();
             try {
-                await window.API.startActiveTimer(timer);
+                await API.startActiveTimer(timer);
                 showNotification(`▶️ Timer started: ${activity}`);
             } catch (err) {
                 showNotification('Timer started locally; sync failed: ' + err.message, 'error');
@@ -224,7 +180,7 @@
                 duration_seconds: durationSec, date, notes: null
             };
             try {
-                await window.API.addTimeLog(payload);
+                await API.addTimeLog(payload);
                 await this.clearActiveTimerState();
                 await this.loadLogs();
                 this.renderAll();
@@ -237,7 +193,7 @@
             localStorage.removeItem(LS_KEY);
             this.stopDisplayRefresh();
             this.renderActiveTimerCard();
-            try { await window.API.clearActiveTimer(); } catch (err) { console.warn('clearActiveTimer remote failed', err); }
+            try { await API.clearActiveTimer(); } catch (err) { console.warn('clearActiveTimer remote failed', err); }
         }
 
         startDisplayRefresh() {
@@ -299,7 +255,7 @@
                 duration_seconds: durationSec, date: dateStr, notes
             };
             try {
-                await window.API.addTimeLog(payload);
+                await API.addTimeLog(payload);
                 document.getElementById('timelog-manual-form')?.reset();
                 const md = document.getElementById('manual-date'); if (md) md.value = this.viewDate;
                 await this.loadLogs();
@@ -311,7 +267,7 @@
         async loadLogs() {
             try {
                 const from = new Date(); from.setDate(from.getDate() - 60);
-                this.logs = await window.API.getTimeLogs({ from: toDateStr(from) }) || [];
+                this.logs = await API.getTimeLogs({ from: toDateStr(from) }) || [];
             } catch (err) { console.error('loadLogs failed', err); this.logs = []; }
         }
 
@@ -392,15 +348,16 @@
 
         async deleteLog(id) {
             try {
-                await window.API.deleteTimeLog(id);
+                await API.deleteTimeLog(id);
                 await this.loadLogs(); this.renderAll();
                 showNotification('Entry deleted.');
             } catch (err) { showNotification('Error deleting: ' + err.message, 'error'); }
         }
 
-        renderWeeklyChart() {
+        async renderWeeklyChart() {
             const canvas = document.getElementById('time-weekly-chart');
-            if (!canvas || typeof Chart === 'undefined') return;
+            if (!canvas) return;
+            const Chart = await loadChart();
             const endDate = new Date(`${this.viewDate}T00:00:00`);
             const days = [];
             for (let i = 6; i >= 0; i--) { const d = new Date(endDate); d.setDate(d.getDate() - i); days.push(toDateStr(d)); }
@@ -431,4 +388,3 @@
 
     window.TimeTracker = TimeTracker;
     window.timeTracker = new TimeTracker();
-})();

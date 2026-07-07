@@ -1,123 +1,23 @@
 // ======================================================
-// EXPENSE TRACKER — FRONTEND CONTROLLER (BFF VERSION)
+// EXPENSE TRACKER — FRONTEND CONTROLLER (Vite entry point)
 // ======================================================
 
-// ===============================
-// API LAYER (COOKIE SESSION & AUTO-REFRESH)
-// ===============================
-// The session lives in HttpOnly cookies set by the functions; this layer
-// never sees tokens. On a 401 it refreshes once (single-flight, so parallel
-// 401s share one refresh call) and retries the request.
-const AUTH_PATHS = ['login', 'signup', 'refresh', 'logout'];
+import './style.css';
+import './styleadditions.css';
 
-const API = {
-    _refreshPromise: null,
+import PFDates from './engine/dates.js';
+import PFCycles from './engine/cycles.js';
+import PFProjection from './engine/projection.js';
+import { API } from './api.js';
+import { escapeHtml, showNotification, showAuthScreen, withBusy } from './ui.js';
+import { loadChart } from './charts.js';
 
-    async request(path, options = {}, isRetry = false) {
-        const headers = {
-            'Content-Type': 'application/json',
-            ...(options.headers || {})
-        };
+// The trackers register window.timeTracker / window.workoutTracker.
+import './timetracker.js';
+import './workouttracker.js';
 
-        const res = await fetch(`/.netlify/functions/${path}`, {
-            ...options,
-            headers,
-            credentials: 'same-origin'
-        });
-
-        if (res.status === 401 && !isRetry && !AUTH_PATHS.includes(path)) {
-            const refreshed = await this.refreshSession();
-            if (refreshed) return this.request(path, options, true);
-            showAuthScreen();
-            throw new Error('Session expired. Please log in again.');
-        }
-
-        if (!res.ok) {
-            let message = `Request failed (${res.status})`;
-            try {
-                const data = await res.json();
-                if (data && data.error) message = data.error;
-            } catch { /* non-JSON error body */ }
-            throw new Error(message);
-        }
-
-        return res.status === 204 ? null : res.json();
-    },
-
-    refreshSession() {
-        if (!this._refreshPromise) {
-            this._refreshPromise = fetch('/.netlify/functions/refresh', {
-                method: 'POST',
-                credentials: 'same-origin'
-            })
-                .then(r => r.ok)
-                .catch(() => false);
-            this._refreshPromise.finally(() => { this._refreshPromise = null; });
-        }
-        return this._refreshPromise;
-    },
-
-    me() { return this.request('me'); },
-    login(email, password) { return this.request('login', { method: 'POST', body: JSON.stringify({ email, password }) }); },
-    signup(email, password) { return this.request('signup', { method: 'POST', body: JSON.stringify({ email, password }) }); },
-    logout() { return this.request('logout', { method: 'POST' }); },
-    getCategories() { return this.request('categories'); },
-    addCategory(data) { return this.request('categories', { method: 'POST', body: JSON.stringify(data) }); },
-    getTransactions() { return this.request('transactions'); },
-    addTransaction(tx) { return this.request('transactions', { method: 'POST', body: JSON.stringify(tx) }); },
-    updateTransaction(id, tx) { return this.request(`transactions?id=${id}`, { method: 'PUT', body: JSON.stringify(tx) }); },
-    deleteTransaction(id) { return this.request(`transactions?id=${id}`, { method: 'DELETE' }); }
-};
-
-window.API = API;
-
-// ===============================
-// NOTIFICATION SYSTEM
-// ===============================
-function showNotification(message, type = 'success') {
-    const existing = document.getElementById('toast-notification');
-    if (existing) existing.remove();
-
-    const toast = document.createElement('div');
-    toast.id = 'toast-notification';
-    toast.textContent = message;
-
-    const isError = type === 'error';
-    toast.style.cssText = `
-        position: fixed;
-        bottom: 70px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 290px;
-        background: ${isError ? 'rgba(220,38,38,0.92)' : 'rgba(17,17,34,0.92)'};
-        border: 1px solid ${isError ? 'rgba(255,92,114,0.4)' : 'rgba(124,106,255,0.3)'};
-        color: #fff;
-        padding: 11px 18px;
-        border-radius: 14px;
-        font-family: 'Outfit', sans-serif;
-        font-size: 0.83rem;
-        font-weight: 500;
-        text-align: center;
-        z-index: 99999;
-        opacity: 0;
-        transition: opacity 0.2s ease;
-        box-shadow: 0 8px 28px rgba(0,0,0,0.35);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        pointer-events: none;
-        letter-spacing: 0.01em;
-    `;
-
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => { toast.style.opacity = '1'; });
-    });
-
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 220);
-    }, 3500);
-}
+// Make the toast available to the console / any stragglers.
+window.showNotification = showNotification;
 
 // ===============================
 // AUTH HANDLERS
@@ -139,27 +39,21 @@ function showAuthSuccess(message) {
     document.getElementById('auth-error').style.display = 'none';
 }
 
-// Flips the UI back to the login screen (e.g. when the session expires).
-function showAuthScreen() {
-    const authContainer = document.getElementById('auth-container');
-    const appContainer = document.querySelector('.container');
-    if (authContainer) authContainer.style.display = 'flex';
-    if (appContainer) appContainer.style.display = 'none';
-}
-
 async function handleLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     document.getElementById('auth-error').style.display = 'none';
 
-    try {
-        const data = await API.login(email, password);
-        if (!data || !data.user) throw new Error('Login failed. Please check your credentials.');
-        location.reload();
-    } catch (err) {
-        showAuthError(err.message || 'An error occurred during login.');
-    }
+    await withBusy(e.submitter, '⏳ Signing in...', async () => {
+        try {
+            const data = await API.login(email, password);
+            if (!data || !data.user) throw new Error('Login failed. Please check your credentials.');
+            location.reload();
+        } catch (err) {
+            showAuthError(err.message || 'An error occurred during login.');
+        }
+    });
 }
 
 async function handleSignup(e) {
@@ -178,19 +72,21 @@ async function handleSignup(e) {
         return;
     }
 
-    try {
-        const data = await API.signup(email, password);
-        if (data && data.needsConfirmation) {
-            showAuthSuccess('Account created! Check your email to confirm, then log in.');
-            document.getElementById('signup-form').reset();
-        } else if (data && data.user) {
-            location.reload();
-        } else {
-            throw new Error('Signup failed.');
+    await withBusy(e.submitter, '⏳ Creating account...', async () => {
+        try {
+            const data = await API.signup(email, password);
+            if (data && data.needsConfirmation) {
+                showAuthSuccess('Account created! Check your email to confirm, then log in.');
+                document.getElementById('signup-form').reset();
+            } else if (data && data.user) {
+                location.reload();
+            } else {
+                throw new Error('Signup failed.');
+            }
+        } catch (err) {
+            showAuthError(err.message || 'An error occurred during signup.');
         }
-    } catch (err) {
-        showAuthError(err.message || 'An error occurred during signup.');
-    }
+    });
 }
 
 async function handleLogout() {
@@ -268,7 +164,10 @@ class ExpenseTracker {
     }
 
     async init() {
-        this.setupEventListeners();
+        if (!this._listenersAttached) {
+            this.setupEventListeners();
+            this._listenersAttached = true;
+        }
         this.setTodayDate();
         this.syncSalaryAccountUI();
 
@@ -291,7 +190,13 @@ class ExpenseTracker {
         } catch (error) {
             console.error("Init Error:", error);
             document.getElementById('status-dot').className = 'status-dot error';
-            document.getElementById('status-text').textContent = 'Connection failed';
+            document.getElementById('status-text').textContent = 'Connection failed — tap to retry';
+            const status = document.getElementById('connection-status');
+            if (status) {
+                status.style.cursor = 'pointer';
+                status.addEventListener('click', () => this.init(), { once: true });
+            }
+            showNotification('Could not load your data. Check your connection and tap the status to retry.', 'error');
         }
     }
 
@@ -676,15 +581,17 @@ class ExpenseTracker {
             is_recurring: isRecurring
         };
 
-        try {
-            await API.addTransaction(tx);
-            this.resetForm();
-            this.transactions = await API.getTransactions() || [];
-            this.loadCycleHistory();
-            showNotification('Transaction saved!');
-        } catch (error) {
-            showNotification('Error saving transaction: ' + error.message, 'error');
-        }
+        await withBusy(e.submitter, '💾 Saving...', async () => {
+            try {
+                await API.addTransaction(tx);
+                this.resetForm();
+                this.transactions = await API.getTransactions() || [];
+                this.loadCycleHistory();
+                showNotification('Transaction saved!');
+            } catch (error) {
+                showNotification('Error saving transaction: ' + error.message, 'error');
+            }
+        });
     }
 
     // ===============================
@@ -955,13 +862,7 @@ class ExpenseTracker {
     }
 
     escapeHtml(str) {
-        if (!str) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
+        return escapeHtml(str);
     }
 
     // ===============================
@@ -1099,7 +1000,7 @@ class ExpenseTracker {
     // ===============================
     // CHARTS
     // ===============================
-    renderLineChart(startDate, endDate) {
+    async renderLineChart(startDate, endDate) {
         const cycleTxs = this.getTransactionsInCycle(startDate, endDate);
 
         const today = PFDates.todayStr();
@@ -1120,9 +1021,10 @@ class ExpenseTracker {
 
         const trendData = PFProjection.linearRegression(expenses).trend;
 
-        if (this.chart) this.chart.destroy();
         const canvas = document.getElementById('chart');
         if (!canvas) return;
+        const Chart = await loadChart();
+        if (this.chart) this.chart.destroy();
 
         this.chart = new Chart(canvas.getContext('2d'), {
             type: 'line',
@@ -1189,11 +1091,12 @@ class ExpenseTracker {
         this.renderDonutChart(Object.keys(categoryData), Object.values(categoryData), `Expenses via ${source}`);
     }
 
-    renderDonutChart(labels, data, title) {
-        if (this.expenseDonutChart) this.expenseDonutChart.destroy();
+    async renderDonutChart(labels, data, title) {
         const canvas = document.getElementById('expense-donut-chart');
         if (!canvas) return;
         document.getElementById('donut-chart-title').textContent = title;
+        const Chart = await loadChart();
+        if (this.expenseDonutChart) this.expenseDonutChart.destroy();
 
         this.expenseDonutChart = new Chart(canvas.getContext('2d'), {
             type: 'doughnut',
@@ -1697,16 +1600,9 @@ class ExpenseTracker {
 // ===============================
 // INIT APP
 // ===============================
-document.addEventListener('DOMContentLoaded', async () => {
+async function boot() {
     ThemeManager.init();
 
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('Service Worker registered!', reg))
-                .catch(err => console.error('Service Worker registration failed: ', err));
-        });
-    }
     const authContainer = document.getElementById('auth-container');
     const appContainer = document.querySelector('.container');
 
@@ -1751,4 +1647,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     authContainer.style.display = 'none';
     appContainer.style.display = 'block';
     window.app = new ExpenseTracker(user);
-});
+}
+
+// Module scripts are deferred, but guard both cases anyway.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+} else {
+    boot();
+}

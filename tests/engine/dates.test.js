@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import dates from '../../public/engine/dates.js';
+import dates from '../../src/engine/dates.js';
 
 describe('dates.toDateStr / todayStr', () => {
     it('uses the LOCAL calendar day, not UTC', () => {

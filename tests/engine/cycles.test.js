@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import cycles from '../../public/engine/cycles.js';
+import cycles from '../../src/engine/cycles.js';
 
 const salary = (date, amount = 50000) => ({
     type: 'income', category: 'Salary', transaction_date: date, amount

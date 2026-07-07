@@ -1,11 +1,11 @@
-// Minimal static server for Playwright E2E runs. Serves public/ only —
-// all /.netlify/functions/* calls are stubbed inside the tests, so no
-// Netlify dev server or Supabase credentials are needed.
+// Minimal static server for Playwright E2E runs. Serves the Vite build
+// output (dist/) — all /.netlify/functions/* calls are stubbed inside the
+// tests, so no Netlify dev server or Supabase credentials are needed.
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ROOT = path.join(__dirname, '..', '..', 'public');
+const ROOT = path.join(__dirname, '..', '..', 'dist');
 const PORT = process.env.PORT || 4173;
 
 const TYPES = {

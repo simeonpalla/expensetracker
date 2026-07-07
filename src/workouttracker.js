@@ -5,50 +5,15 @@
 // - After saving a workout, auto-creates a time_log (category Health)
 // ======================================================
 
-(function () {
-    'use strict';
-
-    // ===============================
-    // API extensions
-    // ===============================
-    if (typeof window.API === 'object' && window.API) {
-        window.API.getWorkouts   = function (params) {
-            let path = 'workouts';
-            if (params) {
-                const qs = Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-                if (qs) path += '?' + qs;
-            }
-            return this.request(path);
-        };
-        window.API.addWorkout    = function (data) { return this.request('workouts', { method: 'POST', body: JSON.stringify(data) }); };
-        window.API.deleteWorkout = function (id)   { return this.request(`workouts?id=${id}`, { method: 'DELETE' }); };
-    }
+import { API } from './api.js';
+import { escapeHtml, showNotification, showGenericConfirm } from './ui.js';
+import { loadChart } from './charts.js';
 
     // ===============================
     // Helpers
     // ===============================
-    function escapeHtml(str) {
-        if (str == null) return '';
-        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    }
-
     function toDateStr(d) {
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    }
-
-    function showGenericConfirm(title, message, onConfirm) {
-        const overlay = document.getElementById('generic-confirm-modal-overlay');
-        document.getElementById('generic-confirm-title').textContent = title;
-        document.getElementById('generic-confirm-message').textContent = message;
-        const yes = document.getElementById('generic-confirm-yes');
-        const no  = document.getElementById('generic-confirm-no');
-        const newYes = yes.cloneNode(true); const newNo = no.cloneNode(true);
-        yes.parentNode.replaceChild(newYes, yes); no.parentNode.replaceChild(newNo, no);
-        const close = () => { overlay.style.display = 'none'; };
-        newYes.addEventListener('click', () => { close(); onConfirm(); });
-        newNo.addEventListener('click', close);
-        overlay.addEventListener('click', e => { if (e.target === overlay) close(); }, { once: true });
-        overlay.style.display = 'flex';
     }
 
     // ===============================
@@ -226,7 +191,7 @@
                 duration_minutes: durationMin
             };
             try {
-                await window.API.addWorkout(payload);
+                await API.addWorkout(payload);
                 await this.createTimeLogForWorkout(payload, durationMin);
                 this.hidePreview();
                 const ta = document.getElementById('workout-paste'); if (ta) ta.value = '';
@@ -253,7 +218,7 @@
                 start_time: startDate.toISOString(), end_time: endDate.toISOString(),
                 duration_seconds: durationMin * 60, date: workout.date, notes: 'Auto-logged from workout'
             };
-            try { await window.API.addTimeLog(payload); } catch (err) { console.warn('Auto-timelog failed:', err); }
+            try { await API.addTimeLog(payload); } catch (err) { console.warn('Auto-timelog failed:', err); }
         }
 
         _parseHevyTime(dateStr, timeStr) {
@@ -268,7 +233,7 @@
         }
 
         async loadWorkouts() {
-            try { this.workouts = await window.API.getWorkouts() || []; }
+            try { this.workouts = await API.getWorkouts() || []; }
             catch (err) { console.error('loadWorkouts failed', err); this.workouts = []; }
         }
 
@@ -340,15 +305,16 @@
 
         async deleteWorkout(id) {
             try {
-                await window.API.deleteWorkout(id);
+                await API.deleteWorkout(id);
                 await this.loadWorkouts(); this.renderAll();
                 showNotification('Workout deleted.');
             } catch (err) { showNotification('Error deleting: ' + err.message, 'error'); }
         }
 
-        renderProgressionChart(exerciseName) {
+        async renderProgressionChart(exerciseName) {
             const canvas = document.getElementById('workout-progression-chart');
-            if (!canvas || typeof Chart === 'undefined') return;
+            if (!canvas) return;
+            const Chart = await loadChart();
             if (this.progressionChart) { this.progressionChart.destroy(); this.progressionChart = null; }
             if (!exerciseName) return;
 
@@ -390,4 +356,3 @@
     window.WorkoutParser   = WorkoutParser;
     window.WorkoutTracker  = WorkoutTracker;
     window.workoutTracker  = new WorkoutTracker();
-})();

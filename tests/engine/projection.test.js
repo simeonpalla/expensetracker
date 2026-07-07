@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import projection from '../../public/engine/projection.js';
+import projection from '../../src/engine/projection.js';
 
 const salary = (date, amount = 30000) => ({
     type: 'income', category: 'Salary', transaction_date: date, amount
