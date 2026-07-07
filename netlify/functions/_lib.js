@@ -67,10 +67,7 @@ function sessionCookies(session) {
 }
 
 function clearSessionCookies() {
-    return [
-        cookie(ACCESS_COOKIE, '', 0),
-        cookie(REFRESH_COOKIE, '', 0)
-    ];
+    return [cookie(ACCESS_COOKIE, '', 0), cookie(REFRESH_COOKIE, '', 0)];
 }
 
 // ---------- auth ----------

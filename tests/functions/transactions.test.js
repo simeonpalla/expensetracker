@@ -93,9 +93,11 @@ describe('transactions GET', () => {
         const res = await transactions.handler(event({}));
         expect(res.statusCode).toBe(200);
         expect(JSON.parse(res.body)).toEqual([{ id: 1 }]);
-        expect(state.calls).toContainEqual(
-            { table: 'transactions', method: 'eq', args: ['user_id', 'user-1'] }
-        );
+        expect(state.calls).toContainEqual({
+            table: 'transactions',
+            method: 'eq',
+            args: ['user_id', 'user-1']
+        });
     });
 });
 
@@ -109,10 +111,12 @@ describe('transactions POST', () => {
     });
 
     it('strips mass-assigned fields (user_id, id, created_at, junk)', async () => {
-        const res = await transactions.handler(event({
-            method: 'POST',
-            body: { ...validTx, user_id: 'attacker', id: 999, created_at: 'x', evil: true }
-        }));
+        const res = await transactions.handler(
+            event({
+                method: 'POST',
+                body: { ...validTx, user_id: 'attacker', id: 999, created_at: 'x', evil: true }
+            })
+        );
         expect(res.statusCode).toBe(200);
         const inserted = state.calls.find(c => c.method === 'insert').args[0][0];
         expect(inserted.user_id).toBe('user-1'); // not 'attacker'
@@ -139,26 +143,42 @@ describe('transactions POST', () => {
 
 describe('transactions PUT/DELETE', () => {
     it('PUT requires an id and at least one valid field', async () => {
-        expect((await transactions.handler(event({ method: 'PUT', body: { amount: 10 } }))).statusCode).toBe(400);
-        expect((await transactions.handler(event({ method: 'PUT', id: '7', body: { junk: 1 } }))).statusCode).toBe(400);
+        expect((await transactions.handler(event({ method: 'PUT', body: { amount: 10 } }))).statusCode).toBe(
+            400
+        );
+        expect(
+            (await transactions.handler(event({ method: 'PUT', id: '7', body: { junk: 1 } }))).statusCode
+        ).toBe(400);
     });
 
     it('PUT updates only whitelisted fields, scoped to id + user', async () => {
-        const res = await transactions.handler(event({
-            method: 'PUT', id: '7', body: { amount: 100, user_id: 'attacker' }
-        }));
+        const res = await transactions.handler(
+            event({
+                method: 'PUT',
+                id: '7',
+                body: { amount: 100, user_id: 'attacker' }
+            })
+        );
         expect(res.statusCode).toBe(200);
         const update = state.calls.find(c => c.method === 'update');
         expect(update.args[0]).toEqual({ amount: 100 });
         expect(state.calls).toContainEqual({ table: 'transactions', method: 'eq', args: ['id', '7'] });
-        expect(state.calls).toContainEqual({ table: 'transactions', method: 'eq', args: ['user_id', 'user-1'] });
+        expect(state.calls).toContainEqual({
+            table: 'transactions',
+            method: 'eq',
+            args: ['user_id', 'user-1']
+        });
     });
 
     it('DELETE requires an id and scopes to the user', async () => {
         expect((await transactions.handler(event({ method: 'DELETE' }))).statusCode).toBe(400);
         const res = await transactions.handler(event({ method: 'DELETE', id: '7' }));
         expect(res.statusCode).toBe(200);
-        expect(state.calls).toContainEqual({ table: 'transactions', method: 'eq', args: ['user_id', 'user-1'] });
+        expect(state.calls).toContainEqual({
+            table: 'transactions',
+            method: 'eq',
+            args: ['user_id', 'user-1']
+        });
     });
 
     it('database errors surface as a generic 500', async () => {

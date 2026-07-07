@@ -2,10 +2,16 @@ import { describe, it, expect } from 'vitest';
 import cycles from '../../src/engine/cycles.js';
 
 const salary = (date, amount = 50000) => ({
-    type: 'income', category: 'Salary', transaction_date: date, amount
+    type: 'income',
+    category: 'Salary',
+    transaction_date: date,
+    amount
 });
 const expense = (date, amount, category = 'Food') => ({
-    type: 'expense', category, transaction_date: date, amount
+    type: 'expense',
+    category,
+    transaction_date: date,
+    amount
 });
 
 describe('cycles.salaryTransactions', () => {
@@ -24,9 +30,7 @@ describe('cycles.salaryTransactions', () => {
 describe('cycles.deriveCycles', () => {
     it('falls back to calendar month-to-date when there is no salary at all', () => {
         const result = cycles.deriveCycles([expense('2026-07-03', 100)], '2026-07-07');
-        expect(result).toEqual([
-            { start: '2026-07-01', end: '2026-07-07', isCurrent: true, fallback: true }
-        ]);
+        expect(result).toEqual([{ start: '2026-07-01', end: '2026-07-07', isCurrent: true, fallback: true }]);
     });
 
     it('first cycle ever: one current cycle from salary date to today', () => {
@@ -58,10 +62,7 @@ describe('cycles.expectedCycleLength', () => {
 
     it('uses the median salary gap (NOT hard-coded 30)', () => {
         // gaps: 31, 28, 33 -> median 31
-        const txs = [
-            salary('2026-03-01'), salary('2026-04-01'),
-            salary('2026-04-29'), salary('2026-06-01')
-        ];
+        const txs = [salary('2026-03-01'), salary('2026-04-01'), salary('2026-04-29'), salary('2026-06-01')];
         expect(cycles.expectedCycleLength(txs)).toBe(31);
     });
 
@@ -81,12 +82,12 @@ describe('cycles.dayOfCycle', () => {
 describe('cycles.historicalSpendByCycleDay', () => {
     it('maps expenses to day-of-cycle across past cycles and skips pre-salary expenses', () => {
         const txs = [
-            expense('2026-04-15', 999),          // before any salary: skipped
+            expense('2026-04-15', 999), // before any salary: skipped
             salary('2026-05-01'),
-            expense('2026-05-01', 100),          // day 1
-            expense('2026-05-03', 200),          // day 3
+            expense('2026-05-01', 100), // day 1
+            expense('2026-05-03', 200), // day 3
             salary('2026-06-01'),
-            expense('2026-06-03', 400),          // day 3 of the next cycle
+            expense('2026-06-03', 400), // day 3 of the next cycle
             expense('2026-06-20', 50)
         ];
         const map = cycles.historicalSpendByCycleDay(txs, '2026-07-01');

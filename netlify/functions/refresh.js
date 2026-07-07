@@ -2,8 +2,13 @@
 // refresh-token cookie and sets fresh cookies.
 
 const {
-    json, anonClient, getRefreshToken, sessionCookies, clearSessionCookies,
-    rateLimit, clientIp
+    json,
+    anonClient,
+    getRefreshToken,
+    sessionCookies,
+    clearSessionCookies,
+    rateLimit,
+    clientIp
 } = require('./_lib');
 
 exports.handler = async function (event) {
@@ -21,12 +26,20 @@ exports.handler = async function (event) {
     const { data, error } = await supabase.auth.refreshSession({ refresh_token });
 
     if (error || !data?.session) {
-        return json(401, { error: 'Session expired' }, {
-            multiValueHeaders: { 'Set-Cookie': clearSessionCookies() }
-        });
+        return json(
+            401,
+            { error: 'Session expired' },
+            {
+                multiValueHeaders: { 'Set-Cookie': clearSessionCookies() }
+            }
+        );
     }
 
-    return json(200, { user: { id: data.user.id, email: data.user.email } }, {
-        multiValueHeaders: { 'Set-Cookie': sessionCookies(data.session) }
-    });
+    return json(
+        200,
+        { user: { id: data.user.id, email: data.user.email } },
+        {
+            multiValueHeaders: { 'Set-Cookie': sessionCookies(data.session) }
+        }
+    );
 };

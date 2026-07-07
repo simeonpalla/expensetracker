@@ -22,14 +22,26 @@ const CATEGORIES = [
 function fixtureTransactions() {
     return [
         {
-            id: 't1', type: 'income', category: 'Salary', amount: 50000,
-            transaction_date: dstr(-5), payment_to: 'Employer',
-            payment_source: 'salary', source_details: 'UBI', is_recurring: false
+            id: 't1',
+            type: 'income',
+            category: 'Salary',
+            amount: 50000,
+            transaction_date: dstr(-5),
+            payment_to: 'Employer',
+            payment_source: 'salary',
+            source_details: 'UBI',
+            is_recurring: false
         },
         {
-            id: 't2', type: 'expense', category: 'Food', amount: 1200,
-            transaction_date: dstr(-2), payment_to: 'Zomato',
-            payment_source: 'upi', source_details: 'UBI', is_recurring: false
+            id: 't2',
+            type: 'expense',
+            category: 'Food',
+            amount: 1200,
+            transaction_date: dstr(-2),
+            payment_to: 'Zomato',
+            payment_source: 'upi',
+            source_details: 'UBI',
+            is_recurring: false
         }
     ];
 }
@@ -44,7 +56,12 @@ async function stubApi(page, state) {
         const fn = url.pathname.replace('/.netlify/functions/', '');
         const method = route.request().method();
 
-        if (fn === 'me') return json(route, state.loggedIn ? { user: USER } : { error: 'Not signed in' }, state.loggedIn ? 200 : 401);
+        if (fn === 'me')
+            return json(
+                route,
+                state.loggedIn ? { user: USER } : { error: 'Not signed in' },
+                state.loggedIn ? 200 : 401
+            );
         if (fn === 'refresh') return json(route, { error: 'Not signed in' }, 401);
         if (fn === 'login') {
             const body = route.request().postDataJSON();
@@ -66,7 +83,10 @@ async function stubApi(page, state) {
         if (fn === 'timelogs') return json(route, []);
         if (fn === 'workouts') return json(route, []);
         if (fn === 'activetimer') return json(route, null);
-        if (fn === 'logout') { state.loggedIn = false; return json(route, { ok: true }); }
+        if (fn === 'logout') {
+            state.loggedIn = false;
+            return json(route, { ok: true });
+        }
         return json(route, { error: `unstubbed: ${fn}` }, 500);
     });
 }
@@ -125,7 +145,8 @@ test('add transaction -> dashboard totals, list and charts update', async ({ pag
     // Charts rendered (Chart.js attaches to the canvases).
     await expect(page.locator('#chart')).toBeVisible();
     const hasCharts = await page.evaluate(() =>
-        Boolean(window.app && window.app.chart && window.app.expenseDonutChart));
+        Boolean(window.app && window.app.chart && window.app.expenseDonutChart)
+    );
     expect(hasCharts).toBe(true);
 
     // Projection card computed something (engine ran without errors).

@@ -1,10 +1,7 @@
 // login.js — POST { email, password } -> sets HttpOnly session cookies.
 // Tokens are never returned in the response body.
 
-const {
-    json, anonClient, readJsonBody, sessionCookies,
-    rateLimit, clientIp, isEmail
-} = require('./_lib');
+const { json, anonClient, readJsonBody, sessionCookies, rateLimit, clientIp, isEmail } = require('./_lib');
 
 exports.handler = async function (event) {
     if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
@@ -30,7 +27,11 @@ exports.handler = async function (event) {
         return json(401, { error: 'Invalid email or password.' });
     }
 
-    return json(200, { user: { id: data.user.id, email: data.user.email } }, {
-        multiValueHeaders: { 'Set-Cookie': sessionCookies(data.session) }
-    });
+    return json(
+        200,
+        { user: { id: data.user.id, email: data.user.email } },
+        {
+            multiValueHeaders: { 'Set-Cookie': sessionCookies(data.session) }
+        }
+    );
 };

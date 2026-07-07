@@ -38,7 +38,8 @@ function patternFutureSpend(spendByDay, daysPassed, cycleLength) {
 // Recency-weighted burn rate x remaining days.
 function weightedRecencyFutureSpend(cycleTxs, today, daysPassed, daysRemaining) {
     const recentWindowStart = dates.addDays(today, -6); // last 7 days incl. today
-    let recentSpend = 0, earlierSpend = 0;
+    let recentSpend = 0,
+        earlierSpend = 0;
 
     (cycleTxs || []).forEach(t => {
         if (t.type !== 'expense') return;
@@ -53,7 +54,7 @@ function weightedRecencyFutureSpend(cycleTxs, today, daysPassed, daysRemaining) 
     const recentRate = recentDays > 0 ? recentSpend / recentDays : 0;
     const earlierRate = earlierDays > 0 ? earlierSpend / earlierDays : recentRate;
 
-    return ((recentRate * 0.6) + (earlierRate * 0.4)) * daysRemaining;
+    return (recentRate * 0.6 + earlierRate * 0.4) * daysRemaining;
 }
 
 // The single entry point used by the dashboard card and the insights page.
@@ -61,7 +62,8 @@ function weightedRecencyFutureSpend(cycleTxs, today, daysPassed, daysRemaining) 
 function projectCycle(transactions, cycleStart, today) {
     const cycleTxs = cycles.transactionsInCycle(transactions, cycleStart, today);
 
-    let income = 0, expensesSoFar = 0;
+    let income = 0,
+        expensesSoFar = 0;
     cycleTxs.forEach(t => {
         const amt = Number(t.amount);
         if (t.type === 'income') income += amt;
@@ -72,8 +74,8 @@ function projectCycle(transactions, cycleStart, today) {
     const cycleLength = cycles.expectedCycleLength(transactions);
     const daysRemaining = Math.max(0, cycleLength - daysPassed);
 
-    const historicalExpenses = (transactions || []).filter(t =>
-        t.type === 'expense' && t.transaction_date < cycleStart
+    const historicalExpenses = (transactions || []).filter(
+        t => t.type === 'expense' && t.transaction_date < cycleStart
     );
 
     let mode, projectedFutureSpend;
@@ -108,7 +110,8 @@ function linearRegression(values) {
     if (n === 0) return { slope: 0, intercept: 0, trend: [] };
     const xMean = (n - 1) / 2;
     const yMean = values.reduce((a, b) => a + b, 0) / n;
-    let num = 0, den = 0;
+    let num = 0,
+        den = 0;
     values.forEach((y, x) => {
         num += (x - xMean) * (y - yMean);
         den += (x - xMean) ** 2;
@@ -140,7 +143,9 @@ function historicalMonths(transactions, cycleStart) {
     const historical = (transactions || []).filter(t => t.transaction_date < cycleStart);
     if (historical.length === 0) return 1;
     let earliest = historical[0].transaction_date;
-    historical.forEach(t => { if (t.transaction_date < earliest) earliest = t.transaction_date; });
+    historical.forEach(t => {
+        if (t.transaction_date < earliest) earliest = t.transaction_date;
+    });
     const msPerMonth = 86400000 * 30.44;
     const span = dates.diffDays(earliest, cycleStart) * 86400000;
     return Math.max(1, span / msPerMonth);
@@ -165,7 +170,10 @@ function computeAnomalies(currentSpend, historicalSpend, months, minDiff = 500) 
 
 // Average spend per weekend day vs per weekday, over days that had expenses.
 function weekendWeekdayStats(expenseTxs) {
-    let weekendSpend = 0, weekdaySpend = 0, weekendDays = 0, weekdayDays = 0;
+    let weekendSpend = 0,
+        weekdaySpend = 0,
+        weekendDays = 0,
+        weekdayDays = 0;
 
     const isWeekend = dateStr => {
         const dow = new Date(`${dateStr}T12:00:00Z`).getUTCDay();
@@ -201,21 +209,22 @@ function cycleExpenseTotals(transactions, today) {
         .map(c => ({
             start: c.start,
             end: c.end,
-            total: cycles.transactionsInCycle(transactions, c.start, c.end)
+            total: cycles
+                .transactionsInCycle(transactions, c.start, c.end)
                 .filter(t => t.type === 'expense')
                 .reduce((s, t) => s + Number(t.amount), 0)
         }));
 }
 
 export default {
-HISTORY_THRESHOLD,
-projectCycle,
-patternFutureSpend,
-weightedRecencyFutureSpend,
-linearRegression,
-spendByCategory,
-historicalMonths,
-computeAnomalies,
-weekendWeekdayStats,
-cycleExpenseTotals
+    HISTORY_THRESHOLD,
+    projectCycle,
+    patternFutureSpend,
+    weightedRecencyFutureSpend,
+    linearRegression,
+    spendByCategory,
+    historicalMonths,
+    computeAnomalies,
+    weekendWeekdayStats,
+    cycleExpenseTotals
 };

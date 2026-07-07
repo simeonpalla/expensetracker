@@ -75,7 +75,9 @@ describe('login function', () => {
         expect(res.statusCode).toBe(200);
         const cookies = res.multiValueHeaders['Set-Cookie'];
         expect(cookies.some(c => c.includes('sb-access-token=ACCESS') && c.includes('HttpOnly'))).toBe(true);
-        expect(cookies.some(c => c.includes('sb-refresh-token=REFRESH') && c.includes('HttpOnly'))).toBe(true);
+        expect(cookies.some(c => c.includes('sb-refresh-token=REFRESH') && c.includes('HttpOnly'))).toBe(
+            true
+        );
         expect(res.body).not.toContain('ACCESS');
         expect(res.body).not.toContain('REFRESH');
         expect(JSON.parse(res.body).user).toEqual({ id: 'u1', email: 'a@b.co' });

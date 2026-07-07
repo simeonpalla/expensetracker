@@ -9,7 +9,7 @@ const { json, requireUser, readJsonBody, isDateStr, cleanString } = require('./_
 
 const ALLOWED_CATEGORIES = ['Work', 'Health', 'Personal', 'Leisure', 'Sleep'];
 
-exports.handler = async (event) => {
+exports.handler = async event => {
     const auth = await requireUser(event);
     if (!auth) return json(401, { error: 'Unauthorized' });
     const { supabase } = auth;
@@ -70,17 +70,13 @@ exports.handler = async (event) => {
 
         // ── DELETE ── clear active timer
         if (method === 'DELETE') {
-            const { error } = await supabase
-                .from('active_timers')
-                .delete()
-                .eq('user_id', userId);
+            const { error } = await supabase.from('active_timers').delete().eq('user_id', userId);
 
             if (error) throw error;
             return { statusCode: 204, body: '' };
         }
 
         return json(405, { error: 'Method not allowed' });
-
     } catch (err) {
         console.error('active-timer error:', err);
         return json(500, { error: err.message || 'Internal server error' });

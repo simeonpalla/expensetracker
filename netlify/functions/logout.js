@@ -13,7 +13,11 @@ exports.handler = async function (event) {
         console.warn('logout: revoke failed', err.message);
     }
 
-    return json(200, { ok: true }, {
-        multiValueHeaders: { 'Set-Cookie': clearSessionCookies() }
-    });
+    return json(
+        200,
+        { ok: true },
+        {
+            multiValueHeaders: { 'Set-Cookie': clearSessionCookies() }
+        }
+    );
 };

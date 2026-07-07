@@ -48,7 +48,9 @@ export function showNotification(message, type = 'success') {
 
     document.body.appendChild(toast);
     requestAnimationFrame(() => {
-        requestAnimationFrame(() => { toast.style.opacity = '1'; });
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+        });
     });
 
     setTimeout(() => {
@@ -76,10 +78,21 @@ export function showGenericConfirm(title, message, onConfirm) {
     const newNo = no.cloneNode(true);
     yes.parentNode.replaceChild(newYes, yes);
     no.parentNode.replaceChild(newNo, no);
-    const close = () => { overlay.style.display = 'none'; };
-    newYes.addEventListener('click', () => { close(); onConfirm(); });
+    const close = () => {
+        overlay.style.display = 'none';
+    };
+    newYes.addEventListener('click', () => {
+        close();
+        onConfirm();
+    });
     newNo.addEventListener('click', close);
-    overlay.addEventListener('click', e => { if (e.target === overlay) close(); }, { once: true });
+    overlay.addEventListener(
+        'click',
+        e => {
+            if (e.target === overlay) close();
+        },
+        { once: true }
+    );
     overlay.style.display = 'flex';
 }
 

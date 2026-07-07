@@ -57,11 +57,15 @@ describe('_lib cookies', () => {
     });
 
     it('getAccessToken prefers the cookie, falls back to Bearer header', () => {
-        expect(lib.getAccessToken({ headers: { cookie: `${lib.ACCESS_COOKIE}=fromcookie` } })).toBe('fromcookie');
+        expect(lib.getAccessToken({ headers: { cookie: `${lib.ACCESS_COOKIE}=fromcookie` } })).toBe(
+            'fromcookie'
+        );
         expect(lib.getAccessToken({ headers: { authorization: 'Bearer fromheader' } })).toBe('fromheader');
-        expect(lib.getAccessToken({
-            headers: { cookie: `${lib.ACCESS_COOKIE}=fromcookie`, authorization: 'Bearer fromheader' }
-        })).toBe('fromcookie');
+        expect(
+            lib.getAccessToken({
+                headers: { cookie: `${lib.ACCESS_COOKIE}=fromcookie`, authorization: 'Bearer fromheader' }
+            })
+        ).toBe('fromcookie');
         expect(lib.getAccessToken({ headers: {} })).toBe(null);
     });
 });
@@ -94,7 +98,8 @@ describe('_lib rateLimit', () => {
     });
 
     it('buckets are independent per key', () => {
-        const a = `a-${Date.now()}`, b = `b-${Date.now()}`;
+        const a = `a-${Date.now()}`,
+            b = `b-${Date.now()}`;
         expect(lib.rateLimit('t2', a, 1, 60000)).toBe(true);
         expect(lib.rateLimit('t2', a, 1, 60000)).toBe(false);
         expect(lib.rateLimit('t2', b, 1, 60000)).toBe(true);

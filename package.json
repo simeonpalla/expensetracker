@@ -1,40 +1,47 @@
 {
-  "name": "expensetracker",
-  "version": "1.0.0",
-  "description": "Personal OS — salary-cycle expense tracker with time and workout tracking. Vanilla JS + Vite + Supabase + Netlify Functions.",
-  "main": "src/main.js",
-  "engines": {
-    "node": ">=20"
-  },
-  "scripts": {
-    "build": "vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "dev": "netlify dev",
-    "dev:vite": "vite"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/simeonpalla/expensetracker.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/simeonpalla/expensetracker/issues"
-  },
-  "homepage": "https://github.com/simeonpalla/expensetracker#readme",
-  "dependencies": {
-    "@supabase/supabase-js": "^2.98.0",
-    "chart.js": "^4.5.1"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.61.1",
-    "netlify-cli": "^26.2.0",
-    "vite": "^6.4.3",
-    "vite-plugin-pwa": "^1.3.0",
-    "vitest": "^3.2.7"
-  }
+    "name": "expensetracker",
+    "version": "1.0.0",
+    "description": "Personal OS — salary-cycle expense tracker with time and workout tracking. Vanilla JS + Vite + Supabase + Netlify Functions.",
+    "main": "src/main.js",
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "build": "vite build",
+        "preview": "vite preview",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:e2e": "playwright test",
+        "dev": "netlify dev",
+        "dev:vite": "vite"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/simeonpalla/expensetracker.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/simeonpalla/expensetracker/issues"
+    },
+    "homepage": "https://github.com/simeonpalla/expensetracker#readme",
+    "dependencies": {
+        "@supabase/supabase-js": "^2.98.0",
+        "chart.js": "^4.5.1"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@playwright/test": "^1.61.1",
+        "eslint": "^10.6.0",
+        "globals": "^17.7.0",
+        "netlify-cli": "^26.2.0",
+        "prettier": "^3.9.4",
+        "vite": "^6.4.3",
+        "vite-plugin-pwa": "^1.3.0",
+        "vitest": "^3.2.7"
+    }
 }

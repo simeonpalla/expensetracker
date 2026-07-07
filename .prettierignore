@@ -1,0 +1,13 @@
+# Build and vendor output
+dist
+dev-dist
+node_modules
+playwright-report
+test-results
+package-lock.json
+
+# Markup/styles keep their hand-maintained formatting for now
+# (formatting them is pure churn against 8 months of git history)
+*.html
+*.css
+*.md

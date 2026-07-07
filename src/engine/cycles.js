@@ -8,7 +8,12 @@
 import dates from './dates.js';
 
 function isSalaryTx(t) {
-    return t.type === 'income' && String(t.category || '').toLowerCase().includes('salary');
+    return (
+        t.type === 'income' &&
+        String(t.category || '')
+            .toLowerCase()
+            .includes('salary')
+    );
 }
 
 // Salary transactions sorted by date ascending.
@@ -33,7 +38,11 @@ function deriveCycles(transactions, today) {
         if (i === salaries.length - 1) {
             cycles.push({ start, end: today, isCurrent: true });
         } else {
-            cycles.push({ start, end: dates.addDays(salaries[i + 1].transaction_date, -1), isCurrent: false });
+            cycles.push({
+                start,
+                end: dates.addDays(salaries[i + 1].transaction_date, -1),
+                isCurrent: false
+            });
         }
     }
     return cycles;
@@ -64,9 +73,7 @@ function dayOfCycle(cycleStart, dateStr) {
 
 function transactionsInCycle(transactions, start, end) {
     if (!start || !end) return [];
-    return (transactions || []).filter(t =>
-        t.transaction_date >= start && t.transaction_date <= end
-    );
+    return (transactions || []).filter(t => t.transaction_date >= start && t.transaction_date <= end);
 }
 
 // Maps each historical expense to its day-of-cycle number across all past
@@ -111,22 +118,25 @@ function noSpendStreak(cycleTxs, start, today) {
         else break;
     }
 
-    let bestStreak = 0, run = 0;
+    let bestStreak = 0,
+        run = 0;
     days.forEach(d => {
-        if (!spent.has(d)) { run++; bestStreak = Math.max(bestStreak, run); }
-        else run = 0;
+        if (!spent.has(d)) {
+            run++;
+            bestStreak = Math.max(bestStreak, run);
+        } else run = 0;
     });
 
     return { currentStreak, bestStreak };
 }
 
 export default {
-isSalaryTx,
-salaryTransactions,
-deriveCycles,
-expectedCycleLength,
-dayOfCycle,
-transactionsInCycle,
-historicalSpendByCycleDay,
-noSpendStreak
+    isSalaryTx,
+    salaryTransactions,
+    deriveCycles,
+    expectedCycleLength,
+    dayOfCycle,
+    transactionsInCycle,
+    historicalSpendByCycleDay,
+    noSpendStreak
 };

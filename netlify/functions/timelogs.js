@@ -33,7 +33,7 @@ function validateTimeLog(body) {
     return errors;
 }
 
-exports.handler = async (event) => {
+exports.handler = async event => {
     const auth = await requireUser(event);
     if (!auth) return json(401, { error: 'Unauthorized' });
     const { supabase } = auth;
@@ -52,11 +52,12 @@ exports.handler = async (event) => {
                 .order('start_time', { ascending: false });
 
             for (const p of ['date', 'from', 'to']) {
-                if (params[p] && !isDateStr(params[p])) return json(400, { error: `${p} must be YYYY-MM-DD` });
+                if (params[p] && !isDateStr(params[p]))
+                    return json(400, { error: `${p} must be YYYY-MM-DD` });
             }
             if (params.date) query = query.eq('date', params.date);
             if (params.from) query = query.gte('date', params.from);
-            if (params.to)   query = query.lte('date', params.to);
+            if (params.to) query = query.lte('date', params.to);
 
             const { data, error } = await query;
             if (error) throw error;
@@ -83,11 +84,7 @@ exports.handler = async (event) => {
                 notes: body.notes ? String(body.notes).trim() : null
             };
 
-            const { data, error } = await supabase
-                .from('time_logs')
-                .insert(insertPayload)
-                .select()
-                .single();
+            const { data, error } = await supabase.from('time_logs').insert(insertPayload).select().single();
 
             if (error) throw error;
             return json(201, data);
@@ -115,11 +112,13 @@ exports.handler = async (event) => {
                 updatePayload.category = body.category;
             }
             if (body.start_time !== undefined) {
-                if (!isIsoTimestamp(body.start_time)) return json(400, { error: 'start_time must be an ISO timestamp' });
+                if (!isIsoTimestamp(body.start_time))
+                    return json(400, { error: 'start_time must be an ISO timestamp' });
                 updatePayload.start_time = body.start_time;
             }
             if (body.end_time !== undefined) {
-                if (!isIsoTimestamp(body.end_time)) return json(400, { error: 'end_time must be an ISO timestamp' });
+                if (!isIsoTimestamp(body.end_time))
+                    return json(400, { error: 'end_time must be an ISO timestamp' });
                 updatePayload.end_time = body.end_time;
             }
             if (body.duration_seconds !== undefined) {
@@ -134,7 +133,7 @@ exports.handler = async (event) => {
                 updatePayload.date = body.date;
             }
             if (body.notes !== undefined) {
-                updatePayload.notes = body.notes ? (cleanString(body.notes, 500) || null) : null;
+                updatePayload.notes = body.notes ? cleanString(body.notes, 500) || null : null;
             }
 
             const { data, error } = await supabase
@@ -146,7 +145,7 @@ exports.handler = async (event) => {
                 .single();
 
             if (error) throw error;
-            if (!data)  return json(404, { error: 'Not found' });
+            if (!data) return json(404, { error: 'Not found' });
             return json(200, data);
         }
 
@@ -155,18 +154,13 @@ exports.handler = async (event) => {
             const id = params.id;
             if (!id) return json(400, { error: 'id query parameter required' });
 
-            const { error } = await supabase
-                .from('time_logs')
-                .delete()
-                .eq('id', id)
-                .eq('user_id', userId);
+            const { error } = await supabase.from('time_logs').delete().eq('id', id).eq('user_id', userId);
 
             if (error) throw error;
             return { statusCode: 204, body: '' };
         }
 
         return json(405, { error: 'Method not allowed' });
-
     } catch (err) {
         console.error('timelogs error:', err);
         return json(500, { error: err.message || 'Internal server error' });

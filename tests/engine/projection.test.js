@@ -2,10 +2,16 @@ import { describe, it, expect } from 'vitest';
 import projection from '../../src/engine/projection.js';
 
 const salary = (date, amount = 30000) => ({
-    type: 'income', category: 'Salary', transaction_date: date, amount
+    type: 'income',
+    category: 'Salary',
+    transaction_date: date,
+    amount
 });
 const expense = (date, amount, category = 'Food') => ({
-    type: 'expense', category, transaction_date: date, amount
+    type: 'expense',
+    category,
+    transaction_date: date,
+    amount
 });
 
 // A history with >=10 expenses spread over two past cycles, so pattern mode
@@ -65,10 +71,15 @@ describe('projectCycle — pattern mode', () => {
         // Salary gaps of 31 days; an expense on day 31 of past cycles must be
         // included in the projection (the old code stopped at day 30).
         const txs = [salary('2026-04-30'), salary('2026-05-31'), salary('2026-07-01')];
-        for (const [start, d31] of [['2026-04-30', '2026-05-30'], ['2026-05-31', '2026-06-30']]) {
+        for (const [start, d31] of [
+            ['2026-04-30', '2026-05-30'],
+            ['2026-05-31', '2026-06-30']
+        ]) {
             txs.push(expense(d31, 1000)); // day 31 of that cycle
             for (let i = 2; i <= 6; i++) {
-                const day = new Date(Date.UTC(2026, Number(start.slice(5, 7)) - 1, Number(start.slice(8, 10)) + i - 1, 12));
+                const day = new Date(
+                    Date.UTC(2026, Number(start.slice(5, 7)) - 1, Number(start.slice(8, 10)) + i - 1, 12)
+                );
                 txs.push(expense(day.toISOString().slice(0, 10), 10));
             }
         }
@@ -91,14 +102,14 @@ describe('projectCycle — weighted-recency mode', () => {
         // Cycle started 14 days ago. Earlier window (days 1-7): 700 total.
         // Recent window (last 7 days incl. today): 1400 total.
         const txs = [salary('2026-07-01', 30000)];
-        txs.push(expense('2026-07-02', 700));   // earlier
-        txs.push(expense('2026-07-10', 1400));  // recent (>= 2026-07-08)
+        txs.push(expense('2026-07-02', 700)); // earlier
+        txs.push(expense('2026-07-10', 1400)); // recent (>= 2026-07-08)
         const r = projection.projectCycle(txs, '2026-07-01', '2026-07-14');
 
         expect(r.mode).toBe('recency');
         expect(r.daysPassed).toBe(14);
-        const recentRate = 1400 / 7;   // 200/day
-        const earlierRate = 700 / 7;   // 100/day
+        const recentRate = 1400 / 7; // 200/day
+        const earlierRate = 700 / 7; // 100/day
         const expectedRate = recentRate * 0.6 + earlierRate * 0.4; // 160/day
         expect(r.projectedFutureSpend).toBeCloseTo(expectedRate * r.daysRemaining, 5);
     });
@@ -116,8 +127,8 @@ describe('projectCycle — weighted-recency mode', () => {
         // All spend was early in the cycle; the last 7 days are quiet.
         const txs = [salary('2026-07-01', 30000), expense('2026-07-02', 7000)];
         const r = projection.projectCycle(txs, '2026-07-01', '2026-07-14');
-        const earlierRate = 7000 / 7; // 1000/day in the earlier window
-        // recentRate = 0, so rate = 0*0.6 + 1000*0.4 = 400/day
+        // earlier window: 7000/7 = 1000/day; recentRate = 0
+        // rate = 0*0.6 + 1000*0.4 = 400/day
         expect(r.projectedFutureSpend).toBeCloseTo(400 * r.daysRemaining, 5);
     });
 });
@@ -161,8 +172,9 @@ describe('weekendWeekdayStats', () => {
     it('averages per day with data, weekend vs weekday', () => {
         // 2026-07-04 = Saturday, 2026-07-06 = Monday
         const txs = [
-            expense('2026-07-04', 500), expense('2026-07-04', 500), // one weekend day, 1000
-            expense('2026-07-06', 300)                              // one weekday, 300
+            expense('2026-07-04', 500),
+            expense('2026-07-04', 500), // one weekend day, 1000
+            expense('2026-07-06', 300) // one weekday, 300
         ];
         const s = projection.weekendWeekdayStats(txs);
         expect(s.weekendAvg).toBe(1000);
@@ -180,9 +192,12 @@ describe('weekendWeekdayStats', () => {
 describe('cycleExpenseTotals', () => {
     it('one total per salary cycle, oldest first', () => {
         const txs = [
-            salary('2026-05-01'), expense('2026-05-10', 100),
-            salary('2026-06-01'), expense('2026-06-10', 200),
-            salary('2026-07-01'), expense('2026-07-03', 50)
+            salary('2026-05-01'),
+            expense('2026-05-10', 100),
+            salary('2026-06-01'),
+            expense('2026-06-10', 200),
+            salary('2026-07-01'),
+            expense('2026-07-03', 50)
         ];
         const totals = projection.cycleExpenseTotals(txs, '2026-07-07');
         expect(totals.map(t => t.total)).toEqual([100, 200, 50]);

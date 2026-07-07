@@ -9,7 +9,7 @@ import PFDates from './engine/dates.js';
 import PFCycles from './engine/cycles.js';
 import PFProjection from './engine/projection.js';
 import { API } from './api.js';
-import { escapeHtml, showNotification, showAuthScreen, withBusy } from './ui.js';
+import { escapeHtml, showNotification, withBusy } from './ui.js';
 import { loadChart } from './charts.js';
 
 // The trackers register window.timeTracker / window.workoutTracker.
@@ -90,7 +90,11 @@ async function handleSignup(e) {
 }
 
 async function handleLogout() {
-    try { await API.logout(); } catch { /* cookies cleared server-side; proceed */ }
+    try {
+        await API.logout();
+    } catch {
+        /* cookies cleared server-side; proceed */
+    }
     localStorage.removeItem('activeTimer');
     localStorage.removeItem('session'); // legacy key from the pre-cookie version
     location.reload();
@@ -176,7 +180,7 @@ class ExpenseTracker {
 
         try {
             await this.loadCategories();
-            this.transactions = await API.getTransactions() || [];
+            this.transactions = (await API.getTransactions()) || [];
 
             document.getElementById('status-dot').className = 'status-dot connected';
             document.getElementById('status-text').textContent = 'Connected';
@@ -185,10 +189,12 @@ class ExpenseTracker {
             this.loadCycleHistory();
             this.showPage('add-transaction');
 
-            if (window.timeTracker)    window.timeTracker.init().catch(err => console.error('TimeTracker init failed', err));
-            if (window.workoutTracker) window.workoutTracker.init().catch(err => console.error('WorkoutTracker init failed', err));
+            if (window.timeTracker)
+                window.timeTracker.init().catch(err => console.error('TimeTracker init failed', err));
+            if (window.workoutTracker)
+                window.workoutTracker.init().catch(err => console.error('WorkoutTracker init failed', err));
         } catch (error) {
-            console.error("Init Error:", error);
+            console.error('Init Error:', error);
             document.getElementById('status-dot').className = 'status-dot error';
             document.getElementById('status-text').textContent = 'Connection failed — tap to retry';
             const status = document.getElementById('connection-status');
@@ -196,7 +202,10 @@ class ExpenseTracker {
                 status.style.cursor = 'pointer';
                 status.addEventListener('click', () => this.init(), { once: true });
             }
-            showNotification('Could not load your data. Check your connection and tap the status to retry.', 'error');
+            showNotification(
+                'Could not load your data. Check your connection and tap the status to retry.',
+                'error'
+            );
         }
     }
 
@@ -204,7 +213,7 @@ class ExpenseTracker {
     // EVENT LISTENERS & NAVIGATION
     // ===============================
     setupEventListeners() {
-        const qs = (id) => document.getElementById(id);
+        const qs = id => document.getElementById(id);
 
         qs('transaction-form')?.addEventListener('submit', e => this.handleTransactionSubmit(e));
         qs('category-form')?.addEventListener('submit', e => this.handleCategorySubmit(e));
@@ -265,9 +274,15 @@ class ExpenseTracker {
         // handlers: they are blocked by the CSP).
         qs('transactions-list')?.addEventListener('click', e => {
             const editBtn = e.target.closest('.edit-btn');
-            if (editBtn) { this.openEditModalById(editBtn.dataset.id); return; }
+            if (editBtn) {
+                this.openEditModalById(editBtn.dataset.id);
+                return;
+            }
             const deleteBtn = e.target.closest('.delete-btn');
-            if (deleteBtn) { this.deleteTransaction(deleteBtn.dataset.id); return; }
+            if (deleteBtn) {
+                this.deleteTransaction(deleteBtn.dataset.id);
+                return;
+            }
             const swipeBg = e.target.closest('.swipe-delete-bg');
             if (swipeBg) this.deleteTransaction(swipeBg.dataset.id);
         });
@@ -316,7 +331,7 @@ class ExpenseTracker {
     // CATEGORY LOGIC
     // ===============================
     async loadCategories() {
-        const raw = await API.getCategories() || [];
+        const raw = (await API.getCategories()) || [];
         this.categories = raw.sort((a, b) => a.name.localeCompare(b.name));
         this.populateCategoryDropdowns();
         this.displayCategories();
@@ -398,11 +413,14 @@ class ExpenseTracker {
 
         const expenseCategories = this.categories.filter(c => c.type === 'expense');
         if (expenseCategories.length === 0) {
-            container.innerHTML = '<p style="color: var(--text2); font-size: 0.9rem;">Add expense categories first.</p>';
+            container.innerHTML =
+                '<p style="color: var(--text2); font-size: 0.9rem;">Add expense categories first.</p>';
             return;
         }
 
-        container.innerHTML = expenseCategories.map(c => `
+        container.innerHTML = expenseCategories
+            .map(
+                c => `
             <div class="budget-limit-row">
                 <label>${this.escapeHtml(c.icon)} ${this.escapeHtml(c.name)}</label>
                 <div class="budget-input-wrap">
@@ -414,7 +432,9 @@ class ExpenseTracker {
                            value="${this.budgetLimits[c.name] || ''}">
                 </div>
             </div>
-        `).join('');
+        `
+            )
+            .join('');
     }
 
     saveBudgetLimits() {
@@ -435,9 +455,11 @@ class ExpenseTracker {
         if (!container) return;
 
         const spendByCategory = {};
-        cycleTxs.filter(t => t.type === 'expense').forEach(t => {
-            spendByCategory[t.category] = (spendByCategory[t.category] || 0) + Number(t.amount);
-        });
+        cycleTxs
+            .filter(t => t.type === 'expense')
+            .forEach(t => {
+                spendByCategory[t.category] = (spendByCategory[t.category] || 0) + Number(t.amount);
+            });
 
         const warnings = [];
         Object.entries(this.budgetLimits).forEach(([cat, limit]) => {
@@ -446,7 +468,14 @@ class ExpenseTracker {
             if (pct >= 80) {
                 const catObj = this.categories.find(c => c.name === cat);
                 const icon = catObj ? catObj.icon : '📁';
-                warnings.push({ cat, icon, spent, limit, pct: Math.min(pct, 100).toFixed(0), over: pct > 100 });
+                warnings.push({
+                    cat,
+                    icon,
+                    spent,
+                    limit,
+                    pct: Math.min(pct, 100).toFixed(0),
+                    over: pct > 100
+                });
             }
         });
 
@@ -457,7 +486,9 @@ class ExpenseTracker {
 
         container.innerHTML = `
             <div class="budget-warnings-block">
-                ${warnings.map(w => `
+                ${warnings
+                    .map(
+                        w => `
                     <div class="budget-warning-item ${w.over ? 'over-budget' : 'near-budget'}">
                         <div class="budget-warning-header">
                             <span>${this.escapeHtml(w.icon)} ${this.escapeHtml(w.cat)}</span>
@@ -471,7 +502,9 @@ class ExpenseTracker {
                             <span>₹${w.limit} limit</span>
                         </div>
                     </div>
-                `).join('')}
+                `
+                    )
+                    .join('')}
             </div>
         `;
     }
@@ -485,7 +518,9 @@ class ExpenseTracker {
         const paymentSourceSelect = document.getElementById('payment-source');
         const sourceDetailsSelect = document.getElementById('source-details');
 
-        const isSalary = typeSelect?.value === 'income' && (categorySelect?.value || '').trim().toLowerCase().includes('salary');
+        const isSalary =
+            typeSelect?.value === 'income' &&
+            (categorySelect?.value || '').trim().toLowerCase().includes('salary');
 
         if (isSalary) {
             if (paymentSourceSelect) {
@@ -585,7 +620,7 @@ class ExpenseTracker {
             try {
                 await API.addTransaction(tx);
                 this.resetForm();
-                this.transactions = await API.getTransactions() || [];
+                this.transactions = (await API.getTransactions()) || [];
                 this.loadCycleHistory();
                 showNotification('Transaction saved!');
             } catch (error) {
@@ -615,13 +650,15 @@ class ExpenseTracker {
 
         const catSel = qs('edit-category');
         catSel.innerHTML = '';
-        this.categories.filter(c => c.type === tx.type).forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.name;
-            opt.textContent = `${c.icon} ${c.name}`;
-            if (c.name === tx.category) opt.selected = true;
-            catSel.appendChild(opt);
-        });
+        this.categories
+            .filter(c => c.type === tx.type)
+            .forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.name;
+                opt.textContent = `${c.icon} ${c.name}`;
+                if (c.name === tx.category) opt.selected = true;
+                catSel.appendChild(opt);
+            });
 
         const srcSel = qs('edit-payment-source');
         if (srcSel) {
@@ -653,13 +690,13 @@ class ExpenseTracker {
             payment_to: document.getElementById('edit-payment-to').value,
             payment_source: document.getElementById('edit-payment-source')?.value || null,
             source_details: document.getElementById('edit-source-details')?.value || null,
-            description: document.getElementById('edit-description').value || null,
+            description: document.getElementById('edit-description').value || null
         };
 
         try {
             await API.updateTransaction(this.editingTransactionId, updated);
             this.closeEditModal();
-            this.transactions = await API.getTransactions() || [];
+            this.transactions = (await API.getTransactions()) || [];
             this.loadCycleHistory();
             showNotification('Transaction updated!');
         } catch (error) {
@@ -687,7 +724,7 @@ class ExpenseTracker {
 
         try {
             await API.deleteTransaction(id);
-            this.transactions = await API.getTransactions() || [];
+            this.transactions = (await API.getTransactions()) || [];
             this.loadCycleHistory();
             showNotification('Transaction deleted.');
         } catch (error) {
@@ -700,9 +737,22 @@ class ExpenseTracker {
     // ===============================
     exportCSV() {
         const cycleTxs = this.getTransactionsInCycle(this.currentCycleStart, this.currentCycleEnd);
-        if (!cycleTxs.length) { showNotification('No transactions to export.', 'error'); return; }
+        if (!cycleTxs.length) {
+            showNotification('No transactions to export.', 'error');
+            return;
+        }
 
-        const headers = ['Date', 'Type', 'Category', 'Amount', 'Payment To', 'Payment Source', 'Bank/Card', 'Description', 'Recurring'];
+        const headers = [
+            'Date',
+            'Type',
+            'Category',
+            'Amount',
+            'Payment To',
+            'Payment Source',
+            'Bank/Card',
+            'Description',
+            'Recurring'
+        ];
         const rows = cycleTxs.map(t => [
             t.transaction_date,
             t.type,
@@ -735,7 +785,8 @@ class ExpenseTracker {
 
         const today = PFDates.todayStr();
         const cycles = PFCycles.deriveCycles(this.transactions, today);
-        const nice = d => PFDates.parseLocal(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        const nice = d =>
+            PFDates.parseLocal(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
         selector.innerHTML = '';
         cycles.forEach(c => {
@@ -743,7 +794,9 @@ class ExpenseTracker {
             option.value = `${c.start}|${c.end}`;
             option.textContent = c.fallback
                 ? 'Current Month'
-                : (c.isCurrent ? `Current: Since ${nice(c.start)}` : `${nice(c.start)} – ${nice(c.end)}`);
+                : c.isCurrent
+                  ? `Current: Since ${nice(c.start)}`
+                  : `${nice(c.start)} – ${nice(c.end)}`;
             selector.appendChild(option);
         });
 
@@ -764,7 +817,10 @@ class ExpenseTracker {
         this.currentCycleEnd = endDate;
 
         const chartTitle = document.getElementById('line-chart-title');
-        const s = PFDates.parseLocal(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        const s = PFDates.parseLocal(startDate).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short'
+        });
         const e = PFDates.parseLocal(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
         if (chartTitle) chartTitle.innerHTML = `📈 Trends: ${s} to ${e}`;
 
@@ -786,11 +842,14 @@ class ExpenseTracker {
         const container = document.getElementById('recurring-suggestions');
         if (!container) return;
 
-        const recurringTxs = this.transactions.filter(t =>
-            t.is_recurring && t.transaction_date < currentCycleStart
+        const recurringTxs = this.transactions.filter(
+            t => t.is_recurring && t.transaction_date < currentCycleStart
         );
 
-        if (recurringTxs.length === 0) { container.innerHTML = ''; return; }
+        if (recurringTxs.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
 
         const seen = {};
         recurringTxs.forEach(t => {
@@ -801,19 +860,23 @@ class ExpenseTracker {
         });
 
         const currentTxs = this.getTransactionsInCycle(currentCycleStart, this.currentCycleEnd);
-        const suggestions = Object.values(seen).filter(t =>
-            !currentTxs.some(ct => ct.category === t.category && ct.payment_to === t.payment_to)
+        const suggestions = Object.values(seen).filter(
+            t => !currentTxs.some(ct => ct.category === t.category && ct.payment_to === t.payment_to)
         );
 
-        if (suggestions.length === 0) { container.innerHTML = ''; return; }
+        if (suggestions.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
 
         container.innerHTML = `
             <div class="recurring-suggestions-block">
                 <h4>🔁 Recurring transactions due this cycle</h4>
-                ${suggestions.map(t => {
-                    const cat = this.categories.find(c => c.name === t.category);
-                    const icon = cat ? cat.icon : '📁';
-                    return `
+                ${suggestions
+                    .map(t => {
+                        const cat = this.categories.find(c => c.name === t.category);
+                        const icon = cat ? cat.icon : '📁';
+                        return `
                         <div class="recurring-suggestion-item">
                             <div class="recurring-info">
                                 <span class="recurring-icon">${this.escapeHtml(icon)}</span>
@@ -827,7 +890,8 @@ class ExpenseTracker {
                             </button>
                         </div>
                     `;
-                }).join('')}
+                    })
+                    .join('')}
             </div>
         `;
     }
@@ -884,10 +948,11 @@ class ExpenseTracker {
             return;
         }
 
-        list.innerHTML = filtered.map(t => {
-            const cat = this.categories.find(c => c.name === t.category);
-            const icon = cat ? cat.icon : '📁';
-            return `
+        list.innerHTML = filtered
+            .map(t => {
+                const cat = this.categories.find(c => c.name === t.category);
+                const icon = cat ? cat.icon : '📁';
+                return `
             <div class="transaction-item" data-id="${this.escapeHtml(String(t.id))}">
                 <div class="transaction-swipe-wrapper">
                     <div class="transaction-content">
@@ -911,7 +976,8 @@ class ExpenseTracker {
                 </div>
             </div>
         `;
-        }).join('');
+            })
+            .join('');
 
         this.setupSwipeToDelete(list);
     }
@@ -920,10 +986,15 @@ class ExpenseTracker {
         list.querySelectorAll('.transaction-item').forEach(item => {
             const wrapper = item.querySelector('.transaction-swipe-wrapper');
             const content = item.querySelector('.transaction-content');
-            let startX = 0, currentX = 0, isDragging = false;
+            let startX = 0,
+                currentX = 0,
+                isDragging = false;
 
-            const onStart = (x) => { startX = x; isDragging = true; };
-            const onMove = (x) => {
+            const onStart = x => {
+                startX = x;
+                isDragging = true;
+            };
+            const onMove = x => {
                 if (!isDragging) return;
                 currentX = x - startX;
                 if (currentX < 0) {
@@ -956,7 +1027,8 @@ class ExpenseTracker {
     // ===============================
     updateDashboardStats(startDate, endDate) {
         const cycleTxs = this.getTransactionsInCycle(startDate, endDate);
-        let income = 0, expenses = 0;
+        let income = 0,
+            expenses = 0;
 
         cycleTxs.forEach(t => {
             if (t.type === 'income') income += Number(t.amount);
@@ -978,7 +1050,9 @@ class ExpenseTracker {
 
     calculateRunRate(cycleTxs, startDate, income) {
         const { projectedBalance } = PFProjection.projectCycle(
-            this.transactions, startDate, PFDates.todayStr()
+            this.transactions,
+            startDate,
+            PFDates.todayStr()
         );
 
         const runRateEl = document.getElementById('run-rate');
@@ -1008,10 +1082,13 @@ class ExpenseTracker {
         const days = PFDates.eachDay(startDate, chartEnd);
 
         const labels = days.map(d =>
-            PFDates.parseLocal(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }));
+            PFDates.parseLocal(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        );
 
         const dailyData = {};
-        days.forEach(d => { dailyData[d] = 0; });
+        days.forEach(d => {
+            dailyData[d] = 0;
+        });
         cycleTxs.forEach(t => {
             if (t.type === 'expense' && dailyData[t.transaction_date] !== undefined) {
                 dailyData[t.transaction_date] += Number(t.amount);
@@ -1039,7 +1116,7 @@ class ExpenseTracker {
                         fill: true,
                         tension: 0.4,
                         pointRadius: 3,
-                        pointBackgroundColor: '#ff5c72',
+                        pointBackgroundColor: '#ff5c72'
                     },
                     {
                         label: 'Trend',
@@ -1049,7 +1126,7 @@ class ExpenseTracker {
                         borderDash: [6, 4],
                         pointRadius: 0,
                         fill: false,
-                        tension: 0,
+                        tension: 0
                     }
                 ]
             },
@@ -1080,15 +1157,20 @@ class ExpenseTracker {
         this.currentChartView = 'category';
         document.getElementById('reset-chart-view-btn').style.display = 'inline-block';
 
-        const cycleTxs = this.getTransactionsInCycle(this.currentCycleStart, this.currentCycleEnd)
-            .filter(t => t.type === 'expense' && (t.payment_source || 'Unknown') === source);
+        const cycleTxs = this.getTransactionsInCycle(this.currentCycleStart, this.currentCycleEnd).filter(
+            t => t.type === 'expense' && (t.payment_source || 'Unknown') === source
+        );
 
         const categoryData = cycleTxs.reduce((acc, t) => {
             acc[t.category || 'Uncategorized'] = (acc[t.category || 'Uncategorized'] || 0) + Number(t.amount);
             return acc;
         }, {});
 
-        this.renderDonutChart(Object.keys(categoryData), Object.values(categoryData), `Expenses via ${source}`);
+        this.renderDonutChart(
+            Object.keys(categoryData),
+            Object.values(categoryData),
+            `Expenses via ${source}`
+        );
     }
 
     async renderDonutChart(labels, data, title) {
@@ -1102,12 +1184,14 @@ class ExpenseTracker {
             type: 'doughnut',
             data: {
                 labels,
-                datasets: [{
-                    data,
-                    backgroundColor: ['#7c6aff', '#00d4aa', '#f5a623', '#ff5c72', '#3b82f6', '#c44dff'],
-                    borderWidth: 2,
-                    borderColor: 'transparent'
-                }]
+                datasets: [
+                    {
+                        data,
+                        backgroundColor: ['#7c6aff', '#00d4aa', '#f5a623', '#ff5c72', '#3b82f6', '#c44dff'],
+                        borderWidth: 2,
+                        borderColor: 'transparent'
+                    }
+                ]
             },
             options: {
                 responsive: true,
@@ -1147,7 +1231,8 @@ class ExpenseTracker {
                 return;
             }
 
-            let income = 0, expenses = 0;
+            let income = 0,
+                expenses = 0;
             const currentSpend = {};
 
             currentTxs.forEach(t => {
@@ -1163,9 +1248,10 @@ class ExpenseTracker {
 
             const historicalMonths = PFProjection.historicalMonths(this.transactions, currentStart);
             const historicalSpend = PFProjection.spendByCategory(historicalTxs);
-            const anomalies = historicalTxs.length > 0
-                ? PFProjection.computeAnomalies(currentSpend, historicalSpend, historicalMonths)
-                : [];
+            const anomalies =
+                historicalTxs.length > 0
+                    ? PFProjection.computeAnomalies(currentSpend, historicalSpend, historicalMonths)
+                    : [];
 
             const proj = PFProjection.projectCycle(this.transactions, currentStart, today);
             const { dailyBurnRate, daysRemaining, projectedBalance } = proj;
@@ -1174,19 +1260,21 @@ class ExpenseTracker {
             const topSpender = sortedCategories.length > 0 ? sortedCategories[0] : null;
 
             let top3Spend = 0;
-            sortedCategories.slice(0, 3).forEach(c => top3Spend += c[1]);
+            sortedCategories.slice(0, 3).forEach(c => (top3Spend += c[1]));
             const paretoRatio = expenses > 0 ? ((top3Spend / expenses) * 100).toFixed(0) : 0;
             const savingsRate = income > 0 ? (((income - expenses) / income) * 100).toFixed(0) : 0;
 
             const expenseTxs = allTxs.filter(t => t.type === 'expense');
             const { weekendAvg, weekdayAvg } = PFProjection.weekendWeekdayStats(expenseTxs);
 
-            const cycleExpenses = PFProjection.cycleExpenseTotals(this.transactions, today)
-                .map(c => ({
-                    label: PFDates.parseLocal(c.start).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-                    total: c.total,
-                    start: c.start
-                }));
+            const cycleExpenses = PFProjection.cycleExpenseTotals(this.transactions, today).map(c => ({
+                label: PFDates.parseLocal(c.start).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short'
+                }),
+                total: c.total,
+                start: c.start
+            }));
 
             let html = `<div class="insights-body">`;
 
@@ -1240,7 +1328,7 @@ class ExpenseTracker {
             html += section('02', 'Corrective Measures', correctiveContent);
 
             // 3. Run-Rate Status
-            let runContent = '';
+            let runContent;
             if (projectedBalance < 0) {
                 runContent = `<div class="insight-badge insight-badge--red">🚨 Deficit Projected — burning ₹${dailyBurnRate.toFixed(0)}/day. Short by <b>₹${Math.abs(projectedBalance).toFixed(0)}</b>. Freeze non-essential spending.</div>`;
             } else if (projectedBalance < income * 0.1) {
@@ -1251,7 +1339,7 @@ class ExpenseTracker {
             html += section('03', 'Run-Rate Status', runContent);
 
             // 4. Target the Leak
-            let leakContent = '';
+            let leakContent;
             if (topSpender && expenses > 0) {
                 const leakPct = ((topSpender[1] / expenses) * 100).toFixed(1);
                 leakContent = `<div class="insight-leak-row">
@@ -1288,12 +1376,15 @@ class ExpenseTracker {
             html += section('05', 'Macro Analytics', macroContent);
 
             // 6. Weekend vs Weekday
-            let weekendContent = '';
+            let weekendContent;
             if (expenseTxs.length < 5) {
                 weekendContent = `<p class="insight-muted">Need more transactions to detect patterns.</p>`;
             } else {
                 const higherDay = weekendAvg > weekdayAvg ? 'weekends' : 'weekdays';
-                const ratio = weekendAvg > 0 && weekdayAvg > 0 ? Math.max(weekendAvg, weekdayAvg) / Math.min(weekendAvg, weekdayAvg) : 1;
+                const ratio =
+                    weekendAvg > 0 && weekdayAvg > 0
+                        ? Math.max(weekendAvg, weekdayAvg) / Math.min(weekendAvg, weekdayAvg)
+                        : 1;
                 weekendContent = `
                     <div class="insight-day-grid">
                         <div class="insight-day-tile">
@@ -1374,16 +1465,18 @@ class ExpenseTracker {
                 return;
             }
 
-            const totalsForDate = (dateStr) => {
+            const totalsForDate = dateStr => {
                 const out = { Work: 0, Health: 0, Personal: 0, Leisure: 0, Sleep: 0 };
-                timeLogs.filter(l => l.date === dateStr).forEach(l => {
-                    if (out[l.category] !== undefined) out[l.category] += Number(l.duration_seconds);
-                });
+                timeLogs
+                    .filter(l => l.date === dateStr)
+                    .forEach(l => {
+                        if (out[l.category] !== undefined) out[l.category] += Number(l.duration_seconds);
+                    });
                 return out;
             };
 
             const cycleStart = this.currentCycleStart;
-            const cycleEnd   = this.currentCycleEnd;
+            const cycleEnd = this.currentCycleEnd;
             const dayMap = {};
             if (cycleStart && cycleEnd) {
                 const s = new Date(`${cycleStart}T00:00:00`);
@@ -1407,44 +1500,54 @@ class ExpenseTracker {
             for (let i = 6; i >= 0; i--) {
                 const d = new Date(today);
                 d.setDate(d.getDate() - i);
-                const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                 last7.push(key);
             }
             const sleepHoursByDay = last7.map(k => {
-                const logged = timeLogs.filter(l => l.date === k && l.category === 'Sleep')
+                const logged = timeLogs
+                    .filter(l => l.date === k && l.category === 'Sleep')
                     .reduce((s, l) => s + Number(l.duration_seconds), 0);
                 return +(logged / 3600).toFixed(2);
             });
             const sleepDaysWithData = sleepHoursByDay.filter(h => h > 0);
-            const sleepAvg = sleepDaysWithData.length > 0
-                ? sleepDaysWithData.reduce((s, h) => s + h, 0) / sleepDaysWithData.length
-                : 0;
+            const sleepAvg =
+                sleepDaysWithData.length > 0
+                    ? sleepDaysWithData.reduce((s, h) => s + h, 0) / sleepDaysWithData.length
+                    : 0;
 
             const spendByDate = {};
-            allTxs.filter(t => t.type === 'expense').forEach(t => {
-                spendByDate[t.transaction_date] = (spendByDate[t.transaction_date] || 0) + Number(t.amount);
-            });
+            allTxs
+                .filter(t => t.type === 'expense')
+                .forEach(t => {
+                    spendByDate[t.transaction_date] =
+                        (spendByDate[t.transaction_date] || 0) + Number(t.amount);
+                });
 
-            let heavyWorkSpendTotal = 0, heavyWorkDays = 0;
-            let normalSpendTotal = 0, normalDays = 0;
+            let heavyWorkSpendTotal = 0,
+                heavyWorkDays = 0;
+            let normalSpendTotal = 0,
+                normalDays = 0;
             Object.entries(dayMap).forEach(([date, t]) => {
                 const workHours = t.Work / 3600;
                 const spend = spendByDate[date] || 0;
-                if (workHours > 9) { heavyWorkSpendTotal += spend; heavyWorkDays++; }
-                else if (workHours > 0) { normalSpendTotal += spend; normalDays++; }
+                if (workHours > 9) {
+                    heavyWorkSpendTotal += spend;
+                    heavyWorkDays++;
+                } else if (workHours > 0) {
+                    normalSpendTotal += spend;
+                    normalDays++;
+                }
             });
-            const heavyAvg  = heavyWorkDays > 0 ? heavyWorkSpendTotal / heavyWorkDays : 0;
-            const normalAvg = normalDays > 0   ? normalSpendTotal / normalDays         : 0;
+            const heavyAvg = heavyWorkDays > 0 ? heavyWorkSpendTotal / heavyWorkDays : 0;
+            const normalAvg = normalDays > 0 ? normalSpendTotal / normalDays : 0;
             const spendDelta = heavyAvg - normalAvg;
             const spendDeltaPct = normalAvg > 0 ? (spendDelta / normalAvg) * 100 : 0;
 
-            let weeklyWorkSec = 0, weeklyHealthSec = 0, weeklySleepSec = 0, weeklySpend = 0;
+            let weeklyWorkSec = 0,
+                weeklySpend = 0;
             last7.forEach(k => {
-                const t = totalsForDate(k);
-                weeklyWorkSec   += t.Work;
-                weeklyHealthSec += t.Health;
-                weeklySleepSec  += t.Sleep;
-                weeklySpend     += spendByDate[k] || 0;
+                weeklyWorkSec += totalsForDate(k).Work;
+                weeklySpend += spendByDate[k] || 0;
             });
             const weeklyWorkouts = workouts.filter(w => last7.includes(w.date)).length;
 
@@ -1454,18 +1557,25 @@ class ExpenseTracker {
                 for (let i = 6; i >= 0; i--) {
                     const d = new Date(today);
                     d.setDate(d.getDate() - (w * 7 + i));
-                    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                     weekDays.push(key);
                 }
-                let work = 0, health = 0, sleep = 0;
+                let work = 0,
+                    health = 0,
+                    sleep = 0;
                 weekDays.forEach(k => {
                     const t = totalsForDate(k);
-                    work += t.Work; health += t.Health; sleep += t.Sleep;
+                    work += t.Work;
+                    health += t.Health;
+                    sleep += t.Sleep;
                 });
                 const awake = Math.max(1, 7 * 24 * 3600 - sleep);
                 const score = Math.min(100, Math.round(((work + health) / awake) * 100));
                 const startDate = weekDays[0];
-                const label = new Date(`${startDate}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                const label = new Date(`${startDate}T00:00:00`).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short'
+                });
                 weeks.push({ label, score });
             }
 
@@ -1612,7 +1722,7 @@ async function boot() {
     document.getElementById('login-form')?.addEventListener('submit', handleLogin);
     document.getElementById('signup-form')?.addEventListener('submit', handleSignup);
 
-    document.getElementById('login-tab-btn')?.addEventListener('click', (e) => {
+    document.getElementById('login-tab-btn')?.addEventListener('click', e => {
         document.getElementById('login-form').style.display = 'block';
         document.getElementById('signup-form').style.display = 'none';
         e.target.classList.add('active');
@@ -1621,7 +1731,7 @@ async function boot() {
         document.getElementById('auth-success').style.display = 'none';
     });
 
-    document.getElementById('signup-tab-btn')?.addEventListener('click', (e) => {
+    document.getElementById('signup-tab-btn')?.addEventListener('click', e => {
         document.getElementById('login-form').style.display = 'none';
         document.getElementById('signup-form').style.display = 'block';
         e.target.classList.add('active');
@@ -1636,7 +1746,9 @@ async function boot() {
     try {
         const data = await API.me();
         user = data?.user || null;
-    } catch { /* not signed in */ }
+    } catch {
+        /* not signed in */
+    }
 
     if (!user) {
         authContainer.style.display = 'flex';

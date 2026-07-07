@@ -33,7 +33,9 @@ export const API = {
             try {
                 const data = await res.json();
                 if (data && data.error) message = data.error;
-            } catch { /* non-JSON error body */ }
+            } catch {
+                /* non-JSON error body */
+            }
             throw new Error(message);
         }
 
@@ -48,38 +50,80 @@ export const API = {
             })
                 .then(r => r.ok)
                 .catch(() => false);
-            this._refreshPromise.finally(() => { this._refreshPromise = null; });
+            this._refreshPromise.finally(() => {
+                this._refreshPromise = null;
+            });
         }
         return this._refreshPromise;
     },
 
     // ---- auth ----
-    me() { return this.request('me'); },
-    login(email, password) { return this.request('login', { method: 'POST', body: JSON.stringify({ email, password }) }); },
-    signup(email, password) { return this.request('signup', { method: 'POST', body: JSON.stringify({ email, password }) }); },
-    logout() { return this.request('logout', { method: 'POST' }); },
+    me() {
+        return this.request('me');
+    },
+    login(email, password) {
+        return this.request('login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    },
+    signup(email, password) {
+        return this.request('signup', { method: 'POST', body: JSON.stringify({ email, password }) });
+    },
+    logout() {
+        return this.request('logout', { method: 'POST' });
+    },
 
     // ---- money ----
-    getCategories() { return this.request('categories'); },
-    addCategory(data) { return this.request('categories', { method: 'POST', body: JSON.stringify(data) }); },
-    getTransactions() { return this.request('transactions'); },
-    addTransaction(tx) { return this.request('transactions', { method: 'POST', body: JSON.stringify(tx) }); },
-    updateTransaction(id, tx) { return this.request(`transactions?id=${id}`, { method: 'PUT', body: JSON.stringify(tx) }); },
-    deleteTransaction(id) { return this.request(`transactions?id=${id}`, { method: 'DELETE' }); },
+    getCategories() {
+        return this.request('categories');
+    },
+    addCategory(data) {
+        return this.request('categories', { method: 'POST', body: JSON.stringify(data) });
+    },
+    getTransactions() {
+        return this.request('transactions');
+    },
+    addTransaction(tx) {
+        return this.request('transactions', { method: 'POST', body: JSON.stringify(tx) });
+    },
+    updateTransaction(id, tx) {
+        return this.request(`transactions?id=${id}`, { method: 'PUT', body: JSON.stringify(tx) });
+    },
+    deleteTransaction(id) {
+        return this.request(`transactions?id=${id}`, { method: 'DELETE' });
+    },
 
     // ---- time tracking ----
-    getTimeLogs(params) { return this.request(withQuery('timelogs', params)); },
-    addTimeLog(data) { return this.request('timelogs', { method: 'POST', body: JSON.stringify(data) }); },
-    updateTimeLog(id, data) { return this.request(`timelogs?id=${id}`, { method: 'PUT', body: JSON.stringify(data) }); },
-    deleteTimeLog(id) { return this.request(`timelogs?id=${id}`, { method: 'DELETE' }); },
-    getActiveTimer() { return this.request('activetimer'); },
-    startActiveTimer(data) { return this.request('activetimer', { method: 'POST', body: JSON.stringify(data) }); },
-    clearActiveTimer() { return this.request('activetimer', { method: 'DELETE' }); },
+    getTimeLogs(params) {
+        return this.request(withQuery('timelogs', params));
+    },
+    addTimeLog(data) {
+        return this.request('timelogs', { method: 'POST', body: JSON.stringify(data) });
+    },
+    updateTimeLog(id, data) {
+        return this.request(`timelogs?id=${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    },
+    deleteTimeLog(id) {
+        return this.request(`timelogs?id=${id}`, { method: 'DELETE' });
+    },
+    getActiveTimer() {
+        return this.request('activetimer');
+    },
+    startActiveTimer(data) {
+        return this.request('activetimer', { method: 'POST', body: JSON.stringify(data) });
+    },
+    clearActiveTimer() {
+        return this.request('activetimer', { method: 'DELETE' });
+    },
 
     // ---- workouts ----
-    getWorkouts(params) { return this.request(withQuery('workouts', params)); },
-    addWorkout(data) { return this.request('workouts', { method: 'POST', body: JSON.stringify(data) }); },
-    deleteWorkout(id) { return this.request(`workouts?id=${id}`, { method: 'DELETE' }); }
+    getWorkouts(params) {
+        return this.request(withQuery('workouts', params));
+    },
+    addWorkout(data) {
+        return this.request('workouts', { method: 'POST', body: JSON.stringify(data) });
+    },
+    deleteWorkout(id) {
+        return this.request(`workouts?id=${id}`, { method: 'DELETE' });
+    }
 };
 
 function withQuery(path, params) {

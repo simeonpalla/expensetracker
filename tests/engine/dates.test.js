@@ -37,7 +37,10 @@ describe('dates.diffDays / addDays', () => {
 describe('dates.eachDay', () => {
     it('returns the inclusive range', () => {
         expect(dates.eachDay('2026-06-29', '2026-07-02')).toEqual([
-            '2026-06-29', '2026-06-30', '2026-07-01', '2026-07-02'
+            '2026-06-29',
+            '2026-06-30',
+            '2026-07-01',
+            '2026-07-02'
         ]);
     });
 

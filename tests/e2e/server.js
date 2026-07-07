@@ -19,7 +19,7 @@ const TYPES = {
 
 http.createServer((req, res) => {
     const urlPath = decodeURIComponent(req.url.split('?')[0]);
-    let filePath = path.normalize(path.join(ROOT, urlPath === '/' ? 'index.html' : urlPath));
+    const filePath = path.normalize(path.join(ROOT, urlPath === '/' ? 'index.html' : urlPath));
 
     if (!filePath.startsWith(ROOT)) {
         res.writeHead(403).end();

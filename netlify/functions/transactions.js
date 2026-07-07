@@ -19,7 +19,8 @@ const FIELDS = {
     },
     amount(v) {
         const n = Number(v);
-        if (!Number.isFinite(n) || n <= 0 || n > MAX_AMOUNT) return { error: 'amount must be a positive number' };
+        if (!Number.isFinite(n) || n <= 0 || n > MAX_AMOUNT)
+            return { error: 'amount must be a positive number' };
         return { value: Math.round(n * 100) / 100 };
     },
     category(v) {
@@ -34,7 +35,9 @@ const FIELDS = {
         return s ? { value: s } : { error: 'payment_to is required (max 120 chars)' };
     },
     payment_source(v) {
-        return PAYMENT_SOURCES.includes(v) ? { value: v } : { error: `payment_source must be one of: ${PAYMENT_SOURCES.join(', ')}` };
+        return PAYMENT_SOURCES.includes(v)
+            ? { value: v }
+            : { error: `payment_source must be one of: ${PAYMENT_SOURCES.join(', ')}` };
     },
     source_details(v) {
         if (v == null || v === '') return { value: null };

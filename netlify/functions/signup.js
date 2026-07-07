@@ -2,10 +2,7 @@
 // If Supabase email confirmation is enabled, returns { needsConfirmation: true };
 // otherwise sets session cookies so the user is signed in immediately.
 
-const {
-    json, anonClient, readJsonBody, sessionCookies,
-    rateLimit, clientIp, isEmail
-} = require('./_lib');
+const { json, anonClient, readJsonBody, sessionCookies, rateLimit, clientIp, isEmail } = require('./_lib');
 
 exports.handler = async function (event) {
     if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
@@ -30,13 +27,19 @@ exports.handler = async function (event) {
     if (error) {
         console.error('signup error:', error.message);
         // Don't leak whether the address is already registered.
-        return json(400, { error: 'Could not create the account. Try a different email or a stronger password.' });
+        return json(400, {
+            error: 'Could not create the account. Try a different email or a stronger password.'
+        });
     }
 
     if (data.session) {
-        return json(200, { user: { id: data.user.id, email: data.user.email } }, {
-            multiValueHeaders: { 'Set-Cookie': sessionCookies(data.session) }
-        });
+        return json(
+            200,
+            { user: { id: data.user.id, email: data.user.email } },
+            {
+                multiValueHeaders: { 'Set-Cookie': sessionCookies(data.session) }
+            }
+        );
     }
 
     return json(200, { needsConfirmation: true });
