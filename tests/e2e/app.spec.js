@@ -19,6 +19,8 @@ const CATEGORIES = [
     { id: 2, name: 'Food', type: 'expense', icon: '🍕' }
 ];
 
+const ACCOUNTS = [{ id: 1, name: 'UBI', type: 'upi' }];
+
 function fixtureTransactions() {
     return [
         {
@@ -80,9 +82,7 @@ async function stubApi(page, state) {
             }
             return json(route, state.transactions);
         }
-        if (fn === 'timelogs') return json(route, []);
-        if (fn === 'workouts') return json(route, []);
-        if (fn === 'activetimer') return json(route, null);
+        if (fn === 'accounts') return json(route, ACCOUNTS);
         if (fn === 'logout') {
             state.loggedIn = false;
             return json(route, { ok: true });

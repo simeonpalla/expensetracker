@@ -12,10 +12,6 @@ import { API } from './api.js';
 import { escapeHtml, showNotification, withBusy, openModal, closeModal } from './ui.js';
 import { loadChart } from './charts.js';
 
-// The trackers register window.timeTracker / window.workoutTracker.
-import './timetracker.js';
-import './workouttracker.js';
-
 // Make the toast available to the console / any stragglers.
 window.showNotification = showNotification;
 
@@ -154,12 +150,10 @@ class ExpenseTracker {
 
         this.budgetLimits = JSON.parse(localStorage.getItem('budgetLimits') || '{}');
 
-        this.paymentSources = {
-            upi: ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
-            'debit-card': ['UBI', 'ICICI', 'SBI', 'Indian Bank'],
-            'credit-card': ['ICICI Amazon', 'ICICI Platinum', 'ICICI Coral', 'RBL', 'Union Bank'],
-            cash: ['Cash']
-        };
+        this.accounts = [];
+        // Grouped by type for the source-details dropdowns, e.g.
+        // { upi: ['UBI', ...], 'credit-card': [...] }. Rebuilt by loadAccounts().
+        this.paymentSources = {};
 
         this.editingTransactionId = null;
         this.pendingDeleteId = null;
@@ -180,6 +174,7 @@ class ExpenseTracker {
 
         try {
             await this.loadCategories();
+            await this.loadAccounts();
             this.transactions = (await API.getTransactions()) || [];
 
             document.getElementById('status-dot').className = 'status-dot connected';
@@ -188,11 +183,6 @@ class ExpenseTracker {
             this.updateSourceDetailsOptions();
             this.loadCycleHistory();
             this.showPage('add-transaction');
-
-            if (window.timeTracker)
-                window.timeTracker.init().catch(err => console.error('TimeTracker init failed', err));
-            if (window.workoutTracker)
-                window.workoutTracker.init().catch(err => console.error('WorkoutTracker init failed', err));
         } catch (error) {
             console.error('Init Error:', error);
             document.getElementById('status-dot').className = 'status-dot error';
@@ -217,6 +207,11 @@ class ExpenseTracker {
 
         qs('transaction-form')?.addEventListener('submit', e => this.handleTransactionSubmit(e));
         qs('category-form')?.addEventListener('submit', e => this.handleCategorySubmit(e));
+        qs('account-form')?.addEventListener('submit', e => this.handleAccountSubmit(e));
+        qs('accounts-display')?.addEventListener('click', e => {
+            const btn = e.target.closest('.account-delete-btn');
+            if (btn) this.deleteAccount(btn.dataset.id);
+        });
         qs('type')?.addEventListener('change', () => {
             this.populateCategoryDropdowns();
             this.updateFormForSalary();
@@ -262,9 +257,6 @@ class ExpenseTracker {
         qs('delete-modal-overlay')?.addEventListener('click', e => {
             if (e.target === qs('delete-modal-overlay')) this.closeDeleteModal();
         });
-
-        // Life report button
-        qs('generate-life-report-btn')?.addEventListener('click', () => this.generateLifeReport());
 
         document.querySelectorAll('.nav-tab').forEach(tab => {
             tab.addEventListener('click', () => this.showPage(tab.dataset.page));
@@ -321,13 +313,7 @@ class ExpenseTracker {
         document.getElementById(pageId)?.classList.add('active');
 
         if (pageId === 'budgets') this.renderBudgetLimitsUI();
-
-        if (pageId === 'time-tracker' && window.timeTracker) {
-            window.timeTracker.init().then(() => window.timeTracker.renderAll());
-        }
-        if (pageId === 'workout-tracker' && window.workoutTracker) {
-            window.workoutTracker.init().then(() => window.workoutTracker.renderAll());
-        }
+        if (pageId === 'accounts') this.renderAccountsUI();
     }
 
     setTodayDate() {
@@ -422,6 +408,101 @@ class ExpenseTracker {
             showNotification('Category added successfully!');
         } catch (error) {
             showNotification('Error adding category: ' + error.message, 'error');
+        }
+    }
+
+    // ===============================
+    // PAYMENT ACCOUNTS / CARDS
+    // ===============================
+    async loadAccounts() {
+        this.accounts = (await API.getAccounts()) || [];
+
+        this.paymentSources = {};
+        this.accounts.forEach(a => {
+            if (!this.paymentSources[a.type]) this.paymentSources[a.type] = [];
+            this.paymentSources[a.type].push(a.name);
+        });
+
+        this.populateSalaryAccountOptions();
+        this.renderAccountsUI();
+    }
+
+    // The salary-default-account select draws from UPI + debit-card accounts,
+    // since that's what a salary deposit lands in.
+    populateSalaryAccountOptions() {
+        const sel = document.getElementById('salary-default-account');
+        if (!sel) return;
+
+        const names = [...new Set([...(this.paymentSources.upi || []), ...(this.paymentSources['debit-card'] || [])])];
+        sel.innerHTML = names.map(n => `<option value="${this.escapeHtml(n)}">${this.escapeHtml(n)}</option>`).join('');
+        if (names.length === 0) sel.innerHTML = '<option value="">Add an account first</option>';
+
+        if (!names.includes(this.salaryAccount) && names.length > 0) this.salaryAccount = names[0];
+        this.syncSalaryAccountUI();
+    }
+
+    renderAccountsUI() {
+        const container = document.getElementById('accounts-display');
+        if (!container) return;
+
+        if (this.accounts.length === 0) {
+            container.innerHTML = '<p style="color: var(--text2); font-size: 0.9rem;">No accounts yet — add your first bank, UPI ID, or card above.</p>';
+            return;
+        }
+
+        const TYPE_LABELS = {
+            upi: '📲 UPI',
+            'debit-card': '💳 Debit Cards',
+            'credit-card': '💳 Credit Cards',
+            cash: '💵 Cash'
+        };
+
+        container.innerHTML = Object.keys(TYPE_LABELS)
+            .filter(type => this.accounts.some(a => a.type === type))
+            .map(type => {
+                const items = this.accounts
+                    .filter(a => a.type === type)
+                    .map(
+                        a => `
+                        <div class="category-item account-item">
+                            <span class="category-name">${this.escapeHtml(a.name)}</span>
+                            <button type="button" class="account-delete-btn" data-id="${a.id}" aria-label="Remove ${this.escapeHtml(a.name)}">×</button>
+                        </div>`
+                    )
+                    .join('');
+                return `
+                    <div class="category-group">
+                        <h4>${TYPE_LABELS[type]}</h4>
+                        <div class="category-grid">${items}</div>
+                    </div>`;
+            })
+            .join('');
+    }
+
+    async handleAccountSubmit(e) {
+        e.preventDefault();
+        const account = {
+            name: document.getElementById('account-name').value.trim(),
+            type: document.getElementById('account-type').value
+        };
+
+        try {
+            await API.addAccount(account);
+            await this.loadAccounts();
+            e.target.reset();
+            showNotification('Account added!');
+        } catch (error) {
+            showNotification('Error adding account: ' + error.message, 'error');
+        }
+    }
+
+    async deleteAccount(id) {
+        try {
+            await API.deleteAccount(id);
+            await this.loadAccounts();
+            showNotification('Account removed.');
+        } catch (error) {
+            showNotification('Error removing account: ' + error.message, 'error');
         }
     }
 
@@ -1476,270 +1557,6 @@ class ExpenseTracker {
             loading.style.display = 'none';
             result.style.display = 'block';
         }, 800);
-    }
-
-    // ===============================
-    // CROSS-DOMAIN LIFE REPORT
-    // ===============================
-    generateLifeReport() {
-        const loading = document.getElementById('life-report-loading');
-        const result = document.getElementById('life-report-result');
-        if (!loading || !result) return;
-
-        loading.style.display = 'block';
-        result.style.display = 'none';
-
-        setTimeout(() => {
-            const timeLogs = (window.timeTracker && window.timeTracker.getLogs()) || [];
-            const workouts = (window.workoutTracker && window.workoutTracker.getWorkouts()) || [];
-            const allTxs = this.transactions || [];
-
-            if (timeLogs.length < 3) {
-                result.innerHTML = `<p class="ai-empty">Log a few time entries first so I can correlate them with your spending.</p>`;
-                loading.style.display = 'none';
-                result.style.display = 'block';
-                return;
-            }
-
-            const totalsForDate = dateStr => {
-                const out = { Work: 0, Health: 0, Personal: 0, Leisure: 0, Sleep: 0 };
-                timeLogs
-                    .filter(l => l.date === dateStr)
-                    .forEach(l => {
-                        if (out[l.category] !== undefined) out[l.category] += Number(l.duration_seconds);
-                    });
-                return out;
-            };
-
-            const cycleStart = this.currentCycleStart;
-            const cycleEnd = this.currentCycleEnd;
-            const dayMap = {};
-            if (cycleStart && cycleEnd) {
-                const s = new Date(`${cycleStart}T00:00:00`);
-                const e = new Date(`${cycleEnd}T00:00:00`);
-                for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-                    const yyyy = d.getFullYear();
-                    const mm = String(d.getMonth() + 1).padStart(2, '0');
-                    const dd = String(d.getDate()).padStart(2, '0');
-                    const key = `${yyyy}-${mm}-${dd}`;
-                    dayMap[key] = totalsForDate(key);
-                }
-            }
-
-            const overworkDays = Object.entries(dayMap)
-                .filter(([, t]) => t.Work / 3600 > 10)
-                .map(([date, t]) => ({ date, workHours: +(t.Work / 3600).toFixed(1) }))
-                .sort((a, b) => b.workHours - a.workHours);
-
-            const today = new Date();
-            const last7 = [];
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(today);
-                d.setDate(d.getDate() - i);
-                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                last7.push(key);
-            }
-            const sleepHoursByDay = last7.map(k => {
-                const logged = timeLogs
-                    .filter(l => l.date === k && l.category === 'Sleep')
-                    .reduce((s, l) => s + Number(l.duration_seconds), 0);
-                return +(logged / 3600).toFixed(2);
-            });
-            const sleepDaysWithData = sleepHoursByDay.filter(h => h > 0);
-            const sleepAvg =
-                sleepDaysWithData.length > 0
-                    ? sleepDaysWithData.reduce((s, h) => s + h, 0) / sleepDaysWithData.length
-                    : 0;
-
-            const spendByDate = {};
-            allTxs
-                .filter(t => t.type === 'expense')
-                .forEach(t => {
-                    spendByDate[t.transaction_date] =
-                        (spendByDate[t.transaction_date] || 0) + Number(t.amount);
-                });
-
-            let heavyWorkSpendTotal = 0,
-                heavyWorkDays = 0;
-            let normalSpendTotal = 0,
-                normalDays = 0;
-            Object.entries(dayMap).forEach(([date, t]) => {
-                const workHours = t.Work / 3600;
-                const spend = spendByDate[date] || 0;
-                if (workHours > 9) {
-                    heavyWorkSpendTotal += spend;
-                    heavyWorkDays++;
-                } else if (workHours > 0) {
-                    normalSpendTotal += spend;
-                    normalDays++;
-                }
-            });
-            const heavyAvg = heavyWorkDays > 0 ? heavyWorkSpendTotal / heavyWorkDays : 0;
-            const normalAvg = normalDays > 0 ? normalSpendTotal / normalDays : 0;
-            const spendDelta = heavyAvg - normalAvg;
-            const spendDeltaPct = normalAvg > 0 ? (spendDelta / normalAvg) * 100 : 0;
-
-            let weeklyWorkSec = 0,
-                weeklySpend = 0;
-            last7.forEach(k => {
-                weeklyWorkSec += totalsForDate(k).Work;
-                weeklySpend += spendByDate[k] || 0;
-            });
-            const weeklyWorkouts = workouts.filter(w => last7.includes(w.date)).length;
-
-            const weeks = [];
-            for (let w = 3; w >= 0; w--) {
-                const weekDays = [];
-                for (let i = 6; i >= 0; i--) {
-                    const d = new Date(today);
-                    d.setDate(d.getDate() - (w * 7 + i));
-                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                    weekDays.push(key);
-                }
-                let work = 0,
-                    health = 0,
-                    sleep = 0;
-                weekDays.forEach(k => {
-                    const t = totalsForDate(k);
-                    work += t.Work;
-                    health += t.Health;
-                    sleep += t.Sleep;
-                });
-                const awake = Math.max(1, 7 * 24 * 3600 - sleep);
-                const score = Math.min(100, Math.round(((work + health) / awake) * 100));
-                const startDate = weekDays[0];
-                const label = new Date(`${startDate}T00:00:00`).toLocaleDateString('en-IN', {
-                    day: 'numeric',
-                    month: 'short'
-                });
-                weeks.push({ label, score });
-            }
-
-            const section = (num, title, content) => `
-                <div class="insight-section">
-                    <div class="insight-section-header">
-                        <span class="insight-num">${num}</span>
-                        <h4>${title}</h4>
-                    </div>
-                    <div class="insight-content">${content}</div>
-                </div>`;
-
-            let html = `<div class="insights-body">`;
-
-            // 01 Overwork
-            let overworkContent;
-            if (overworkDays.length === 0) {
-                overworkContent = `<div class="insight-badge insight-badge--green">✅ No overwork days (>10h) detected this cycle.</div>`;
-            } else {
-                overworkContent = `<p class="insight-muted" style="margin-bottom:10px;">${overworkDays.length} day(s) over 10h of work this cycle:</p>`;
-                overworkDays.slice(0, 5).forEach(d => {
-                    overworkContent += `
-                        <div class="insight-anomaly-row">
-                            <div class="insight-anomaly-header">
-                                <strong>${d.date}</strong>
-                                <span class="insight-pill insight-pill--red">${d.workHours}h</span>
-                            </div>
-                        </div>`;
-                });
-            }
-            html += section('01', 'Overwork Detector', overworkContent);
-
-            // 02 Sleep
-            let sleepContent;
-            if (sleepDaysWithData.length === 0) {
-                sleepContent = `<p class="insight-muted">No sleep logged in the last 7 days.</p>`;
-            } else {
-                const sleepOk = sleepAvg >= 7;
-                sleepContent = `
-                    <div class="insight-macro-grid">
-                        <div class="insight-macro-tile">
-                            <div class="insight-macro-val" style="color: ${sleepOk ? 'var(--income)' : 'var(--expense)'};">${sleepAvg.toFixed(1)}h</div>
-                            <div class="insight-macro-label">7-Day Avg</div>
-                            <div class="insight-macro-note">${sleepOk ? 'Meeting 7h target' : 'Below 7h target'}</div>
-                        </div>
-                        <div class="insight-macro-tile">
-                            <div class="insight-macro-val">${sleepDaysWithData.length}/7</div>
-                            <div class="insight-macro-label">Days Tracked</div>
-                            <div class="insight-macro-note">Out of last week</div>
-                        </div>
-                    </div>`;
-            }
-            html += section('02', 'Sleep Tracker', sleepContent);
-
-            // 03 Money-Time Correlation
-            let corrContent;
-            if (heavyWorkDays === 0 || normalDays === 0) {
-                corrContent = `<p class="insight-muted">Need more days in the cycle with both normal and heavy (>9h) work to compute correlation.</p>`;
-            } else {
-                const arrow = spendDelta > 0 ? '📈' : '📉';
-                const badgeClass = spendDelta > 0 ? 'insight-badge--red' : 'insight-badge--green';
-                corrContent = `
-                    <div class="insight-day-grid">
-                        <div class="insight-day-tile">
-                            <div class="insight-day-val">₹${Math.round(normalAvg)}</div>
-                            <div class="insight-day-label">avg normal day</div>
-                        </div>
-                        <div class="insight-day-tile insight-day-tile--alt">
-                            <div class="insight-day-val">₹${Math.round(heavyAvg)}</div>
-                            <div class="insight-day-label">avg heavy-work day</div>
-                        </div>
-                    </div>
-                    <div class="insight-badge ${badgeClass}" style="margin-top:12px;">
-                        ${arrow} On heavy-work days (>9h) you spend <b>${spendDelta > 0 ? '+' : ''}₹${Math.round(spendDelta)}</b> (${spendDeltaPct > 0 ? '+' : ''}${spendDeltaPct.toFixed(0)}%) vs normal days.
-                    </div>`;
-            }
-            html += section('03', 'Money–Time Correlation', corrContent);
-
-            // 04 Weekly Operating Report
-            const weeklyReport = `
-                <div class="insight-macro-grid">
-                    <div class="insight-macro-tile">
-                        <div class="insight-macro-val">${(weeklyWorkSec / 3600).toFixed(1)}h</div>
-                        <div class="insight-macro-label">Work</div>
-                    </div>
-                    <div class="insight-macro-tile">
-                        <div class="insight-macro-val">${weeklyWorkouts}</div>
-                        <div class="insight-macro-label">Workouts</div>
-                    </div>
-                    <div class="insight-macro-tile">
-                        <div class="insight-macro-val">${sleepAvg > 0 ? sleepAvg.toFixed(1) + 'h' : '—'}</div>
-                        <div class="insight-macro-label">Sleep Avg</div>
-                    </div>
-                    <div class="insight-macro-tile">
-                        <div class="insight-macro-val">₹${Math.round(weeklySpend)}</div>
-                        <div class="insight-macro-label">Money Spent</div>
-                    </div>
-                </div>`;
-            html += section('04', 'Weekly Operating Report', weeklyReport);
-
-            // 05 Productivity Trend
-            let trendContent;
-            const hasTrendData = weeks.some(w => w.score > 0);
-            if (!hasTrendData) {
-                trendContent = `<p class="insight-muted">Log more time over the last 4 weeks to see your trend.</p>`;
-            } else {
-                const maxScore = Math.max(...weeks.map(w => w.score), 1);
-                trendContent = `<div class="insight-bar-chart" style="height: 110px;">`;
-                weeks.forEach((w, i) => {
-                    const barHeight = Math.max(4, (w.score / maxScore) * 85);
-                    const isCurrent = i === weeks.length - 1;
-                    trendContent += `
-                        <div class="insight-bar-col">
-                            <div class="insight-bar-val">${w.score}%</div>
-                            <div class="insight-bar-fill ${isCurrent ? 'insight-bar-fill--active' : ''}" style="height:${barHeight}px;"></div>
-                            <div class="insight-bar-label">${w.label}</div>
-                        </div>`;
-                });
-                trendContent += `</div>`;
-            }
-            html += section('05', 'Productivity Trend (4 weeks)', trendContent);
-
-            html += `</div>`;
-
-            result.innerHTML = html;
-            loading.style.display = 'none';
-            result.style.display = 'block';
-        }, 600);
     }
 }
 

@@ -64,7 +64,7 @@
                 <button class="theme-btn" data-theme="system" title="System default" aria-label="System default theme">💻</button>
             </div>
             <h1>💰 Personal OS</h1>
-            <p>Money · Time · Workouts</p>
+            <p>Your salary-cycle money tracker</p>
             <div id="connection-status" class="status-indicator" role="status">
                 <span id="status-dot" class="status-dot connecting"></span>
                 <span id="status-text">Connecting...</span>
@@ -74,10 +74,9 @@
         <nav class="nav-tabs" role="tablist" aria-label="App sections">
             <button class="nav-tab active" role="tab" id="tab-add-transaction" aria-controls="add-transaction" aria-selected="true" data-page="add-transaction">➕ Add</button>
             <button class="nav-tab" role="tab" id="tab-dashboard" aria-controls="dashboard" aria-selected="false" tabindex="-1" data-page="dashboard">📊 Dashboard</button>
-            <button class="nav-tab" role="tab" id="tab-time-tracker" aria-controls="time-tracker" aria-selected="false" tabindex="-1" data-page="time-tracker">⏱ Time</button>
-            <button class="nav-tab" role="tab" id="tab-workout-tracker" aria-controls="workout-tracker" aria-selected="false" tabindex="-1" data-page="workout-tracker">🏋 Workout</button>
             <button class="nav-tab" role="tab" id="tab-budgets" aria-controls="budgets" aria-selected="false" tabindex="-1" data-page="budgets">🎯 Budgets</button>
             <button class="nav-tab" role="tab" id="tab-categories" aria-controls="categories" aria-selected="false" tabindex="-1" data-page="categories">📁 Categories</button>
+            <button class="nav-tab" role="tab" id="tab-accounts" aria-controls="accounts" aria-selected="false" tabindex="-1" data-page="accounts">🏦 Accounts</button>
             <button class="nav-tab" role="tab" id="tab-ai-insights" aria-controls="ai-insights" aria-selected="false" tabindex="-1" data-page="ai-insights">✨ Insights</button>
         </nav>
 
@@ -222,11 +221,7 @@
                     <div class="form-group" style="max-width: 300px;">
                         <label for="salary-default-account">Default Salary Account</label>
                         <select id="salary-default-account">
-                            <option value="UBI">UBI</option>
-                            <option value="ICICI">ICICI</option>
-                            <option value="SBI">SBI</option>
-                            <option value="Indian Bank">Indian Bank</option>
-                            <option value="Other">Other</option>
+                            <option value="">Loading accounts...</option>
                         </select>
                         <small class="form-help">Used when you mark a transaction as Salary</small>
                     </div>
@@ -265,279 +260,6 @@
                 </div>
                 <div id="transactions-list" class="transactions-list" aria-live="polite">
                     <div class="loading">Loading transactions...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================== -->
-        <!-- TIME TRACKER PAGE                                            -->
-        <!-- ========================================================== -->
-        <div id="time-tracker" class="page" role="tabpanel" aria-labelledby="tab-time-tracker">
-            <h2>⏱ Time Tracker</h2>
-
-            <!-- Active timer card -->
-            <div id="active-timer-card" class="active-timer-card" style="display: none;">
-                <div class="active-timer-top">
-                    <div class="active-timer-label">
-                        <span id="active-timer-category-pill" class="category-pill">Work</span>
-                        <span id="active-timer-activity" class="active-timer-activity">—</span>
-                    </div>
-                    <button id="stop-timer-btn" class="btn btn-danger btn-sm">⏹ Stop</button>
-                </div>
-                <div id="active-timer-elapsed" class="active-timer-elapsed">00:00:00</div>
-                <div class="active-timer-meta">
-                    Started <span id="active-timer-started-at">—</span>
-                </div>
-            </div>
-
-            <!-- Quick templates + one-tap start -->
-            <div class="time-quick-section">
-                <h3 class="time-section-title">⚡ Quick Start</h3>
-                <div class="time-quick-grid">
-                    <button class="time-quick-btn" data-template="work"
-                            data-activity="Deep Work" data-category="Work">
-                        <span class="time-quick-icon">💻</span>
-                        <span class="time-quick-label">Work</span>
-                    </button>
-                    <button class="time-quick-btn" data-template="gym"
-                            data-activity="Gym Session" data-category="Health">
-                        <span class="time-quick-icon">🏋️</span>
-                        <span class="time-quick-label">Gym</span>
-                    </button>
-                    <button class="time-quick-btn" data-template="sleep"
-                            data-activity="Sleep" data-category="Sleep">
-                        <span class="time-quick-icon">😴</span>
-                        <span class="time-quick-label">Sleep</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Start custom timer -->
-            <div class="chart-container time-start-card">
-                <h3>▶️ Start New Timer</h3>
-                <form id="timer-start-form" class="transaction-form">
-                    <div class="form-stack">
-                        <div class="form-group">
-                            <label for="timer-activity">Activity</label>
-                            <input type="text" id="timer-activity" placeholder="e.g., Code review, Reading" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="timer-category">Category</label>
-                            <select id="timer-category" required>
-                                <option value="Work">💻 Work</option>
-                                <option value="Health">💪 Health</option>
-                                <option value="Personal">🧘 Personal</option>
-                                <option value="Leisure">🎮 Leisure</option>
-                                <option value="Sleep">😴 Sleep</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">▶️ Start Timer</button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Manual entry -->
-            <div class="chart-container">
-                <h3>✏️ Log Past Activity</h3>
-                <form id="timelog-manual-form" class="transaction-form">
-                    <div class="form-stack">
-                        <div class="form-group">
-                            <label for="manual-activity">Activity</label>
-                            <input type="text" id="manual-activity" placeholder="What did you do?" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="manual-category">Category</label>
-                            <select id="manual-category" required>
-                                <option value="Work">💻 Work</option>
-                                <option value="Health">💪 Health</option>
-                                <option value="Personal">🧘 Personal</option>
-                                <option value="Leisure">🎮 Leisure</option>
-                                <option value="Sleep">😴 Sleep</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="manual-date">Date</label>
-                            <input type="date" id="manual-date" required>
-                        </div>
-                        <div class="time-row-2">
-                            <div class="form-group">
-                                <label for="manual-start">Start Time</label>
-                                <input type="time" id="manual-start" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="manual-end">End Time</label>
-                                <input type="time" id="manual-end" required>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="manual-notes">Notes (Optional)</label>
-                            <textarea id="manual-notes" placeholder="Any additional notes..."></textarea>
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">💾 Save Entry</button>
-                        <button type="button" class="btn btn-secondary" id="manual-clear-btn">🔄 Clear</button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Daily stats -->
-            <div class="time-day-header">
-                <h3 class="time-section-title">📅 Today</h3>
-                <input type="date" id="time-view-date" class="time-date-picker">
-            </div>
-
-            <div class="stats-grid time-stats-grid">
-                <div class="stat-card time-stat-work">
-                    <div class="stat-icon">💻</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="time-stat-work">0h 0m</div>
-                        <div class="stat-label">Work</div>
-                    </div>
-                </div>
-                <div class="stat-card time-stat-health">
-                    <div class="stat-icon">💪</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="time-stat-health">0h 0m</div>
-                        <div class="stat-label">Health</div>
-                    </div>
-                </div>
-                <div class="stat-card time-stat-sleep">
-                    <div class="stat-icon">😴</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="time-stat-sleep">0h 0m</div>
-                        <div class="stat-label">Sleep</div>
-                    </div>
-                </div>
-                <div class="stat-card time-stat-leisure">
-                    <div class="stat-icon">🎮</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="time-stat-leisure">0h 0m</div>
-                        <div class="stat-label">Leisure</div>
-                    </div>
-                </div>
-                <div class="stat-card time-stat-untracked">
-                    <div class="stat-icon">❓</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="time-stat-untracked">24h 0m</div>
-                        <div class="stat-label">Untracked</div>
-                    </div>
-                </div>
-                <div class="stat-card time-stat-productivity">
-                    <div class="stat-icon">⚡</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="time-stat-productivity">0%</div>
-                        <div class="stat-label">Productivity Score</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 24h Timeline -->
-            <div class="chart-container">
-                <h3>🕐 24-Hour Timeline</h3>
-                <div id="time-timeline" class="time-timeline">
-                    <div class="loading">No activity logged for this day</div>
-                </div>
-                <div class="time-timeline-legend">
-                    <span class="legend-item"><span class="legend-swatch" data-cat="Work"></span>Work</span>
-                    <span class="legend-item"><span class="legend-swatch" data-cat="Health"></span>Health</span>
-                    <span class="legend-item"><span class="legend-swatch" data-cat="Personal"></span>Personal</span>
-                    <span class="legend-item"><span class="legend-swatch" data-cat="Leisure"></span>Leisure</span>
-                    <span class="legend-item"><span class="legend-swatch" data-cat="Sleep"></span>Sleep</span>
-                </div>
-            </div>
-
-            <!-- Weekly summary -->
-            <div class="chart-container">
-                <h3>📊 Weekly Summary</h3>
-                <canvas id="time-weekly-chart"></canvas>
-            </div>
-
-            <!-- Day log list -->
-            <div class="transactions-section">
-                <div class="section-header">
-                    <h3>📋 Entries</h3>
-                </div>
-                <div id="timelog-list" class="transactions-list" aria-live="polite">
-                    <div class="loading">Loading entries...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================== -->
-        <!-- WORKOUT TRACKER PAGE                                         -->
-        <!-- ========================================================== -->
-        <div id="workout-tracker" class="page" role="tabpanel" aria-labelledby="tab-workout-tracker">
-            <h2>🏋 Workout Tracker</h2>
-
-            <!-- Weekly stats -->
-            <div class="stats-grid workout-stats-grid">
-                <div class="stat-card workout-stat-count">
-                    <div class="stat-icon">📅</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="workout-weekly-count">0</div>
-                        <div class="stat-label">This Week</div>
-                    </div>
-                </div>
-                <div class="stat-card workout-stat-streak">
-                    <div class="stat-icon">🔥</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="workout-streak">0 Days</div>
-                        <div class="stat-label">Current Streak</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Paste import -->
-            <div class="chart-container">
-                <h3>📋 Paste Hevy Workout</h3>
-                <p class="workout-help">Copy your workout from Hevy and paste it below, then hit Parse.</p>
-                <textarea id="workout-paste" class="workout-paste"
-                    placeholder="Upper Body&#10;Tuesday, Apr 14, 2026 at 8:46pm&#10;&#10;Bench Press&#10;Set 1: 60kg 8 reps&#10;Set 2: 62.5kg 6 reps&#10;..."></textarea>
-                <div class="form-actions" style="margin-top: 12px;">
-                    <button id="workout-parse-btn" class="btn btn-primary">🔍 Parse</button>
-                    <button id="workout-clear-paste-btn" class="btn btn-secondary">🔄 Clear</button>
-                </div>
-            </div>
-
-            <!-- Preview (before save) -->
-            <div id="workout-preview" class="workout-preview-card" style="display: none;">
-                <div class="workout-preview-header">
-                    <h3>✅ Preview</h3>
-                    <span id="workout-preview-date" class="workout-preview-date">—</span>
-                </div>
-                <div class="workout-preview-meta">
-                    <span id="workout-preview-type" class="workout-preview-type">—</span>
-                    <span id="workout-preview-duration" class="workout-preview-duration">—</span>
-                </div>
-                <div id="workout-preview-exercises" class="workout-preview-exercises"></div>
-                <div class="form-actions" style="margin-top: 14px;">
-                    <button id="workout-save-btn" class="btn btn-primary">💾 Save Workout</button>
-                    <button id="workout-cancel-btn" class="btn btn-secondary">❌ Discard</button>
-                </div>
-            </div>
-
-            <!-- Progression chart -->
-            <div class="chart-container">
-                <h3>📈 Exercise Progression</h3>
-                <div class="form-group">
-                    <label for="workout-exercise-select">Select Exercise</label>
-                    <select id="workout-exercise-select">
-                        <option value="">— Select an exercise —</option>
-                    </select>
-                </div>
-                <canvas id="workout-progression-chart"></canvas>
-            </div>
-
-            <!-- Workout history -->
-            <div class="transactions-section">
-                <div class="section-header">
-                    <h3>📋 Workout History</h3>
-                </div>
-                <div id="workout-history-list" class="transactions-list" aria-live="polite">
-                    <div class="loading">Loading workouts...</div>
                 </div>
             </div>
         </div>
@@ -588,6 +310,33 @@
             </div>
         </div>
 
+        <!-- ACCOUNTS PAGE -->
+        <div id="accounts" class="page" role="tabpanel" aria-labelledby="tab-accounts">
+            <h2>🏦 Manage Accounts &amp; Cards</h2>
+            <p class="page-subtitle">Add a bank, UPI account, or card so it shows up when logging a transaction — e.g. when you get a new credit card.</p>
+            <div class="categories-section">
+                <div class="add-category-form">
+                    <h3>Add New Account</h3>
+                    <form id="account-form">
+                        <div class="form-row">
+                            <input type="text" id="account-name" placeholder="e.g., HDFC Millennia" required maxlength="40">
+                            <select id="account-type" required>
+                                <option value="">Type</option>
+                                <option value="upi">UPI</option>
+                                <option value="debit-card">Debit Card</option>
+                                <option value="credit-card">Credit Card</option>
+                                <option value="cash">Cash</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary">Add</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="accounts-display" class="categories-display">
+                    <p class="loading">Loading accounts...</p>
+                </div>
+            </div>
+        </div>
+
         <!-- INSIGHTS PAGE -->
         <div id="ai-insights" class="page" role="tabpanel" aria-labelledby="tab-ai-insights">
             <h2>✨ Financial Insights</h2>
@@ -604,20 +353,6 @@
                     </div>
                 </div>
                 <div id="local-ai-result" class="ai-result" style="display: none;"></div>
-
-                <!-- Cross-domain insights (Time + Finance) -->
-                <div class="ai-card">
-                    <div class="ai-card-icon">🧭</div>
-                    <h3>Life Operating Report</h3>
-                    <p>Cross-domain view: overwork detection, sleep rolling average, money-time correlation, and weekly productivity trend.</p>
-                    <button id="generate-life-report-btn" class="btn btn-ai">
-                        📊 Run Life Report
-                    </button>
-                    <div id="life-report-loading" class="ai-loading" style="display: none;">
-                        <span class="status-dot connecting"></span> Correlating time + money...
-                    </div>
-                </div>
-                <div id="life-report-result" class="ai-result" style="display: none;"></div>
             </div>
         </div>
 

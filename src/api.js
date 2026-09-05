@@ -91,49 +91,17 @@ export const API = {
         return this.request(`transactions?id=${id}`, { method: 'DELETE' });
     },
 
-    // ---- time tracking ----
-    getTimeLogs(params) {
-        return this.request(withQuery('timelogs', params));
+    // ---- payment accounts ----
+    getAccounts() {
+        return this.request('accounts');
     },
-    addTimeLog(data) {
-        return this.request('timelogs', { method: 'POST', body: JSON.stringify(data) });
+    addAccount(data) {
+        return this.request('accounts', { method: 'POST', body: JSON.stringify(data) });
     },
-    updateTimeLog(id, data) {
-        return this.request(`timelogs?id=${id}`, { method: 'PUT', body: JSON.stringify(data) });
-    },
-    deleteTimeLog(id) {
-        return this.request(`timelogs?id=${id}`, { method: 'DELETE' });
-    },
-    getActiveTimer() {
-        return this.request('activetimer');
-    },
-    startActiveTimer(data) {
-        return this.request('activetimer', { method: 'POST', body: JSON.stringify(data) });
-    },
-    clearActiveTimer() {
-        return this.request('activetimer', { method: 'DELETE' });
-    },
-
-    // ---- workouts ----
-    getWorkouts(params) {
-        return this.request(withQuery('workouts', params));
-    },
-    addWorkout(data) {
-        return this.request('workouts', { method: 'POST', body: JSON.stringify(data) });
-    },
-    deleteWorkout(id) {
-        return this.request(`workouts?id=${id}`, { method: 'DELETE' });
+    deleteAccount(id) {
+        return this.request(`accounts?id=${id}`, { method: 'DELETE' });
     }
 };
-
-function withQuery(path, params) {
-    if (!params) return path;
-    const qs = Object.entries(params)
-        .filter(([, v]) => v != null && v !== '')
-        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-        .join('&');
-    return qs ? `${path}?${qs}` : path;
-}
 
 // Kept for the browser console and any stragglers; modules import { API }.
 if (typeof window !== 'undefined') window.API = API;

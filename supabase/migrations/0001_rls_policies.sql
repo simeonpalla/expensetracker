@@ -13,7 +13,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['transactions', 'categories', 'time_logs', 'workouts', 'active_timers']
+  foreach t in array array['transactions', 'categories']
   loop
     execute format('alter table public.%I enable row level security', t);
 
@@ -34,8 +34,3 @@ begin
       'create policy "delete own rows" on public.%I for delete using (auth.uid() = user_id)', t);
   end loop;
 end $$;
-
--- active_timers is an upsert-on-user singleton; make sure the unique
--- constraint the upsert relies on exists.
-create unique index if not exists active_timers_user_id_key
-  on public.active_timers (user_id);

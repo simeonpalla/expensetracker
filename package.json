@@ -1,7 +1,7 @@
 {
     "name": "expensetracker",
     "version": "1.0.0",
-    "description": "Personal OS — salary-cycle expense tracker with time and workout tracking. Vanilla JS + Vite + Supabase + Netlify Functions.",
+    "description": "Personal OS — salary-cycle expense tracker. Vanilla JS + Vite + Supabase + Netlify Functions.",
     "main": "src/main.js",
     "engines": {
         "node": ">=20"

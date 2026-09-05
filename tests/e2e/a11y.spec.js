@@ -54,9 +54,7 @@ async function stubApi(page, loggedIn) {
                     payment_source: 'upi'
                 }
             ]);
-        if (fn === 'timelogs') return json(route, []);
-        if (fn === 'workouts') return json(route, []);
-        if (fn === 'activetimer') return json(route, null);
+        if (fn === 'accounts') return json(route, [{ id: 1, name: 'UBI', type: 'upi' }]);
         return json(route, {}, 200);
     });
 }
