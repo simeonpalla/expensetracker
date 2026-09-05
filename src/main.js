@@ -2,6 +2,7 @@
 // EXPENSE TRACKER — FRONTEND CONTROLLER (Vite entry point)
 // ======================================================
 
+import './fonts.css';
 import './style.css';
 import './styleadditions.css';
 
@@ -1406,7 +1407,7 @@ class ExpenseTracker {
                 datasets: [
                     {
                         data,
-                        backgroundColor: ['#7c6aff', '#00d4aa', '#f5a623', '#ff5c72', '#3b82f6', '#c44dff'],
+                        backgroundColor: ['#0B1E3D', '#00d4aa', '#f5a623', '#ff5c72', '#3b82f6', '#c44dff'],
                         borderWidth: 2,
                         borderColor: 'transparent'
                     }

@@ -54,7 +54,7 @@
 
 /* Visible keyboard focus everywhere, without affecting mouse users. */
 :focus-visible {
-  outline: 2px solid var(--purple, #7c6aff);
+  outline: 2px solid var(--violet, #3B82F6);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -62,7 +62,7 @@
 .btn:focus-visible,
 .theme-btn:focus-visible,
 .tx-action-btn:focus-visible {
-  outline: 2px solid var(--purple, #7c6aff);
+  outline: 2px solid var(--violet, #3B82F6);
   outline-offset: 2px;
 }
 
