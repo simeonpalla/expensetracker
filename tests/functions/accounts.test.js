@@ -67,7 +67,11 @@ describe('accounts GET', () => {
         const res = await accounts.handler(event({}));
         expect(res.statusCode).toBe(200);
         expect(JSON.parse(res.body)).toEqual([{ id: 1, name: 'UBI', type: 'upi' }]);
-        expect(state.calls).toContainEqual({ table: 'payment_accounts', method: 'eq', args: ['user_id', 'user-1'] });
+        expect(state.calls).toContainEqual({
+            table: 'payment_accounts',
+            method: 'eq',
+            args: ['user_id', 'user-1']
+        });
     });
 });
 
@@ -96,6 +100,10 @@ describe('accounts DELETE', () => {
         expect((await accounts.handler(event({ method: 'DELETE' }))).statusCode).toBe(400);
         const res = await accounts.handler(event({ method: 'DELETE', id: '7' }));
         expect(res.statusCode).toBe(200);
-        expect(state.calls).toContainEqual({ table: 'payment_accounts', method: 'eq', args: ['user_id', 'user-1'] });
+        expect(state.calls).toContainEqual({
+            table: 'payment_accounts',
+            method: 'eq',
+            args: ['user_id', 'user-1']
+        });
     });
 });

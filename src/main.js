@@ -149,6 +149,7 @@ class ExpenseTracker {
         this.currentCycleEnd = null;
 
         this.budgetLimits = JSON.parse(localStorage.getItem('budgetLimits') || '{}');
+        this.givingFloorPct = parseFloat(localStorage.getItem('givingFloorPct')) || 5;
 
         this.accounts = [];
         // Grouped by type for the source-details dropdowns, e.g.
@@ -240,6 +241,16 @@ class ExpenseTracker {
         qs('budget-limits-form')?.addEventListener('submit', e => {
             e.preventDefault();
             this.saveBudgetLimits();
+        });
+
+        qs('giving-floor-form')?.addEventListener('submit', e => {
+            e.preventDefault();
+            const pct = parseFloat(qs('giving-floor-pct')?.value);
+            this.givingFloorPct = pct >= 0 ? pct : 5;
+            localStorage.setItem('givingFloorPct', String(this.givingFloorPct));
+            showNotification('Giving floor saved!');
+            if (this.currentCycleStart)
+                this.updateDashboardStats(this.currentCycleStart, this.currentCycleEnd);
         });
 
         // Edit modal
@@ -433,8 +444,12 @@ class ExpenseTracker {
         const sel = document.getElementById('salary-default-account');
         if (!sel) return;
 
-        const names = [...new Set([...(this.paymentSources.upi || []), ...(this.paymentSources['debit-card'] || [])])];
-        sel.innerHTML = names.map(n => `<option value="${this.escapeHtml(n)}">${this.escapeHtml(n)}</option>`).join('');
+        const names = [
+            ...new Set([...(this.paymentSources.upi || []), ...(this.paymentSources['debit-card'] || [])])
+        ];
+        sel.innerHTML = names
+            .map(n => `<option value="${this.escapeHtml(n)}">${this.escapeHtml(n)}</option>`)
+            .join('');
         if (names.length === 0) sel.innerHTML = '<option value="">Add an account first</option>';
 
         if (!names.includes(this.salaryAccount) && names.length > 0) this.salaryAccount = names[0];
@@ -446,7 +461,8 @@ class ExpenseTracker {
         if (!container) return;
 
         if (this.accounts.length === 0) {
-            container.innerHTML = '<p style="color: var(--text2); font-size: 0.9rem;">No accounts yet — add your first bank, UPI ID, or card above.</p>';
+            container.innerHTML =
+                '<p style="color: var(--text2); font-size: 0.9rem;">No accounts yet — add your first bank, UPI ID, or card above.</p>';
             return;
         }
 
@@ -510,6 +526,9 @@ class ExpenseTracker {
     // BUDGET LIMITS
     // ===============================
     renderBudgetLimitsUI() {
+        const floorInput = document.getElementById('giving-floor-pct');
+        if (floorInput) floorInput.value = this.givingFloorPct;
+
         const container = document.getElementById('budget-limits-container');
         if (!container) return;
 
@@ -607,6 +626,49 @@ class ExpenseTracker {
                 `
                     )
                     .join('')}
+            </div>
+        `;
+    }
+
+    // Warns when the "Offering" category is tracking below givingFloorPct% of
+    // this cycle's income so far. Never blocks entry — informational only.
+    checkOfferingFloor(cycleTxs, income) {
+        const container = document.getElementById('offering-warning');
+        if (!container) return;
+
+        if (income <= 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const given = cycleTxs
+            .filter(t => t.type === 'expense' && t.category.trim().toLowerCase() === 'offering')
+            .reduce((s, t) => s + Number(t.amount), 0);
+
+        const floor = income * (this.givingFloorPct / 100);
+        if (given >= floor) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const pct = floor > 0 ? (given / floor) * 100 : 100;
+        const shortBy = floor - given;
+
+        container.innerHTML = `
+            <div class="budget-warnings-block">
+                <div class="budget-warning-item near-budget">
+                    <div class="budget-warning-header">
+                        <span>🙏 Offering</span>
+                        <span class="budget-badge">⚠️ ${pct.toFixed(0)}% of ${this.givingFloorPct}% floor</span>
+                    </div>
+                    <div class="budget-bar-track">
+                        <div class="budget-bar-fill" style="width: ${Math.min(pct, 100)}%; background: var(--warning);"></div>
+                    </div>
+                    <div class="budget-bar-labels">
+                        <span>₹${given.toFixed(0)} given</span>
+                        <span>₹${shortBy.toFixed(0)} more to reach floor</span>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -1154,6 +1216,7 @@ class ExpenseTracker {
 
         this.calculateRunRate(cycleTxs, startDate, income);
         this.checkBudgetWarnings(cycleTxs);
+        this.checkOfferingFloor(cycleTxs, income);
 
         const balance = income - expenses;
         document.getElementById('total-income').textContent = `₹${income.toFixed(2)}`;
@@ -1166,26 +1229,60 @@ class ExpenseTracker {
     }
 
     calculateRunRate(cycleTxs, startDate, income) {
-        const { projectedBalance } = PFProjection.projectCycle(
-            this.transactions,
-            startDate,
-            PFDates.todayStr()
-        );
+        const proj = PFProjection.projectCycle(this.transactions, startDate, PFDates.todayStr());
+        const { projectedBalance, expensesSoFar, daysRemaining } = proj;
 
         const runRateEl = document.getElementById('run-rate');
         const riskCard = document.getElementById('risk-card');
+        const noteEl = document.getElementById('run-rate-note');
         if (!runRateEl || income === 0) return;
+
+        const leak = this.findTopLeak(cycleTxs, startDate);
+        const leakHint = leak
+            ? ` Watch <b>${this.escapeHtml(leak.cat)}</b> — already +₹${leak.diff.toFixed(0)} over your usual pace.`
+            : '';
 
         if (projectedBalance < 0) {
             runRateEl.innerHTML = `<span style="color: var(--expense-text);">Short by ₹${Math.abs(projectedBalance).toFixed(0)}</span>`;
             if (riskCard) riskCard.style.borderLeft = '4px solid var(--expense)';
+            const dailyCut = Math.abs(projectedBalance) / (daysRemaining || 1);
+            if (noteEl)
+                noteEl.innerHTML = `Cut spending to ₹${dailyCut > 0 ? dailyCut.toFixed(0) : 0}/day less than now to break even.${leakHint}`;
         } else if (projectedBalance < income * 0.1) {
             runRateEl.innerHTML = `<span style="color: var(--warning);">₹${projectedBalance.toFixed(0)} leftover (thin margin)</span>`;
             if (riskCard) riskCard.style.borderLeft = '4px solid var(--warning)';
+            const safeDaily = (income * 0.9 - expensesSoFar) / (daysRemaining || 1);
+            if (noteEl)
+                noteEl.innerHTML = `Stay under ₹${safeDaily > 0 ? safeDaily.toFixed(0) : 0}/day for the rest of the cycle to keep a safety margin.${leakHint}`;
         } else {
             runRateEl.innerHTML = `<span style="color: var(--income-text);">+₹${projectedBalance.toFixed(0)} projected surplus</span>`;
             if (riskCard) riskCard.style.borderLeft = '4px solid var(--income)';
+            if (noteEl)
+                noteEl.innerHTML = leak
+                    ? `On track overall.${leakHint}`
+                    : 'On track — no unusual spending detected this cycle.';
         }
+    }
+
+    // Biggest category currently running ahead of its historical average,
+    // reused by the dashboard's predictive note and the Insights audit.
+    findTopLeak(cycleTxs, startDate) {
+        const historicalTxs = this.transactions.filter(t => t.transaction_date < startDate);
+        if (historicalTxs.length === 0) return null;
+
+        const currentSpend = {};
+        cycleTxs.forEach(t => {
+            if (t.type === 'expense')
+                currentSpend[t.category] = (currentSpend[t.category] || 0) + Number(t.amount);
+        });
+
+        const months = PFProjection.historicalMonths(this.transactions, startDate);
+        const anomalies = PFProjection.computeAnomalies(
+            currentSpend,
+            PFProjection.spendByCategory(historicalTxs),
+            months
+        );
+        return anomalies[0] || null;
     }
 
     // ===============================

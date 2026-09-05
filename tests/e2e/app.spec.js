@@ -82,7 +82,20 @@ async function stubApi(page, state) {
             }
             return json(route, state.transactions);
         }
-        if (fn === 'accounts') return json(route, ACCOUNTS);
+        if (fn === 'accounts') {
+            state.accounts = state.accounts || ACCOUNTS.slice();
+            if (method === 'POST') {
+                const acc = route.request().postDataJSON();
+                state.accounts.push({ ...acc, id: state.accounts.length + 1 });
+                return json(route, { ok: true });
+            }
+            if (method === 'DELETE') {
+                const id = Number(url.searchParams.get('id'));
+                state.accounts = state.accounts.filter(a => a.id !== id);
+                return json(route, { ok: true });
+            }
+            return json(route, state.accounts);
+        }
         if (fn === 'logout') {
             state.loggedIn = false;
             return json(route, { ok: true });
@@ -151,4 +164,54 @@ test('add transaction -> dashboard totals, list and charts update', async ({ pag
 
     // Projection card computed something (engine ran without errors).
     await expect(page.locator('#run-rate')).not.toHaveText('Calculating...');
+});
+
+test('accounts page: add a card, use it on a transaction, then remove it', async ({ page }) => {
+    const state = { loggedIn: true, transactions: fixtureTransactions() };
+    await stubApi(page, state);
+    await page.goto('/');
+    await expect(page.locator('.container')).toBeVisible();
+
+    await page.click('.nav-tab[data-page="accounts"]');
+    await page.fill('#account-name', 'HDFC Millennia');
+    await page.selectOption('#account-type', 'credit-card');
+    await page.click('#account-form button[type="submit"]');
+    await expect(page.locator('#accounts-display')).toContainText('HDFC Millennia');
+
+    // The new card is available as a source-details option on the add form.
+    await page.click('.nav-tab[data-page="add-transaction"]');
+    await page.selectOption('#payment-source', 'credit-card');
+    await expect(page.locator('#source-details')).toContainText('HDFC Millennia');
+
+    // Remove it again.
+    await page.click('.nav-tab[data-page="accounts"]');
+    await page.click('#accounts-display .account-delete-btn[aria-label="Remove HDFC Millennia"]');
+    await expect(page.locator('#accounts-display')).not.toContainText('HDFC Millennia');
+});
+
+test('dashboard warns when the Offering category is under the giving floor', async ({ page }) => {
+    const state = {
+        loggedIn: true,
+        transactions: [
+            {
+                id: 't1',
+                type: 'income',
+                category: 'Salary',
+                amount: 50000,
+                transaction_date: dstr(-5),
+                payment_to: 'Employer',
+                payment_source: 'salary',
+                source_details: 'UBI',
+                is_recurring: false
+            }
+        ]
+    };
+    await stubApi(page, state);
+    await page.goto('/');
+    await expect(page.locator('.container')).toBeVisible();
+
+    // No Offering spend yet against ₹50000 income -> floor warning shows.
+    await page.click('.nav-tab[data-page="dashboard"]');
+    await expect(page.locator('#offering-warning')).toContainText('Offering');
+    await expect(page.locator('#offering-warning')).toContainText('more to reach floor');
 });
