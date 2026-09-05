@@ -30,7 +30,7 @@
     },
     "homepage": "https://github.com/simeonpalla/expensetracker#readme",
     "dependencies": {
-        "@supabase/supabase-js": "^2.98.0",
+        "@supabase/supabase-js": "^2.112.4",
         "chart.js": "^4.5.1"
     },
     "devDependencies": {
