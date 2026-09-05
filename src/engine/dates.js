@@ -48,6 +48,22 @@ function addDays(dateStr, n) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
+// Add n calendar months, clamping day-of-month overflow to the target
+// month's last day (Jan 31 + 1 month -> Feb 28, not a roll into March).
+function addMonths(dateStr, n) {
+    const y = Number(dateStr.slice(0, 4));
+    const m = Number(dateStr.slice(5, 7)) - 1;
+    const d = Number(dateStr.slice(8, 10));
+    const targetMonthIndex = m + n;
+    const lastDayOfTargetMonth = new Date(Date.UTC(y, targetMonthIndex + 1, 0, 12)).getUTCDate();
+    const day = Math.min(d, lastDayOfTargetMonth);
+    const target = new Date(Date.UTC(y, targetMonthIndex, day, 12));
+    const yyyy = target.getUTCFullYear();
+    const mm = String(target.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(target.getUTCDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
 // Inclusive range of date strings.
 function eachDay(startStr, endStr) {
     const out = [];
@@ -65,4 +81,4 @@ function parseLocal(dateStr) {
     );
 }
 
-export default { toDateStr, todayStr, isDateStr, diffDays, addDays, eachDay, parseLocal };
+export default { toDateStr, todayStr, isDateStr, diffDays, addDays, addMonths, eachDay, parseLocal };
