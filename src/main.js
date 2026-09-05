@@ -2,6 +2,7 @@
 // EXPENSE TRACKER — FRONTEND CONTROLLER (Vite entry point)
 // ======================================================
 
+import './fonts.css';
 import './style.css';
 import './styleadditions.css';
 
@@ -1007,7 +1008,7 @@ class ExpenseTracker {
         this.displayTransactions();
         this.renderLineChart(startDate, endDate);
         this.renderChartBySource(startDate, endDate);
-        this.suggestRecurringTransactions(startDate);
+        this.suggestRecurringTransactions();
     }
 
     getTransactionsInCycle(startDate, endDate) {
@@ -1017,31 +1018,32 @@ class ExpenseTracker {
     // ===============================
     // RECURRING SUGGESTIONS
     // ===============================
-    suggestRecurringTransactions(currentCycleStart) {
+    // A recurring transaction (Netflix on the 21st, Claude subscription, ...)
+    // only becomes a suggestion once its next monthly due date has actually
+    // arrived — not from the start of the salary cycle. Due date is the most
+    // recent occurrence's date plus one calendar month.
+    suggestRecurringTransactions() {
         const container = document.getElementById('recurring-suggestions');
         if (!container) return;
 
-        const recurringTxs = this.transactions.filter(
-            t => t.is_recurring && t.transaction_date < currentCycleStart
-        );
-
+        const recurringTxs = this.transactions.filter(t => t.is_recurring);
         if (recurringTxs.length === 0) {
             container.innerHTML = '';
             return;
         }
 
-        const seen = {};
+        const latest = {};
         recurringTxs.forEach(t => {
             const key = `${t.category}||${t.payment_to}||${t.payment_source}`;
-            if (!seen[key] || t.transaction_date > seen[key].transaction_date) {
-                seen[key] = t;
+            if (!latest[key] || t.transaction_date > latest[key].transaction_date) {
+                latest[key] = t;
             }
         });
 
-        const currentTxs = this.getTransactionsInCycle(currentCycleStart, this.currentCycleEnd);
-        const suggestions = Object.values(seen).filter(
-            t => !currentTxs.some(ct => ct.category === t.category && ct.payment_to === t.payment_to)
-        );
+        const today = PFDates.todayStr();
+        const suggestions = Object.values(latest)
+            .map(t => ({ tx: t, nextDue: PFDates.addMonths(t.transaction_date, 1) }))
+            .filter(({ nextDue }) => today >= nextDue);
 
         if (suggestions.length === 0) {
             container.innerHTML = '';
@@ -1050,18 +1052,22 @@ class ExpenseTracker {
 
         container.innerHTML = `
             <div class="recurring-suggestions-block">
-                <h4>🔁 Recurring transactions due this cycle</h4>
+                <h4>🔁 Recurring transactions due</h4>
                 ${suggestions
-                    .map(t => {
+                    .map(({ tx: t, nextDue }) => {
                         const cat = this.categories.find(c => c.name === t.category);
                         const icon = cat ? cat.icon : '📁';
+                        const dueLabel = PFDates.parseLocal(nextDue).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short'
+                        });
                         return `
                         <div class="recurring-suggestion-item">
                             <div class="recurring-info">
                                 <span class="recurring-icon">${this.escapeHtml(icon)}</span>
                                 <div>
                                     <strong>${this.escapeHtml(t.payment_to)}</strong>
-                                    <small>${this.escapeHtml(t.category)} • ₹${Number(t.amount).toFixed(0)} • ${this.escapeHtml(t.payment_source || '')}</small>
+                                    <small>${this.escapeHtml(t.category)} • ₹${Number(t.amount).toFixed(0)} • due ${this.escapeHtml(dueLabel)}</small>
                                 </div>
                             </div>
                             <button class="btn btn-secondary btn-sm" data-recurring-id="${this.escapeHtml(String(t.id))}">
@@ -1401,7 +1407,7 @@ class ExpenseTracker {
                 datasets: [
                     {
                         data,
-                        backgroundColor: ['#7c6aff', '#00d4aa', '#f5a623', '#ff5c72', '#3b82f6', '#c44dff'],
+                        backgroundColor: ['#0B1E3D', '#00d4aa', '#f5a623', '#ff5c72', '#3b82f6', '#c44dff'],
                         borderWidth: 2,
                         borderColor: 'transparent'
                     }

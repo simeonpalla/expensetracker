@@ -6,7 +6,7 @@
     "start_url": "/",
     "display": "standalone",
     "background_color": "#08080f",
-    "theme_color": "#7c6aff",
+    "theme_color": "#1E6FEB",
     "icons": [
         {
             "src": "assets/clock.png",

@@ -1,18 +1,18 @@
 /* ============================================================
-   EXPENSE TRACKER — PREMIUM REDESIGN
-   Aesthetic: Dark Luxury Fintech — deep space + warm gold
-   Font: Outfit (display) + JetBrains Mono (numerics)
+   EXPENSE TRACKER — HORIZON GLOW
+   Aesthetic: deep-navy-to-sky-blue, inspired by a high-altitude flight
+   photo (the band where the atmosphere meets the earth's curve).
+   Font: IBM Plex Sans/Serif (display) + JetBrains Mono (numerics),
+   self-hosted in fonts.css — see that file for why (CSP).
    ============================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ── DESIGN TOKENS ── */
 :root {
   --gold:          #f5a623;
   --gold-soft:     rgba(245,166,35,0.12);
   --gold-border:   rgba(245,166,35,0.28);
-  --violet:        #7c6aff;
-  --violet-soft:   rgba(124,106,255,0.12);
+  --violet:        #3B82F6;
+  --violet-soft:   rgba(59,130,246,0.12);
   --income:        #00d4aa;
   --income-soft:   rgba(0,212,170,0.1);
   --expense:       #ff5c72;
@@ -39,28 +39,29 @@
   --text:      #130f2e;
   --text2:     #5a5580;
   --text3:     #67638e;
-  --violet-text: #6a58f0;
+  --violet-text: #1D4ED8;
   --income-text: #00806a;
   --expense-text: #cc2340;
   --border:    rgba(0,0,20,0.07);
-  --shadow-sm: 0 2px 12px rgba(80,60,180,0.07);
-  --shadow-md: 0 6px 28px rgba(80,60,180,0.11);
-  --shadow-lg: 0 16px 56px rgba(80,60,180,0.16);
-  --header-from: #6c63ff;
-  --header-to:   #a78bfa;
-  --scrollbar: #d0cef0;
+  --shadow-sm: 0 2px 12px rgba(20,60,140,0.07);
+  --shadow-md: 0 6px 28px rgba(20,60,140,0.11);
+  --shadow-lg: 0 16px 56px rgba(20,60,140,0.16);
+  --header-from: #0B1E3D;
+  --header-mid:  #14509E;
+  --header-to:   #1E6FEB;
+  --scrollbar: #cfe0f8;
   --stat-income:  linear-gradient(135deg, #e6fff8 0%, #ccf9ef 100%);
   --stat-expense: linear-gradient(135deg, #fff1f3 0%, #ffe4e8 100%);
-  --stat-balance: linear-gradient(135deg, #eeeaff 0%, #e0d9ff 100%);
+  --stat-balance: linear-gradient(135deg, #e7f0fe 0%, #d7e7fd 100%);
   --stat-streak:  linear-gradient(135deg, #fff8e7 0%, #fef0c7 100%);
-  --stat-risk:    linear-gradient(135deg, #e8f4ff 0%, #d6ecff 100%);
+  --stat-risk:    linear-gradient(135deg, #e3f0ff 0%, #cfe6ff 100%);
   --nav-bg:       #ffffff;
   --nav-border:   rgba(0,0,0,0.06);
-  --nav-text:     #67638e;
-  --nav-active-bg:   rgba(108,99,255,0.1);
-  --nav-active-text: #5a4fcf;
-  --chip-bg:      #f0effe;
-  --chip-border:  rgba(108,99,255,0.15);
+  --nav-text:     #52618a;
+  --nav-active-bg:   rgba(59,130,246,0.1);
+  --nav-active-text: #1D4ED8;
+  --chip-bg:      #e4eefc;
+  --chip-border:  rgba(59,130,246,0.15);
 }
 
 /* ── DARK THEME ── */
@@ -74,28 +75,29 @@
   --text:      #f2f0ff;
   --text2:     #9490c8;
   --text3:     #8b86b0;
-  --violet-text: #7c6aff;
+  --violet-text: #60A5FA;
   --income-text: #00d4aa;
   --expense-text: #ff5c72;
   --border:    rgba(255,255,255,0.07);
   --shadow-sm: 0 2px 12px rgba(0,0,0,0.4);
   --shadow-md: 0 6px 28px rgba(0,0,0,0.55);
   --shadow-lg: 0 16px 56px rgba(0,0,0,0.7);
-  --header-from: #0d0a24;
-  --header-to:   #1a1040;
-  --scrollbar: #1e1c35;
+  --header-from: #050B14;
+  --header-mid:  #0E2B52;
+  --header-to:   #173B6E;
+  --scrollbar: #1c2a40;
   --stat-income:  linear-gradient(135deg, #041a14 0%, #062a1e 100%);
   --stat-expense: linear-gradient(135deg, #1a0509 0%, #2a060d 100%);
-  --stat-balance: linear-gradient(135deg, #0e0c28 0%, #16133e 100%);
+  --stat-balance: linear-gradient(135deg, #0b1730 0%, #12234a 100%);
   --stat-streak:  linear-gradient(135deg, #1a1304 0%, #2a1e06 100%);
   --stat-risk:    linear-gradient(135deg, #041020 0%, #07182e 100%);
   --nav-bg:       #111122;
   --nav-border:   rgba(255,255,255,0.05);
-  --nav-text:     #8b86b0;
-  --nav-active-bg:   rgba(124,106,255,0.15);
-  --nav-active-text: #a99eff;
-  --chip-bg:      rgba(124,106,255,0.08);
-  --chip-border:  rgba(124,106,255,0.2);
+  --nav-text:     #8b93b0;
+  --nav-active-bg:   rgba(59,130,246,0.18);
+  --nav-active-text: #93C5FD;
+  --chip-bg:      rgba(59,130,246,0.1);
+  --chip-border:  rgba(59,130,246,0.22);
 }
 
 /* ── RESET ── */
@@ -103,7 +105,7 @@
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: 'Outfit', system-ui, sans-serif;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.5;
   background: var(--bg);
@@ -216,7 +218,7 @@ body {
 
 /* ── HEADER ── */
 .header {
-  background: linear-gradient(160deg, var(--header-from) 0%, var(--header-to) 100%);
+  background: linear-gradient(160deg, var(--header-from) 0%, var(--header-mid) 55%, var(--header-to) 100%);
   padding: 16px 20px 20px;
   position: relative;
   overflow: hidden;
@@ -228,7 +230,7 @@ body {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 60% 80% at 20% 50%, rgba(124,106,255,0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 20% 50%, rgba(59,130,246,0.18) 0%, transparent 60%),
     radial-gradient(ellipse 40% 60% at 80% 20%, rgba(245,166,35,0.12) 0%, transparent 60%);
   pointer-events: none;
 }
@@ -269,10 +271,11 @@ body {
 .theme-btn.active { background: rgba(255,255,255,0.22); color: #fff; border-color: rgba(255,255,255,0.3); }
 
 .header h1 {
-  font-size: 1.5rem;
-  font-weight: 800;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.4rem;
+  font-weight: 600;
   color: #fff;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
   margin-bottom: 3px;
   position: relative;
   z-index: 1;
@@ -359,7 +362,7 @@ body {
 }
 
 .nav-tab[data-page="ai-insights"] {
-  background: linear-gradient(135deg, #7c6aff, #c44dff) !important;
+  background: linear-gradient(135deg, #0B1E3D 0%, #1E6FEB 60%, #4FC3F7 100%) !important;
   color: #fff !important;
   font-weight: 600 !important;
 }
@@ -374,11 +377,12 @@ body {
 }
 
 .page > h2 {
+  font-family: 'IBM Plex Serif', Georgia, serif;
   font-size: 1.15rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text);
   margin-bottom: 18px;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 /* ── FORM ELEMENTS ── */
@@ -416,7 +420,7 @@ input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
 textarea:focus {
   border-color: var(--violet);
-  box-shadow: 0 0 0 3px rgba(124,106,255,0.14);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.14);
   background: var(--card);
 }
 
@@ -518,14 +522,14 @@ input[type="checkbox"] {
 .btn:active { transform: scale(0.96); }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--violet) 0%, #9b5dff 100%);
+  background: linear-gradient(135deg, #1E6FEB 0%, #3B9EFF 100%);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(124,106,255,0.35);
+  box-shadow: 0 4px 16px rgba(59,130,246,0.35);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #6a58e0 0%, #8a4df0 100%);
-  box-shadow: 0 6px 22px rgba(124,106,255,0.48);
+  background: linear-gradient(135deg, #1560C4 0%, #2E86E8 100%);
+  box-shadow: 0 6px 22px rgba(59,130,246,0.48);
   transform: translateY(-1px);
 }
 
@@ -537,7 +541,7 @@ input[type="checkbox"] {
 
 .btn-secondary:hover {
   background: var(--violet-soft);
-  border-color: rgba(124,106,255,0.35);
+  border-color: rgba(59,130,246,0.35);
   color: var(--violet);
 }
 
@@ -613,7 +617,7 @@ input[type="checkbox"] {
 
 .income-card  { background: var(--stat-income);  border-color: rgba(0,212,170,0.18); }
 .expense-card { background: var(--stat-expense); border-color: rgba(255,92,114,0.18); }
-.balance-card { background: var(--stat-balance); border-color: rgba(124,106,255,0.18); }
+.balance-card { background: var(--stat-balance); border-color: rgba(59,130,246,0.18); }
 .streak-card  { background: var(--stat-streak);  border-color: rgba(245,166,35,0.2); }
 .risk-card    { background: var(--stat-risk);    border-color: rgba(0,140,255,0.15); grid-column: 1 / -1; }
 
@@ -787,7 +791,7 @@ input[type="checkbox"] {
   transition: all var(--t);
 }
 
-.edit-btn:hover   { background: var(--violet-soft); border-color: rgba(124,106,255,0.3); color: var(--violet); }
+.edit-btn:hover   { background: var(--violet-soft); border-color: rgba(59,130,246,0.3); color: var(--violet); }
 .delete-btn:hover { background: var(--expense-soft); border-color: rgba(255,92,114,0.25); color: var(--expense); }
 
 .recurring-badge {
@@ -888,7 +892,7 @@ input[type="checkbox"] {
   color: var(--violet);
   background: var(--violet-soft);
   transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(124,106,255,0.15);
+  box-shadow: 0 3px 10px rgba(59,130,246,0.15);
 }
 
 .category-icon { font-size: 0.9rem; }
@@ -1047,7 +1051,7 @@ input[type="checkbox"] {
   top: -40px; right: -40px;
   width: 160px; height: 160px;
   border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(124,106,255,0.12) 0%, transparent 70%);
+  background: radial-gradient(ellipse, rgba(59,130,246,0.12) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -1151,7 +1155,7 @@ footer {
 /* ── TOAST NOTIFICATION ── */
 #toast-notification {
   border-radius: var(--radius-md) !important;
-  font-family: 'Outfit', sans-serif !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
   font-weight: 500 !important;
   font-size: 0.83rem !important;
   letter-spacing: 0.01em !important;
@@ -1223,18 +1227,18 @@ footer {
 .ai-card-icon { font-size: 2.6rem; margin-bottom: 14px; }
 
 .btn-ai {
-  background: linear-gradient(135deg, #7c6aff 0%, #c44dff 100%);
+  background: linear-gradient(135deg, #0B1E3D 0%, #1E6FEB 60%, #4FC3F7 100%);
   color: #fff;
   border: none;
-  box-shadow: 0 4px 18px rgba(124,106,255,0.38);
+  box-shadow: 0 4px 18px rgba(59,130,246,0.38);
   padding: 12px 24px;
   font-size: 0.9rem;
   margin-top: 6px;
 }
 
 .btn-ai:hover {
-  background: linear-gradient(135deg, #6a58e0 0%, #b03ddf 100%);
-  box-shadow: 0 6px 24px rgba(124,106,255,0.5);
+  background: linear-gradient(135deg, #081527 0%, #1560C4 60%, #3AA9DE 100%);
+  box-shadow: 0 6px 24px rgba(59,130,246,0.5);
   transform: translateY(-1px);
 }
 
@@ -1331,7 +1335,7 @@ footer {
   font-weight: 600;
   color: var(--violet);
   background: var(--violet-soft);
-  border: 1px solid rgba(124,106,255,0.2);
+  border: 1px solid rgba(59,130,246,0.2);
   padding: 3px 7px;
   border-radius: 6px;
   letter-spacing: 0.04em;
@@ -1423,7 +1427,7 @@ footer {
 /* Action rows */
 .insight-action-row {
   background: var(--violet-soft);
-  border: 1px solid rgba(124,106,255,0.2);
+  border: 1px solid rgba(59,130,246,0.2);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   margin-bottom: 8px;

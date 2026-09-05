@@ -34,6 +34,21 @@ describe('dates.diffDays / addDays', () => {
     });
 });
 
+describe('dates.addMonths', () => {
+    it('keeps the same day-of-month', () => {
+        expect(dates.addMonths('2026-08-21', 1)).toBe('2026-09-21');
+    });
+
+    it('crosses a year boundary', () => {
+        expect(dates.addMonths('2026-12-05', 1)).toBe('2027-01-05');
+    });
+
+    it("clamps day overflow to the target month's last day", () => {
+        expect(dates.addMonths('2026-01-31', 1)).toBe('2026-02-28');
+        expect(dates.addMonths('2028-01-31', 1)).toBe('2028-02-29'); // leap year
+    });
+});
+
 describe('dates.eachDay', () => {
     it('returns the inclusive range', () => {
         expect(dates.eachDay('2026-06-29', '2026-07-02')).toEqual([

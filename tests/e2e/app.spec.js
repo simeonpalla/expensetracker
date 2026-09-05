@@ -215,3 +215,53 @@ test('dashboard warns when the Offering category is under the giving floor', asy
     await expect(page.locator('#offering-warning')).toContainText('Offering');
     await expect(page.locator('#offering-warning')).toContainText('more to reach floor');
 });
+
+test('recurring suggestions only appear once the monthly due date has arrived', async ({ page }) => {
+    const state = {
+        loggedIn: true,
+        transactions: [
+            {
+                id: 't1',
+                type: 'income',
+                category: 'Salary',
+                amount: 50000,
+                transaction_date: dstr(-5),
+                payment_to: 'Employer',
+                payment_source: 'salary',
+                source_details: 'UBI',
+                is_recurring: false
+            },
+            // Billed 3 days ago -> next due date is ~a month away: not yet due.
+            {
+                id: 't2',
+                type: 'expense',
+                category: 'Food',
+                amount: 199,
+                transaction_date: dstr(-3),
+                payment_to: 'Spotify',
+                payment_source: 'credit-card',
+                source_details: 'ICICI Amazon',
+                is_recurring: true
+            },
+            // Billed 40 days ago -> a month later is already in the past: due now.
+            {
+                id: 't3',
+                type: 'expense',
+                category: 'Food',
+                amount: 1750,
+                transaction_date: dstr(-40),
+                payment_to: 'Claude Pro',
+                payment_source: 'credit-card',
+                source_details: 'ICICI Amazon',
+                is_recurring: true
+            }
+        ]
+    };
+    await stubApi(page, state);
+    await page.goto('/');
+    await expect(page.locator('.container')).toBeVisible();
+
+    const suggestions = page.locator('#recurring-suggestions');
+    await expect(suggestions).toContainText('Claude Pro');
+    await expect(suggestions).not.toContainText('Spotify');
+});
