@@ -16,7 +16,8 @@ const USER = { id: 'u-test', email: 'e2e@example.com' };
 
 const CATEGORIES = [
     { id: 1, name: 'Salary', type: 'income', icon: '💰' },
-    { id: 2, name: 'Food', type: 'expense', icon: '🍕' }
+    { id: 2, name: 'Food', type: 'expense', icon: '🍕' },
+    { id: 3, name: 'Offering', type: 'expense', icon: '🙏' }
 ];
 
 const ACCOUNTS = [{ id: 1, name: 'UBI', type: 'upi' }];

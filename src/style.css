@@ -50,11 +50,6 @@
   --header-mid:  #14509E;
   --header-to:   #1E6FEB;
   --scrollbar: #cfe0f8;
-  --stat-income:  linear-gradient(135deg, #e6fff8 0%, #ccf9ef 100%);
-  --stat-expense: linear-gradient(135deg, #fff1f3 0%, #ffe4e8 100%);
-  --stat-balance: linear-gradient(135deg, #e7f0fe 0%, #d7e7fd 100%);
-  --stat-streak:  linear-gradient(135deg, #fff8e7 0%, #fef0c7 100%);
-  --stat-risk:    linear-gradient(135deg, #e3f0ff 0%, #cfe6ff 100%);
   --nav-bg:       #ffffff;
   --nav-border:   rgba(0,0,0,0.06);
   --nav-text:     #52618a;
@@ -86,11 +81,6 @@
   --header-mid:  #0E2B52;
   --header-to:   #173B6E;
   --scrollbar: #1c2a40;
-  --stat-income:  linear-gradient(135deg, #041a14 0%, #062a1e 100%);
-  --stat-expense: linear-gradient(135deg, #1a0509 0%, #2a060d 100%);
-  --stat-balance: linear-gradient(135deg, #0b1730 0%, #12234a 100%);
-  --stat-streak:  linear-gradient(135deg, #1a1304 0%, #2a1e06 100%);
-  --stat-risk:    linear-gradient(135deg, #041020 0%, #07182e 100%);
   --nav-bg:       #111122;
   --nav-border:   rgba(255,255,255,0.05);
   --nav-text:     #8b93b0;
@@ -583,73 +573,6 @@ input[type="checkbox"] {
   border-color: var(--border);
 }
 
-/* ── STAT CARDS ── */
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.stat-card {
-  border-radius: var(--radius-lg);
-  padding: 14px 14px 13px;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--t) var(--ease), box-shadow var(--t);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%);
-  pointer-events: none;
-}
-
-.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-
-.income-card  { background: var(--stat-income);  border-color: rgba(0,212,170,0.18); }
-.expense-card { background: var(--stat-expense); border-color: rgba(255,92,114,0.18); }
-.balance-card { background: var(--stat-balance); border-color: rgba(59,130,246,0.18); }
-.streak-card  { background: var(--stat-streak);  border-color: rgba(245,166,35,0.2); }
-.risk-card    { background: var(--stat-risk);    border-color: rgba(0,140,255,0.15); grid-column: 1 / -1; }
-
-.stat-icon {
-  font-size: 1.4rem;
-  flex-shrink: 0;
-  width: 40px; height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.08);
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255,255,255,0.08);
-}
-
-.stat-value {
-  font-size: 1rem;
-  font-weight: 700;
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--text);
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-}
-
-.stat-label {
-  font-size: 0.62rem;
-  color: var(--text2);
-  font-weight: 500;
-  margin-top: 3px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
 
 /* ── CHART CONTAINERS ── */
 .chart-container {
@@ -1167,8 +1090,6 @@ footer {
 
 /* ── RESPONSIVE ── */
 @media (max-width: 380px) {
-  .stats-grid { grid-template-columns: 1fr; }
-  .risk-card { grid-column: 1; }
   .form-row { flex-direction: column; }
   .form-row input, .form-row select, .form-row button { width: 100%; }
   .page { padding: 14px 12px 100px; }
@@ -1184,7 +1105,6 @@ footer {
 @media (min-width: 768px) {
   .container { max-width: 720px; margin: 0 auto; }
   footer { max-width: 720px; left: 50%; transform: translateX(-50%); }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -1205,7 +1125,6 @@ footer {
 @media (min-width: 1024px) {
   .container { max-width: 960px; }
   footer { max-width: 960px; }
-  .stats-grid { grid-template-columns: repeat(3, 1fr); }
   .form-stack { max-width: 600px; margin: 0 auto; }
 }
 
