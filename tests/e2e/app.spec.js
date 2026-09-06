@@ -354,3 +354,44 @@ test('recurring suggestions only appear once the monthly due date has arrived', 
     await expect(suggestions).toContainText('Claude Pro');
     await expect(suggestions).not.toContainText('Spotify');
 });
+
+test('the giving-floor category never gets a fixed recurring due-date, even if marked recurring', async ({
+    page
+}) => {
+    const state = {
+        loggedIn: true,
+        transactions: [
+            {
+                id: 't1',
+                type: 'income',
+                category: 'Salary',
+                amount: 50000,
+                transaction_date: dstr(-5),
+                payment_to: 'Employer',
+                payment_source: 'salary',
+                source_details: 'UBI',
+                is_recurring: false
+            },
+            // Marked recurring and billed 40 days ago -> by the fixed
+            // monthly-due-date math this would read as "due now", but giving
+            // is manual/any-day, tracked instead by the giving-floor warning.
+            {
+                id: 't2',
+                type: 'expense',
+                category: 'Offering',
+                amount: 500,
+                transaction_date: dstr(-40),
+                payment_to: 'Church',
+                payment_source: 'upi',
+                source_details: 'UBI',
+                is_recurring: true
+            }
+        ]
+    };
+    await stubApi(page, state);
+    await page.goto('/');
+    await expect(page.locator('.container')).toBeVisible();
+
+    await expect(page.locator('#recurring-suggestions')).not.toContainText('Offering');
+    await expect(page.locator('#recurring-suggestions')).not.toContainText('Church');
+});
