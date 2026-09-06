@@ -870,10 +870,10 @@ input[type="checkbox"] {
   color: var(--gold);
   font-size: 0.82rem;
   position: static;
+  top: auto;
+  transform: none;
   font-family: 'JetBrains Mono', monospace;
   line-height: 1;
-  display: flex;
-  align-items: center;
 }
 
 .budget-limit-input {

@@ -217,6 +217,94 @@ test('dashboard warns when the Offering category is under the giving floor', asy
     await expect(page.locator('#offering-warning')).toContainText('more to reach floor');
 });
 
+test('insights never flags the giving-floor category as an overspending anomaly', async ({ page }) => {
+    const state = {
+        loggedIn: true,
+        transactions: [
+            // Previous cycle (historical baseline).
+            {
+                id: 't1',
+                type: 'income',
+                category: 'Salary',
+                amount: 40000,
+                transaction_date: dstr(-35),
+                payment_to: 'Employer',
+                payment_source: 'salary',
+                source_details: 'UBI',
+                is_recurring: false
+            },
+            {
+                id: 't2',
+                type: 'expense',
+                category: 'Offering',
+                amount: 2000,
+                transaction_date: dstr(-30),
+                payment_to: 'Church',
+                payment_source: 'upi',
+                source_details: 'UBI',
+                is_recurring: false
+            },
+            {
+                id: 't3',
+                type: 'expense',
+                category: 'Food',
+                amount: 1000,
+                transaction_date: dstr(-28),
+                payment_to: 'Zomato',
+                payment_source: 'upi',
+                source_details: 'UBI',
+                is_recurring: false
+            },
+            // Current cycle: Offering grew with income (expected, not a leak);
+            // Food genuinely spiked (a real anomaly the detector should still catch).
+            {
+                id: 't4',
+                type: 'income',
+                category: 'Salary',
+                amount: 50000,
+                transaction_date: dstr(-5),
+                payment_to: 'Employer',
+                payment_source: 'salary',
+                source_details: 'UBI',
+                is_recurring: false
+            },
+            {
+                id: 't5',
+                type: 'expense',
+                category: 'Offering',
+                amount: 2600,
+                transaction_date: dstr(-2),
+                payment_to: 'Church',
+                payment_source: 'upi',
+                source_details: 'UBI',
+                is_recurring: false
+            },
+            {
+                id: 't6',
+                type: 'expense',
+                category: 'Food',
+                amount: 3000,
+                transaction_date: dstr(-1),
+                payment_to: 'Zomato',
+                payment_source: 'upi',
+                source_details: 'UBI',
+                is_recurring: false
+            }
+        ]
+    };
+    await stubApi(page, state);
+    await page.goto('/');
+    await expect(page.locator('.container')).toBeVisible();
+
+    await page.click('.nav-tab[data-page="ai-insights"]');
+    await page.click('#generate-local-ai-btn');
+
+    const result = page.locator('#local-ai-result');
+    await expect(result).toBeVisible();
+    await expect(result).toContainText('Food');
+    await expect(result).not.toContainText('Offering');
+});
+
 test('recurring suggestions only appear once the monthly due date has arrived', async ({ page }) => {
     const state = {
         loggedIn: true,

@@ -1298,6 +1298,16 @@ class ExpenseTracker {
         }
     }
 
+    // A category deliberately pegged to a % of income (the giving floor) is
+    // *supposed* to grow when income grows — that's not an overspending
+    // anomaly, so anomaly detection should never look at it.
+    omitGivingCategory(spendMap) {
+        if (!this.givingFloorCategory || !(this.givingFloorCategory in spendMap)) return spendMap;
+        const rest = { ...spendMap };
+        delete rest[this.givingFloorCategory];
+        return rest;
+    }
+
     // Biggest category currently running ahead of its historical average,
     // reused by the dashboard's predictive note and the Insights audit.
     findTopLeak(cycleTxs, startDate) {
@@ -1312,7 +1322,7 @@ class ExpenseTracker {
 
         const months = PFProjection.historicalMonths(this.transactions, startDate);
         const anomalies = PFProjection.computeAnomalies(
-            currentSpend,
+            this.omitGivingCategory(currentSpend),
             PFProjection.spendByCategory(historicalTxs),
             months
         );
@@ -1498,7 +1508,11 @@ class ExpenseTracker {
             const historicalSpend = PFProjection.spendByCategory(historicalTxs);
             const anomalies =
                 historicalTxs.length > 0
-                    ? PFProjection.computeAnomalies(currentSpend, historicalSpend, historicalMonths)
+                    ? PFProjection.computeAnomalies(
+                          this.omitGivingCategory(currentSpend),
+                          historicalSpend,
+                          historicalMonths
+                      )
                     : [];
 
             const proj = PFProjection.projectCycle(this.transactions, currentStart, today);
