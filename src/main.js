@@ -1050,11 +1050,18 @@ class ExpenseTracker {
     // only becomes a suggestion once its next monthly due date has actually
     // arrived — not from the start of the salary cycle. Due date is the most
     // recent occurrence's date plus one calendar month.
+    //
+    // The giving-floor category is excluded here even if marked recurring:
+    // it has no fixed schedule (you give what/when you choose), and it
+    // already gets dynamic, any-day tracking from checkOfferingFloor — a
+    // fixed monthly "due" date would just contradict that.
     suggestRecurringTransactions() {
         const container = document.getElementById('recurring-suggestions');
         if (!container) return;
 
-        const recurringTxs = this.transactions.filter(t => t.is_recurring);
+        const recurringTxs = this.transactions.filter(
+            t => t.is_recurring && t.category !== this.givingFloorCategory
+        );
         if (recurringTxs.length === 0) {
             container.innerHTML = '';
             return;
