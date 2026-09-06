@@ -1,0 +1,10 @@
+# Normalize line endings to LF in the repository regardless of what OS or
+# editor checked them out with. Without this, Windows + core.autocrlf=true
+# can make Git (and any GUI that trusts `git status`, like VS Code) think
+# unmodified files are "changed" purely over CRLF-vs-LF bookkeeping.
+* text=auto eol=lf
+
+# Binary files: never touch line endings, never diff as text.
+*.png binary
+*.ico binary
+*.woff2 binary
