@@ -6,14 +6,146 @@
    ============================================================ */
 
 /* ==========================================================
-   PREDICTIVE RUN-RATE NOTE (risk-card, dashboard)
+   PASSBOOK DASHBOARD — ledger-style summary, replacing the
+   gradient stat-card grid.
    ========================================================== */
 
+.summary {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: 14px;
+    background: var(--card);
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.summary-row:last-child {
+    border-bottom: none;
+    background: var(--card2);
+}
+
+.summary-row .k {
+    font-size: 0.82rem;
+    color: var(--text2);
+    font-weight: 500;
+}
+
+.summary-row .v {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}
+
+.summary-row .v.income { color: var(--income-text); }
+.summary-row .v.expense { color: var(--expense-text); }
+
+.summary-row .v-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.v-sub {
+    font-size: 0.66rem;
+    color: var(--text3);
+    font-weight: 500;
+}
+
+/* Predictive note — replaces the risk-card gradient tile. */
+.predictive {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--violet);
+    background: var(--card);
+    margin-bottom: 16px;
+}
+
+.predictive-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--violet);
+    margin-top: 6px;
+    flex-shrink: 0;
+}
+
+.predictive-body { min-width: 0; }
+
+.predictive-lead {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+    line-height: 1.4;
+}
+
 .run-rate-note {
-    font-size: 0.72rem;
+    font-size: 0.74rem;
     color: var(--text2);
     margin: 5px 0 0;
-    line-height: 1.4;
+    line-height: 1.45;
+}
+
+/* ==========================================================
+   LEDGER-STYLE TRANSACTION ROWS — hairline dividers instead of
+   individually bordered/shadowed cards.
+   ========================================================== */
+
+.transactions-list {
+    border-top: 1px solid var(--border);
+    padding: 0 4px;
+}
+
+.transaction-item {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.transaction-item:last-child { border-bottom: none; }
+.transaction-item:hover { border-color: var(--border); }
+
+.transaction-content {
+    /* Stays opaque (not transparent) so it fully covers .swipe-delete-bg
+       at rest — only the swipe gesture's transform should reveal it. */
+    background: var(--card);
+    padding: 12px 8px;
+}
+
+.transaction-content:hover { background: var(--card2); }
+
+/* ==========================================================
+   OUTLINED CHIPS — categories & accounts read as ledger tags
+   (thin ink outline) instead of filled soft-color pills.
+   ========================================================== */
+
+.category-item,
+.account-item {
+    background: transparent;
+    border: 1px solid var(--text3);
+    color: var(--text2);
+}
+
+.category-item:hover {
+    background: transparent;
+    border-color: var(--violet);
+    color: var(--violet);
+    box-shadow: none;
 }
 
 /* ==========================================================

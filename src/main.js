@@ -151,6 +151,7 @@ class ExpenseTracker {
 
         this.budgetLimits = JSON.parse(localStorage.getItem('budgetLimits') || '{}');
         this.givingFloorPct = parseFloat(localStorage.getItem('givingFloorPct')) || 5;
+        this.givingFloorCategory = localStorage.getItem('givingFloorCategory') || '';
 
         this.accounts = [];
         // Grouped by type for the source-details dropdowns, e.g.
@@ -248,7 +249,9 @@ class ExpenseTracker {
             e.preventDefault();
             const pct = parseFloat(qs('giving-floor-pct')?.value);
             this.givingFloorPct = pct >= 0 ? pct : 5;
+            this.givingFloorCategory = qs('giving-floor-category')?.value || '';
             localStorage.setItem('givingFloorPct', String(this.givingFloorPct));
+            localStorage.setItem('givingFloorCategory', this.givingFloorCategory);
             showNotification('Giving floor saved!');
             if (this.currentCycleStart)
                 this.updateDashboardStats(this.currentCycleStart, this.currentCycleEnd);
@@ -530,6 +533,26 @@ class ExpenseTracker {
         const floorInput = document.getElementById('giving-floor-pct');
         if (floorInput) floorInput.value = this.givingFloorPct;
 
+        const floorCategorySelect = document.getElementById('giving-floor-category');
+        if (floorCategorySelect) {
+            const expenseCats = this.categories.filter(c => c.type === 'expense');
+            // First time through with nothing saved yet: default to a category
+            // that looks like a giving/offering category, if one exists.
+            if (!this.givingFloorCategory) {
+                const guess = expenseCats.find(c => /offering|tithe|giving|donation/i.test(c.name));
+                if (guess) this.givingFloorCategory = guess.name;
+            }
+            floorCategorySelect.innerHTML =
+                '<option value="">None</option>' +
+                expenseCats
+                    .map(
+                        c =>
+                            `<option value="${this.escapeHtml(c.name)}">${this.escapeHtml(c.icon)} ${this.escapeHtml(c.name)}</option>`
+                    )
+                    .join('');
+            floorCategorySelect.value = this.givingFloorCategory;
+        }
+
         const container = document.getElementById('budget-limits-container');
         if (!container) return;
 
@@ -631,19 +654,22 @@ class ExpenseTracker {
         `;
     }
 
-    // Warns when the "Offering" category is tracking below givingFloorPct% of
-    // this cycle's income so far. Never blocks entry — informational only.
+    // Warns when the chosen giving-floor category is tracking below
+    // givingFloorPct% of this cycle's income so far. Never blocks entry —
+    // informational only. The category is user-chosen (Budgets page), not
+    // hardcoded, since it's their own category name.
     checkOfferingFloor(cycleTxs, income) {
         const container = document.getElementById('offering-warning');
         if (!container) return;
 
-        if (income <= 0) {
+        if (income <= 0 || !this.givingFloorCategory) {
             container.innerHTML = '';
             return;
         }
 
+        const targetCategory = this.givingFloorCategory.trim().toLowerCase();
         const given = cycleTxs
-            .filter(t => t.type === 'expense' && t.category.trim().toLowerCase() === 'offering')
+            .filter(t => t.type === 'expense' && t.category.trim().toLowerCase() === targetCategory)
             .reduce((s, t) => s + Number(t.amount), 0);
 
         const floor = income * (this.givingFloorPct / 100);
@@ -654,12 +680,14 @@ class ExpenseTracker {
 
         const pct = floor > 0 ? (given / floor) * 100 : 100;
         const shortBy = floor - given;
+        const catObj = this.categories.find(c => c.name === this.givingFloorCategory);
+        const icon = catObj ? catObj.icon : '🙏';
 
         container.innerHTML = `
             <div class="budget-warnings-block">
                 <div class="budget-warning-item near-budget">
                     <div class="budget-warning-header">
-                        <span>🙏 Offering</span>
+                        <span>${this.escapeHtml(icon)} ${this.escapeHtml(this.givingFloorCategory)}</span>
                         <span class="budget-badge">⚠️ ${pct.toFixed(0)}% of ${this.givingFloorPct}% floor</span>
                     </div>
                     <div class="budget-bar-track">
