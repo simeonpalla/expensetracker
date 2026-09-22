@@ -24,11 +24,13 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Backend | 4. Data-layer scaling readiness | Indexes added, need Simeon to run migration; pagination needs a decision; pooler mode needs a manual check |
 | Backend | 5. Staging environment | Not started |
 | Frontend | React + TS scaffolding | Done — proven via test, zero prod bundle cost until first page ports |
-| Frontend | Page port: Dashboard | Not started |
-| Frontend | Page port: Budgets | Not started |
-| Frontend | Page port: Accounts | Not started |
-| Frontend | Page port: Insights | Not started |
-| Frontend | Page port: Auth/forms | Not started |
+| Frontend | Page port: Accounts | Done — proven via unit + E2E/a11y tests |
+| Frontend | Page port: Insights | Done — needs Simeon's manual spot-check of the numbers (financial-analysis logic) |
+| Frontend | Page port: Categories | Done — also fixed a real pre-existing a11y bug found by properly extending the gate |
+| Frontend | Page port: Budgets | Done — caught and fixed a real regression before it shipped |
+| Frontend | Page port: Add Transaction | Done — form only, Dashboard stays vanilla (see note) |
+| Frontend | Page port: Dashboard | Not started — list/edit modal/charts/CSV/cycle selection, deliberately not combined with Add Transaction |
+| Frontend | Page port: Auth/forms | Not started — do last, highest risk |
 
 ---
 
@@ -212,15 +214,140 @@ CSS tokens, CSP, and the PWA setup carry over largely unchanged.
       local `codebase-map` skill doc updated to match
 
 ### Page ports
-Each ported page: own branch/PR, Playwright passing (including axe-core
-a11y gate — must not regress WCAG AA), reviewed against the vanilla version
-before merge.
+Each ported page: Playwright passing (including axe-core a11y gate — must
+not regress WCAG AA), reviewed against the vanilla version before merge.
 
-- [ ] Dashboard — highest value, highest complexity (projections, charts)
-- [ ] Budgets
-- [ ] Accounts
-- [ ] Insights
-- [ ] Auth/forms
+**2026-09-22 deviation from the original plan**: Simeon asked to work
+through all pages rather than one branch/PR per page — continuing on
+`chore/scalability-roadmap-tracking` instead of a fresh branch per page,
+verified/committed incrementally as each page completes.
+
+- [x] **Accounts** (2026-09-22) — `src/react/pages/AccountsPage.tsx`,
+      mounted into `#accounts-react-root` via a dynamic import (React only
+      downloads after auth succeeds; confirmed the login-screen bundle is
+      untouched). Removed the vanilla `renderAccountsUI`/
+      `handleAccountSubmit`/`deleteAccount`; `loadAccounts()` stays (other
+      pages' dropdowns depend on the `paymentSources` it builds) and the
+      React component calls `window.app.loadAccounts()` after add/delete
+      to keep those in sync — proven by the existing E2E test (updated to
+      accessible-name locators), which specifically checks a newly-added
+      account appears back on the still-vanilla transaction form. 133
+      tests (5 new), all 11 E2E/a11y tests, lint/typecheck/build all
+      green. Also fixed React Testing Library's auto-cleanup silently
+      no-op'ing (needs vitest's `afterEach` as a true global, which this
+      repo doesn't enable) via `tests/react/setup.ts`.
+- [x] **Insights** (2026-09-22) — `src/react/pages/InsightsPage.tsx`, the
+      7-section financial report (anomalies, run-rate, leak, macro,
+      weekend/weekday, month-over-month) ported field-for-field from
+      `generateLocalAIInsights()` — same formulas, same thresholds, same
+      `toFixed()` precision, not a rewrite. Read-only (no shared-state
+      resync needed, unlike Accounts), but reads the still-vanilla
+      Dashboard's cycle-selection state off `window.app` at analyze-time
+      — a coupling to revisit once Dashboard is ported. React/react-dom
+      now dedupes into one shared chunk across both islands (Vite), so
+      this added only ~9KB gzip on top of Accounts.
+      **Needs Simeon's manual spot-check**: this is financial-analysis
+      logic on live data — green tests (136 total, including the
+      existing real-fixture E2E test verifying the giving-floor category
+      is never flagged as an anomaly) are necessary but per
+      `release-safety` not sufficient on their own for this kind of
+      change; please compare a real analysis run against the pre-port
+      version once before fully trusting it.
+**2026-09-23 correction**: the original 5-page plan missed 2 of the app's 6
+actual tabs (`grep -n 'data-page=' index.html`: add-transaction, dashboard,
+budgets, categories, accounts, ai-insights) — **Categories** and
+**Add Transaction** weren't in it. Adding them here, ordered by risk.
+
+- [x] **Categories** (2026-09-23) — `src/react/pages/CategoriesPage.tsx`,
+      list/add only (confirmed no delete in either the vanilla frontend or
+      the backend — didn't add capability that wasn't there). Same
+      `window.app.loadCategories()` resync pattern as Accounts.
+      **Important finding while doing this**: extended
+      `tests/e2e/a11y.spec.js`'s general a11y test to actually visit
+      accounts/insights/categories — it never had before, so the
+      "a11y-gate verified" claims for the Accounts and Insights ports
+      earlier in this file were overstated (the gate wasn't actually
+      running against them). Doing so caught a real, pre-existing bug:
+      the Type `<select>` on both Accounts and Categories forms had no
+      accessible name (only the main transaction form's had a proper
+      `<label>`) — fixed with `aria-label`. All 3 React pages are now
+      genuinely covered by the a11y gate.
+- [x] **Budgets** (2026-09-23) — `src/react/pages/BudgetsPage.tsx`, both
+      the per-category limit form and the Giving Floor form. This page's
+      state is localStorage-only (no backend table), consumed by the
+      still-vanilla Dashboard, so saves write the same localStorage keys
+      as the original *and* mutate `window.app`'s in-memory copies, then
+      call `window.app.updateDashboardStats()` when a cycle is active.
+      **Caught a real regression before it shipped**: the giving-floor
+      auto-guess used to run unconditionally at app boot (via
+      `loadCategories()` → the old `renderBudgetLimitsUI()`), so
+      Dashboard's giving-floor warning worked even if Budgets was never
+      opened. Removing the old method broke that — the existing E2E test
+      ("dashboard warns when the Offering category is under the giving
+      floor") caught it failing. Fixed by restoring the guess into
+      `loadCategories()` itself. 144 tests (5 new), all 11 E2E/a11y tests
+      green after the fix.
+- [x] **Add Transaction** (2026-09-23) — `src/react/pages/AddTransactionPage.tsx`,
+      the form only. **Scope correction**: originally planned combined with
+      Dashboard (they share the edit modal + cycle state), but on reading
+      the code the split turned out cleaner than expected — the form
+      doesn't need Dashboard's rendering ported, just two bridges:
+      `window.app.refreshTransactions()` (new helper, also deduped 2 other
+      call sites) for the React form to trigger the vanilla Dashboard's
+      refresh after save, and `window.__prefillAddTransactionForm` for the
+      Dashboard's "+ Log it" recurring-suggestion button to fill the React
+      form (native DOM `.value` assignment can't update React-controlled
+      inputs — this replaces that approach). Also added
+      `src/react/crossPageSync.ts`, a small pub/sub so this page and
+      BudgetsPage (same gap) refetch their independently-fetched
+      categories/accounts when Categories/Accounts pages mutate them
+      elsewhere — every React island mounts once at boot and stays
+      mounted, so without this their data goes stale until a full reload.
+      **Caught 2 real bugs via the E2E suite** before shipping: the form
+      lost its `id="transaction-form"` (one test referenced it directly),
+      and the cross-page staleness gap above (the accounts E2E test
+      expected a newly-added account to show up in this form's Bank/Card
+      dropdown without a reload). 152 tests (8 new), all 11 E2E/a11y tests
+      green.
+- [ ] Dashboard — **scoped in full on 2026-09-23, deliberately not started
+      this session.** Unlike every other page, Dashboard isn't
+      independently addressable: `loadCycleHistory()`/
+      `updateDashboardStats()` is the coordination spine every ported
+      page's `refreshTransactions()`/`updateDashboardStats()` bridge calls
+      into. Porting it means Dashboard becomes the *new owner* of that
+      spine — rewiring how the 5 already-shipped pages signal it, on top
+      of reimplementing 2 Chart.js charts and the mobile swipe-to-delete
+      gesture faithfully (real UX risk given Simeon's iPhone-primary
+      usage). This is categorically bigger than any single page done so
+      far — closer to a rewrite of the app's coordination layer than a
+      page port. Concrete scope for whoever picks this up:
+      - Transaction list: can likely reuse the *existing* vanilla
+        delegated click listener on `#transactions-list` unchanged (React
+        can own the list's rendering while mounting into that same
+        container — the listener is on the container, not the children,
+        so DOM event bubbling doesn't care who rendered them) — as long
+        as rendered items keep the same classNames/`data-id` attributes.
+        This means the edit modal and delete-confirm modal likely need
+        **zero changes** — worth verifying before assuming otherwise.
+      - Swipe-to-delete (`setupSwipeToDelete`): reimplement natively in
+        React (onTouchStart/Move/End) rather than bridging into the
+        vanilla DOM-transform version — safer long-term, but real gesture
+        parity risk; test on an actual phone, not just Playwright.
+      - Charts: `loadChart()` (src/charts.js) already lazy-loads Chart.js
+        as its own chunk — reuse it, own the canvas via a React ref +
+        useEffect, destroy/recreate on data change (matching the
+        vanilla `.destroy()` pattern already used).
+      - Stats/streak/run-rate/leak/budget-warnings/offering-warnings: pure
+        calculations already extracted cleanly in main.js
+        (`calculateRunRate`, `findTopLeak`, `checkBudgetWarnings`,
+        `checkOfferingFloor`) — portable to React following the same
+        "compute pure data, render JSX" pattern as InsightsPage.
+      - Cycle selection ownership needs to move to React (or stay
+        vanilla-owned with React reading it) — decide explicitly rather
+        than accidentally duplicating cycle state.
+- [ ] Auth/forms — highest risk per `release-safety`: a broken login
+      screen locks Simeon out of his own app; do this one carefully and
+      last, once the pattern is well-proven elsewhere
 
 ---
 

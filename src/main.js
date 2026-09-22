@@ -169,7 +169,10 @@ class ExpenseTracker {
             this.setupEventListeners();
             this._listenersAttached = true;
         }
-        this.setTodayDate();
+        if (!this._reactMounted) {
+            this.mountReactIslands();
+            this._reactMounted = true;
+        }
         this.syncSalaryAccountUI();
 
         document.getElementById('status-dot').className = 'status-dot connecting';
@@ -183,7 +186,6 @@ class ExpenseTracker {
             document.getElementById('status-dot').className = 'status-dot connected';
             document.getElementById('status-text').textContent = 'Connected';
 
-            this.updateSourceDetailsOptions();
             this.loadCycleHistory();
             this.showPage('add-transaction');
         } catch (error) {
@@ -208,25 +210,10 @@ class ExpenseTracker {
     setupEventListeners() {
         const qs = id => document.getElementById(id);
 
-        qs('transaction-form')?.addEventListener('submit', e => this.handleTransactionSubmit(e));
-        qs('category-form')?.addEventListener('submit', e => this.handleCategorySubmit(e));
-        qs('account-form')?.addEventListener('submit', e => this.handleAccountSubmit(e));
-        qs('accounts-display')?.addEventListener('click', e => {
-            const btn = e.target.closest('.account-delete-btn');
-            if (btn) this.deleteAccount(btn.dataset.id);
-        });
-        qs('type')?.addEventListener('change', () => {
-            this.populateCategoryDropdowns();
-            this.updateFormForSalary();
-        });
-        qs('category')?.addEventListener('change', () => this.updateFormForSalary());
-        qs('payment-source')?.addEventListener('change', () => this.updateSourceDetailsOptions());
         qs('filter-type')?.addEventListener('change', () => this.displayTransactions());
         qs('filter-category')?.addEventListener('change', () => this.displayTransactions());
         qs('cycle-history')?.addEventListener('change', () => this.handleCycleChange());
-        qs('clear-form-btn')?.addEventListener('click', () => this.resetForm());
         qs('logout-btn')?.addEventListener('click', handleLogout);
-        qs('generate-local-ai-btn')?.addEventListener('click', () => this.generateLocalAIInsights());
         qs('reset-chart-view-btn')?.addEventListener('click', () => this.renderChartBySource());
         qs('export-csv-btn')?.addEventListener('click', () => this.exportCSV());
 
@@ -238,23 +225,6 @@ class ExpenseTracker {
                 localStorage.setItem('salaryAccount', val);
                 showNotification('Salary account updated to ' + val);
             }
-        });
-
-        qs('budget-limits-form')?.addEventListener('submit', e => {
-            e.preventDefault();
-            this.saveBudgetLimits();
-        });
-
-        qs('giving-floor-form')?.addEventListener('submit', e => {
-            e.preventDefault();
-            const pct = parseFloat(qs('giving-floor-pct')?.value);
-            this.givingFloorPct = pct >= 0 ? pct : 5;
-            this.givingFloorCategory = qs('giving-floor-category')?.value || '';
-            localStorage.setItem('givingFloorPct', String(this.givingFloorPct));
-            localStorage.setItem('givingFloorCategory', this.givingFloorCategory);
-            showNotification('Giving floor saved!');
-            if (this.currentCycleStart)
-                this.updateDashboardStats(this.currentCycleStart, this.currentCycleEnd);
         });
 
         // Edit modal
@@ -316,6 +286,37 @@ class ExpenseTracker {
         });
     }
 
+    // Mounts React-ported pages (see SCALABILITY_ROADMAP.md). Dynamically
+    // imported so React is only downloaded after auth succeeds — an
+    // unauthenticated visit (just the login screen) never pays for it.
+    async mountReactIslands() {
+        const accountsRoot = document.getElementById('accounts-react-root');
+        if (accountsRoot) {
+            const { mountAccountsPage } = await import('./react/mount-accounts.tsx');
+            mountAccountsPage(accountsRoot);
+        }
+        const insightsRoot = document.getElementById('insights-react-root');
+        if (insightsRoot) {
+            const { mountInsightsPage } = await import('./react/mount-insights.tsx');
+            mountInsightsPage(insightsRoot);
+        }
+        const categoriesRoot = document.getElementById('categories-react-root');
+        if (categoriesRoot) {
+            const { mountCategoriesPage } = await import('./react/mount-categories.tsx');
+            mountCategoriesPage(categoriesRoot);
+        }
+        const budgetsRoot = document.getElementById('budgets-react-root');
+        if (budgetsRoot) {
+            const { mountBudgetsPage } = await import('./react/mount-budgets.tsx');
+            mountBudgetsPage(budgetsRoot);
+        }
+        const addTransactionRoot = document.getElementById('add-transaction-react-root');
+        if (addTransactionRoot) {
+            const { mountAddTransactionPage } = await import('./react/mount-add-transaction.tsx');
+            mountAddTransactionPage(addTransactionRoot);
+        }
+    }
+
     showPage(pageId) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nav-tab').forEach(t => {
@@ -326,27 +327,11 @@ class ExpenseTracker {
             t.tabIndex = selected ? 0 : -1;
         });
         document.getElementById(pageId)?.classList.add('active');
-
-        if (pageId === 'budgets') this.renderBudgetLimitsUI();
-        if (pageId === 'accounts') this.renderAccountsUI();
-    }
-
-    setTodayDate() {
-        const el = document.getElementById('date');
-        if (el) el.value = PFDates.todayStr();
     }
 
     syncSalaryAccountUI() {
         const sel = document.getElementById('salary-default-account');
         if (sel) sel.value = this.salaryAccount;
-    }
-
-    resetForm() {
-        document.getElementById('transaction-form')?.reset();
-        this.setTodayDate();
-        this.populateCategoryDropdowns();
-        this.updateSourceDetailsOptions();
-        this.updateFormForSalary();
     }
 
     // ===============================
@@ -356,8 +341,19 @@ class ExpenseTracker {
         const raw = (await API.getCategories()) || [];
         this.categories = raw.sort((a, b) => a.name.localeCompare(b.name));
         this.populateCategoryDropdowns();
-        this.displayCategories();
-        this.renderBudgetLimitsUI();
+
+        // First-time giving-floor guess: used to happen inside the vanilla
+        // renderBudgetLimitsUI(), called unconditionally from here — so it
+        // ran at boot regardless of whether the user ever visited Budgets.
+        // BudgetsPage.tsx repeats this guess on its own mount too (belt and
+        // suspenders, idempotent), but Dashboard's giving-floor warning
+        // needs this to have already run even if Budgets is never opened.
+        if (!this.givingFloorCategory) {
+            const guess = this.categories.find(
+                c => c.type === 'expense' && /offering|tithe|giving|donation/i.test(c.name)
+            );
+            if (guess) this.givingFloorCategory = guess.name;
+        }
     }
 
     populateCategoryDropdowns() {
@@ -391,40 +387,11 @@ class ExpenseTracker {
         }
     }
 
-    displayCategories() {
-        const incomeDiv = document.getElementById('income-categories');
-        const expenseDiv = document.getElementById('expense-categories');
-        if (!incomeDiv || !expenseDiv) return;
-
-        incomeDiv.innerHTML = '';
-        expenseDiv.innerHTML = '';
-
-        this.categories.forEach(c => {
-            const div = document.createElement('div');
-            div.className = 'category-item';
-            div.innerHTML = `<span class="category-icon">${this.escapeHtml(c.icon)}</span><span class="category-name">${this.escapeHtml(c.name)}</span>`;
-            if (c.type === 'income') incomeDiv.appendChild(div);
-            else expenseDiv.appendChild(div);
-        });
-    }
-
-    async handleCategorySubmit(e) {
-        e.preventDefault();
-        const category = {
-            name: document.getElementById('category-name').value.trim(),
-            type: document.getElementById('category-type').value,
-            icon: document.getElementById('category-icon').value.trim() || '📁'
-        };
-
-        try {
-            await API.addCategory(category);
-            await this.loadCategories();
-            e.target.reset();
-            showNotification('Category added successfully!');
-        } catch (error) {
-            showNotification('Error adding category: ' + error.message, 'error');
-        }
-    }
+    // Rendering + add for this page now live in
+    // src/react/pages/CategoriesPage.tsx, mounted into
+    // #categories-react-root by mountReactIslands(). loadCategories()
+    // above stays: populateCategoryDropdowns() is still needed by other
+    // pages (the transaction form's category select).
 
     // ===============================
     // PAYMENT ACCOUNTS / CARDS
@@ -439,7 +406,6 @@ class ExpenseTracker {
         });
 
         this.populateSalaryAccountOptions();
-        this.renderAccountsUI();
     }
 
     // The salary-default-account select draws from UPI + debit-card accounts,
@@ -460,140 +426,23 @@ class ExpenseTracker {
         this.syncSalaryAccountUI();
     }
 
-    renderAccountsUI() {
-        const container = document.getElementById('accounts-display');
-        if (!container) return;
-
-        if (this.accounts.length === 0) {
-            container.innerHTML =
-                '<p style="color: var(--text2); font-size: 0.9rem;">No accounts yet — add your first bank, UPI ID, or card above.</p>';
-            return;
-        }
-
-        const TYPE_LABELS = {
-            upi: '📲 UPI',
-            'debit-card': '💳 Debit Cards',
-            'credit-card': '💳 Credit Cards',
-            cash: '💵 Cash'
-        };
-
-        container.innerHTML = Object.keys(TYPE_LABELS)
-            .filter(type => this.accounts.some(a => a.type === type))
-            .map(type => {
-                const items = this.accounts
-                    .filter(a => a.type === type)
-                    .map(
-                        a => `
-                        <div class="category-item account-item">
-                            <span class="category-name">${this.escapeHtml(a.name)}</span>
-                            <button type="button" class="account-delete-btn" data-id="${a.id}" aria-label="Remove ${this.escapeHtml(a.name)}">×</button>
-                        </div>`
-                    )
-                    .join('');
-                return `
-                    <div class="category-group">
-                        <h4>${TYPE_LABELS[type]}</h4>
-                        <div class="category-grid">${items}</div>
-                    </div>`;
-            })
-            .join('');
-    }
-
-    async handleAccountSubmit(e) {
-        e.preventDefault();
-        const account = {
-            name: document.getElementById('account-name').value.trim(),
-            type: document.getElementById('account-type').value
-        };
-
-        try {
-            await API.addAccount(account);
-            await this.loadAccounts();
-            e.target.reset();
-            showNotification('Account added!');
-        } catch (error) {
-            showNotification('Error adding account: ' + error.message, 'error');
-        }
-    }
-
-    async deleteAccount(id) {
-        try {
-            await API.deleteAccount(id);
-            await this.loadAccounts();
-            showNotification('Account removed.');
-        } catch (error) {
-            showNotification('Error removing account: ' + error.message, 'error');
-        }
-    }
+    // Rendering + add/delete for this page now live in
+    // src/react/pages/AccountsPage.tsx, mounted into #accounts-react-root
+    // by mountReactIslands(). This method stays: it's the shared-state
+    // hydration other pages' dropdowns (payment source, salary account)
+    // depend on, via this.paymentSources / populateSalaryAccountOptions().
 
     // ===============================
     // BUDGET LIMITS
     // ===============================
-    renderBudgetLimitsUI() {
-        const floorInput = document.getElementById('giving-floor-pct');
-        if (floorInput) floorInput.value = this.givingFloorPct;
-
-        const floorCategorySelect = document.getElementById('giving-floor-category');
-        if (floorCategorySelect) {
-            const expenseCats = this.categories.filter(c => c.type === 'expense');
-            // First time through with nothing saved yet: default to a category
-            // that looks like a giving/offering category, if one exists.
-            if (!this.givingFloorCategory) {
-                const guess = expenseCats.find(c => /offering|tithe|giving|donation/i.test(c.name));
-                if (guess) this.givingFloorCategory = guess.name;
-            }
-            floorCategorySelect.innerHTML =
-                '<option value="">None</option>' +
-                expenseCats
-                    .map(
-                        c =>
-                            `<option value="${this.escapeHtml(c.name)}">${this.escapeHtml(c.icon)} ${this.escapeHtml(c.name)}</option>`
-                    )
-                    .join('');
-            floorCategorySelect.value = this.givingFloorCategory;
-        }
-
-        const container = document.getElementById('budget-limits-container');
-        if (!container) return;
-
-        const expenseCategories = this.categories.filter(c => c.type === 'expense');
-        if (expenseCategories.length === 0) {
-            container.innerHTML =
-                '<p style="color: var(--text2); font-size: 0.9rem;">Add expense categories first.</p>';
-            return;
-        }
-
-        container.innerHTML = expenseCategories
-            .map(
-                c => `
-            <div class="budget-limit-row">
-                <label>${this.escapeHtml(c.icon)} ${this.escapeHtml(c.name)}</label>
-                <div class="budget-input-wrap">
-                    <span class="rupee-symbol">₹</span>
-                    <input type="number" min="0" step="1"
-                           class="budget-limit-input"
-                           data-category="${this.escapeHtml(c.name)}"
-                           placeholder="No limit"
-                           value="${this.budgetLimits[c.name] || ''}">
-                </div>
-            </div>
-        `
-            )
-            .join('');
-    }
-
-    saveBudgetLimits() {
-        const inputs = document.querySelectorAll('.budget-limit-input');
-        inputs.forEach(input => {
-            const cat = input.dataset.category;
-            const val = parseFloat(input.value);
-            if (val > 0) this.budgetLimits[cat] = val;
-            else delete this.budgetLimits[cat];
-        });
-        localStorage.setItem('budgetLimits', JSON.stringify(this.budgetLimits));
-        showNotification('Budget limits saved!');
-        if (this.currentCycleStart) this.updateDashboardStats(this.currentCycleStart, this.currentCycleEnd);
-    }
+    // Rendering + save for this page (budget limits + the Giving Floor
+    // form) now live in src/react/pages/BudgetsPage.tsx, mounted into
+    // #budgets-react-root by mountReactIslands(). That page writes
+    // budgetLimits/givingFloorPct/givingFloorCategory straight to
+    // localStorage and mutates this.* in place (there's no backend table
+    // for these — they were always localStorage-only), so
+    // checkBudgetWarnings()/checkOfferingFloor() below keep working
+    // unmodified.
 
     checkBudgetWarnings(cycleTxs) {
         const container = document.getElementById('budget-warnings');
@@ -705,65 +554,10 @@ class ExpenseTracker {
     // ===============================
     // FORM LOGIC
     // ===============================
-    updateFormForSalary() {
-        const typeSelect = document.getElementById('type');
-        const categorySelect = document.getElementById('category');
-        const paymentSourceSelect = document.getElementById('payment-source');
-        const sourceDetailsSelect = document.getElementById('source-details');
-
-        const isSalary =
-            typeSelect?.value === 'income' &&
-            (categorySelect?.value || '').trim().toLowerCase().includes('salary');
-
-        if (isSalary) {
-            if (paymentSourceSelect) {
-                paymentSourceSelect.innerHTML = '<option value="salary" selected>Salary Deposit</option>';
-                paymentSourceSelect.disabled = true;
-            }
-            if (sourceDetailsSelect) {
-                sourceDetailsSelect.innerHTML = `<option value="${this.salaryAccount}" selected>${this.salaryAccount}</option>`;
-                sourceDetailsSelect.disabled = true;
-                sourceDetailsSelect.closest('.form-group').style.display = 'block';
-            }
-        } else {
-            if (paymentSourceSelect && paymentSourceSelect.disabled) {
-                paymentSourceSelect.innerHTML = `
-                    <option value="">Select Source</option>
-                    <option value="upi">UPI</option>
-                    <option value="credit-card">Credit Card</option>
-                    <option value="debit-card">Debit Card</option>
-                    <option value="cash">Cash</option>
-                `;
-                paymentSourceSelect.disabled = false;
-            }
-            if (sourceDetailsSelect) sourceDetailsSelect.disabled = false;
-            this.updateSourceDetailsOptions();
-        }
-    }
-
-    updateSourceDetailsOptions() {
-        const source = document.getElementById('payment-source')?.value;
-        const details = document.getElementById('source-details');
-        if (!details) return;
-
-        details.innerHTML = '<option value="">Select Details</option>';
-        const sourceGroup = details.closest('.form-group');
-
-        if (this.paymentSources[source]) {
-            if (sourceGroup) sourceGroup.style.display = 'block';
-            details.required = true;
-            this.paymentSources[source].forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s;
-                opt.textContent = s;
-                details.appendChild(opt);
-            });
-        } else {
-            if (sourceGroup) sourceGroup.style.display = source ? 'block' : 'none';
-            details.required = false;
-        }
-    }
-
+    // updateFormForSalary()/updateSourceDetailsOptions() (the add-transaction
+    // form's own salary-toggle + source-details cascade) now live in
+    // src/react/pages/AddTransactionPage.tsx as derived state. This one
+    // stays: it's for the edit modal, which is still vanilla.
     updateEditSourceDetailsOptions() {
         const source = document.getElementById('edit-payment-source')?.value;
         const details = document.getElementById('edit-source-details');
@@ -792,34 +586,14 @@ class ExpenseTracker {
     // ===============================
     // TRANSACTIONS
     // ===============================
-    async handleTransactionSubmit(e) {
-        e.preventDefault();
-
-        const isRecurring = document.getElementById('is-recurring')?.checked || false;
-
-        const tx = {
-            type: document.getElementById('type').value,
-            amount: parseFloat(document.getElementById('amount').value),
-            category: document.getElementById('category').value,
-            transaction_date: document.getElementById('date').value,
-            description: document.getElementById('description').value || null,
-            payment_to: document.getElementById('payment-to').value,
-            payment_source: document.getElementById('payment-source').value || 'salary',
-            source_details: document.getElementById('source-details').value || this.salaryAccount,
-            is_recurring: isRecurring
-        };
-
-        await withBusy(e.submitter, '💾 Saving...', async () => {
-            try {
-                await API.addTransaction(tx);
-                this.resetForm();
-                this.transactions = (await API.getTransactions()) || [];
-                this.loadCycleHistory();
-                showNotification('Transaction saved!');
-            } catch (error) {
-                showNotification('Error saving transaction: ' + error.message, 'error');
-            }
-        });
+    // The add-transaction form itself now lives in
+    // src/react/pages/AddTransactionPage.tsx (mounted into
+    // #add-transaction-react-root), including its own submit handling.
+    // This helper is what it (and the edit modal, and delete) call after
+    // a mutation to refresh the still-vanilla Dashboard.
+    async refreshTransactions() {
+        this.transactions = (await API.getTransactions()) || [];
+        this.loadCycleHistory();
     }
 
     // ===============================
@@ -889,8 +663,7 @@ class ExpenseTracker {
         try {
             await API.updateTransaction(this.editingTransactionId, updated);
             this.closeEditModal();
-            this.transactions = (await API.getTransactions()) || [];
-            this.loadCycleHistory();
+            await this.refreshTransactions();
             showNotification('Transaction updated!');
         } catch (error) {
             showNotification('Error updating: ' + error.message, 'error');
@@ -917,8 +690,7 @@ class ExpenseTracker {
 
         try {
             await API.deleteTransaction(id);
-            this.transactions = (await API.getTransactions()) || [];
-            this.loadCycleHistory();
+            await this.refreshTransactions();
             showNotification('Transaction deleted.');
         } catch (error) {
             showNotification('Error deleting: ' + error.message, 'error');
@@ -1122,27 +894,13 @@ class ExpenseTracker {
         this.prefillFromRecurring(tx);
     }
 
+    // The form itself is React now (AddTransactionPage.tsx) — native DOM
+    // .value assignment can't update React-controlled input state, so this
+    // goes through the window.__prefillAddTransactionForm bridge the
+    // component registers on mount instead of touching the DOM directly.
     prefillFromRecurring(tx) {
         this.showPage('add-transaction');
-        setTimeout(() => {
-            document.getElementById('type').value = tx.type;
-            this.populateCategoryDropdowns();
-            document.getElementById('category').value = tx.category;
-            document.getElementById('amount').value = tx.amount;
-            document.getElementById('payment-to').value = tx.payment_to || '';
-            document.getElementById('description').value = tx.description || '';
-            document.getElementById('is-recurring').checked = true;
-
-            const psEl = document.getElementById('payment-source');
-            psEl.value = tx.payment_source || '';
-            this.updateSourceDetailsOptions();
-            setTimeout(() => {
-                document.getElementById('source-details').value = tx.source_details || '';
-            }, 50);
-
-            this.updateFormForSalary();
-            showNotification('Form pre-filled from recurring transaction.');
-        }, 100);
+        window.__prefillAddTransactionForm?.(tx);
     }
 
     escapeHtml(str) {
@@ -1468,247 +1226,6 @@ class ExpenseTracker {
                 }
             }
         });
-    }
-
-    // ===============================
-    // LOCAL AI INSIGHTS
-    // ===============================
-    generateLocalAIInsights() {
-        const loading = document.getElementById('local-ai-loading');
-        const result = document.getElementById('local-ai-result');
-        if (!loading || !result) return;
-
-        loading.style.display = 'block';
-        result.style.display = 'none';
-
-        setTimeout(() => {
-            const allTxs = this.transactions || [];
-            const currentStart = this.currentCycleStart;
-            const currentEnd = this.currentCycleEnd;
-
-            const currentTxs = this.getTransactionsInCycle(currentStart, currentEnd);
-            const historicalTxs = allTxs.filter(t => t.transaction_date < currentStart);
-
-            if (currentTxs.length < 3) {
-                result.innerHTML = `<p class="ai-empty">Log a few more transactions in this cycle before I can run a full audit.</p>`;
-                loading.style.display = 'none';
-                result.style.display = 'block';
-                return;
-            }
-
-            let income = 0,
-                expenses = 0;
-            const currentSpend = {};
-
-            currentTxs.forEach(t => {
-                const amount = Number(t.amount);
-                if (t.type === 'income') income += amount;
-                if (t.type === 'expense') {
-                    expenses += amount;
-                    currentSpend[t.category] = (currentSpend[t.category] || 0) + amount;
-                }
-            });
-
-            const today = PFDates.todayStr();
-
-            const historicalMonths = PFProjection.historicalMonths(this.transactions, currentStart);
-            const historicalSpend = PFProjection.spendByCategory(historicalTxs);
-            const anomalies =
-                historicalTxs.length > 0
-                    ? PFProjection.computeAnomalies(
-                          this.omitGivingCategory(currentSpend),
-                          historicalSpend,
-                          historicalMonths
-                      )
-                    : [];
-
-            const proj = PFProjection.projectCycle(this.transactions, currentStart, today);
-            const { dailyBurnRate, daysRemaining, projectedBalance } = proj;
-
-            const sortedCategories = Object.entries(currentSpend).sort((a, b) => b[1] - a[1]);
-            const topSpender = sortedCategories.length > 0 ? sortedCategories[0] : null;
-
-            let top3Spend = 0;
-            sortedCategories.slice(0, 3).forEach(c => (top3Spend += c[1]));
-            const paretoRatio = expenses > 0 ? ((top3Spend / expenses) * 100).toFixed(0) : 0;
-            const savingsRate = income > 0 ? (((income - expenses) / income) * 100).toFixed(0) : 0;
-
-            const expenseTxs = allTxs.filter(t => t.type === 'expense');
-            const { weekendAvg, weekdayAvg } = PFProjection.weekendWeekdayStats(expenseTxs);
-
-            const cycleExpenses = PFProjection.cycleExpenseTotals(this.transactions, today).map(c => ({
-                label: PFDates.parseLocal(c.start).toLocaleDateString('en-IN', {
-                    day: 'numeric',
-                    month: 'short'
-                }),
-                total: c.total,
-                start: c.start
-            }));
-
-            let html = `<div class="insights-body">`;
-
-            const section = (num, title, content) => `
-                <div class="insight-section">
-                    <div class="insight-section-header">
-                        <span class="insight-num">${num}</span>
-                        <h4>${title}</h4>
-                    </div>
-                    <div class="insight-content">${content}</div>
-                </div>
-            `;
-
-            // 1. The Audit
-            let auditContent = '';
-            if (historicalTxs.length === 0) {
-                auditContent = `<p class="insight-muted">Baseline comparison requires at least one prior cycle. Keep logging data.</p>`;
-            } else if (anomalies.length === 0) {
-                auditContent = `<div class="insight-badge insight-badge--green">✅ No significant overspending detected against your ${historicalMonths.toFixed(1)}-month baseline.</div>`;
-            } else {
-                auditContent = `<p class="insight-muted" style="margin-bottom:10px;">Variances against your ${historicalMonths.toFixed(1)}-month average:</p>`;
-                anomalies.forEach(a => {
-                    auditContent += `
-                        <div class="insight-anomaly-row">
-                            <div class="insight-anomaly-header">
-                                <strong>${this.escapeHtml(a.cat)}</strong>
-                                <span class="insight-pill insight-pill--red">+${a.pct.toFixed(0)}%</span>
-                            </div>
-                            <div class="insight-anomaly-values">
-                                Current: <b>₹${a.currentAmt.toFixed(0)}</b> &nbsp;·&nbsp; Avg: <b>₹${a.histAvg.toFixed(0)}</b>
-                                <span class="insight-pill--delta">+₹${a.diff.toFixed(0)}</span>
-                            </div>
-                        </div>`;
-                });
-            }
-            html += section('01', 'The Audit', auditContent);
-
-            // 2. Corrective Measures
-            let correctiveContent = '';
-            if (anomalies.length === 0) {
-                correctiveContent = `<p class="insight-muted">No immediate corrections required. Maintain current trajectory.</p>`;
-            } else {
-                anomalies.slice(0, 2).forEach((a, i) => {
-                    correctiveContent += `
-                        <div class="insight-action-row">
-                            <div class="insight-action-label">Action ${i + 1}: Re-peg ${this.escapeHtml(a.cat)}</div>
-                            <div class="insight-action-body">Target ₹<b>${(a.histAvg * 0.95).toFixed(0)}</b> next cycle (5% below baseline) to offset the ₹${a.diff.toFixed(0)} variance.</div>
-                        </div>`;
-                });
-            }
-            html += section('02', 'Corrective Measures', correctiveContent);
-
-            // 3. Run-Rate Status
-            let runContent;
-            if (projectedBalance < 0) {
-                runContent = `<div class="insight-badge insight-badge--red">🚨 Deficit Projected — burning ₹${dailyBurnRate.toFixed(0)}/day. Short by <b>₹${Math.abs(projectedBalance).toFixed(0)}</b>. Freeze non-essential spending.</div>`;
-            } else if (projectedBalance < income * 0.1) {
-                runContent = `<div class="insight-badge insight-badge--amber">⚠️ Low Margins — ₹${projectedBalance.toFixed(0)} leftover. Reduce to ₹<b>${((income * 0.9 - expenses) / (daysRemaining || 1)).toFixed(0)}</b>/day.</div>`;
-            } else {
-                runContent = `<div class="insight-badge insight-badge--green">✅ Surplus Projected — controlled burn of ₹${dailyBurnRate.toFixed(0)}/day. On track for <b>+₹${projectedBalance.toFixed(0)}</b>.</div>`;
-            }
-            html += section('03', 'Run-Rate Status', runContent);
-
-            // 4. Target the Leak
-            let leakContent;
-            if (topSpender && expenses > 0) {
-                const leakPct = ((topSpender[1] / expenses) * 100).toFixed(1);
-                leakContent = `<div class="insight-leak-row">
-                    <div class="insight-leak-label">${this.escapeHtml(topSpender[0])}</div>
-                    <div class="insight-leak-pct">${leakPct}% of outflow</div>
-                    <div class="insight-leak-amount">₹${topSpender[1].toFixed(0)}</div>
-                </div>
-                <p class="insight-muted" style="margin-top:10px;">Directive: Institute a 48-hour cooling-off period for this category.</p>`;
-            } else {
-                leakContent = `<p class="insight-muted">No dominant leaks detected.</p>`;
-            }
-            html += section('04', 'Target the Leak', leakContent);
-
-            // 5. Macro Analytics
-            let macroContent = '<div class="insight-macro-grid">';
-            if (income > 0) {
-                const rateOk = Number(savingsRate) >= 20;
-                macroContent += `
-                    <div class="insight-macro-tile">
-                        <div class="insight-macro-val" style="color: ${rateOk ? 'var(--income)' : 'var(--expense)'};">${savingsRate}%</div>
-                        <div class="insight-macro-label">Savings Rate</div>
-                        <div class="insight-macro-note">${rateOk ? 'Above 20% benchmark' : 'Below 20% benchmark'}</div>
-                    </div>`;
-            }
-            if (expenses > 0 && sortedCategories.length > 3) {
-                macroContent += `
-                    <div class="insight-macro-tile">
-                        <div class="insight-macro-val">${paretoRatio}%</div>
-                        <div class="insight-macro-label">Top 3 Concentration</div>
-                        <div class="insight-macro-note">Focus cuts here for max impact</div>
-                    </div>`;
-            }
-            macroContent += '</div>';
-            html += section('05', 'Macro Analytics', macroContent);
-
-            // 6. Weekend vs Weekday
-            let weekendContent;
-            if (expenseTxs.length < 5) {
-                weekendContent = `<p class="insight-muted">Need more transactions to detect patterns.</p>`;
-            } else {
-                const higherDay = weekendAvg > weekdayAvg ? 'weekends' : 'weekdays';
-                const ratio =
-                    weekendAvg > 0 && weekdayAvg > 0
-                        ? Math.max(weekendAvg, weekdayAvg) / Math.min(weekendAvg, weekdayAvg)
-                        : 1;
-                weekendContent = `
-                    <div class="insight-day-grid">
-                        <div class="insight-day-tile">
-                            <div class="insight-day-val">₹${weekdayAvg.toFixed(0)}</div>
-                            <div class="insight-day-label">avg/weekday</div>
-                        </div>
-                        <div class="insight-day-tile insight-day-tile--alt">
-                            <div class="insight-day-val">₹${weekendAvg.toFixed(0)}</div>
-                            <div class="insight-day-label">avg/weekend day</div>
-                        </div>
-                    </div>
-                    <p class="insight-muted" style="margin-top:10px;">
-                        You spend <b>${ratio.toFixed(1)}×</b> more on ${higherDay}.
-                        ${weekendAvg > weekdayAvg * 1.5 ? 'Weekend spending is a significant driver — cap weekend activities.' : 'Spending is fairly even across the week.'}
-                    </p>`;
-            }
-            html += section('06', 'Weekend vs Weekday', weekendContent);
-
-            // 7. Month-over-Month
-            let momContent = '';
-            if (cycleExpenses.length < 2) {
-                momContent = `<p class="insight-muted">Need at least 2 salary cycles to show a trend.</p>`;
-            } else {
-                const maxVal = Math.max(...cycleExpenses.map(c => c.total));
-                const recent = cycleExpenses[cycleExpenses.length - 1].total;
-                const prev = cycleExpenses[cycleExpenses.length - 2].total;
-                const momChange = prev > 0 ? (((recent - prev) / prev) * 100).toFixed(1) : 0;
-                const isUp = recent > prev;
-
-                momContent = `
-                    <div class="insight-badge ${isUp ? 'insight-badge--red' : 'insight-badge--green'}" style="margin-bottom:14px;">
-                        ${isUp ? '📈' : '📉'} vs last cycle: <b>${isUp ? '+' : ''}${momChange}%</b>
-                        (₹${recent.toFixed(0)} vs ₹${prev.toFixed(0)})
-                    </div>
-                    <div class="insight-bar-chart">`;
-                cycleExpenses.forEach(c => {
-                    const barHeight = maxVal > 0 ? Math.max(4, (c.total / maxVal) * 70) : 4;
-                    const isCurrent = c.start === currentStart;
-                    momContent += `
-                        <div class="insight-bar-col">
-                            <div class="insight-bar-val">₹${(c.total / 1000).toFixed(1)}k</div>
-                            <div class="insight-bar-fill ${isCurrent ? 'insight-bar-fill--active' : ''}" style="height:${barHeight}px;"></div>
-                            <div class="insight-bar-label">${c.label}</div>
-                        </div>`;
-                });
-                momContent += `</div>`;
-            }
-            html += section('07', 'Month-over-Month', momContent);
-
-            html += `</div>`;
-
-            result.innerHTML = html;
-            loading.style.display = 'none';
-            result.style.display = 'block';
-        }, 800);
     }
 }
 

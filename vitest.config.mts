@@ -6,6 +6,9 @@ export default defineConfig({
     // function-handler tests stay on Node with no plugin overhead.
     plugins: [react()],
     test: {
-        include: ['tests/**/*.test.{js,tsx}']
+        include: ['tests/**/*.test.{js,tsx}'],
+        // Only extends `expect` with jest-dom matchers (toBeInTheDocument,
+        // etc.) — negligible cost for the non-React tests that ignore it.
+        setupFiles: ['tests/react/setup.ts']
     }
 });

@@ -50,7 +50,7 @@ module.exports = [
     },
     ...tseslint.configs.recommended.map(config => ({
         ...config,
-        files: ['src/**/*.{ts,tsx}', 'tests/react/**/*.tsx']
+        files: ['src/**/*.{ts,tsx}', 'tests/react/**/*.{ts,tsx}']
     })),
     {
         files: ['src/**/*.{ts,tsx}'],
@@ -61,7 +61,7 @@ module.exports = [
         }
     },
     {
-        files: ['tests/react/**/*.tsx'],
+        files: ['tests/react/**/*.{ts,tsx}'],
         languageOptions: {
             ecmaVersion: 2023,
             sourceType: 'module',
