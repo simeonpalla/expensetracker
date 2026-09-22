@@ -85,8 +85,13 @@ phases — do not start until handler tests cover current behavior.
       (signInWithPassword/signUp/refreshSession/signOut), not table
       queries, so the "repository" extraction here is thinner value.
       `requireUser`/`anonClient` in `_lib.js` already serve as the shared
-      auth layer. `me`, `logout`, `signup`, `refresh` have no handler
-      tests yet either — revisit if/when this actually matters.
+      auth layer — revisit if/when this actually matters.
+- [x] Handler tests for `me`/`logout`/`refresh`/`signup` (2026-09-22) — 21
+      new tests (129 total), closing the coverage gap independently of
+      the repository-extraction question above (only `login.js` had tests
+      before this). Covers method rejection, auth/token validation, rate
+      limiting, cookie set/clear behavior, and the uniform-error-message
+      invariant (never revealing whether an email is registered).
 - [ ] Verify `netlify/functions/lib/` subfolder doesn't get misdetected as
       functions by Netlify's bundler — **not yet confirmed on a real
       deploy**, only inferred from `_lib.js`'s existing precedent (a
