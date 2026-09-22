@@ -10,6 +10,12 @@ declare global {
         app?: {
             loadAccounts?: () => Promise<void>;
             loadCategories?: () => Promise<void>;
+            budgetLimits?: Record<string, number>;
+            givingFloorPct?: number;
+            givingFloorCategory?: string;
+            currentCycleStart?: string | null;
+            currentCycleEnd?: string | null;
+            updateDashboardStats?: (start: string, end: string | null) => void;
         };
         showNotification?: (message: string, type?: 'success' | 'error') => void;
     }

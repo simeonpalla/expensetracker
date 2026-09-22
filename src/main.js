@@ -237,23 +237,6 @@ class ExpenseTracker {
             }
         });
 
-        qs('budget-limits-form')?.addEventListener('submit', e => {
-            e.preventDefault();
-            this.saveBudgetLimits();
-        });
-
-        qs('giving-floor-form')?.addEventListener('submit', e => {
-            e.preventDefault();
-            const pct = parseFloat(qs('giving-floor-pct')?.value);
-            this.givingFloorPct = pct >= 0 ? pct : 5;
-            this.givingFloorCategory = qs('giving-floor-category')?.value || '';
-            localStorage.setItem('givingFloorPct', String(this.givingFloorPct));
-            localStorage.setItem('givingFloorCategory', this.givingFloorCategory);
-            showNotification('Giving floor saved!');
-            if (this.currentCycleStart)
-                this.updateDashboardStats(this.currentCycleStart, this.currentCycleEnd);
-        });
-
         // Edit modal
         qs('edit-modal-close')?.addEventListener('click', () => this.closeEditModal());
         qs('edit-modal-cancel')?.addEventListener('click', () => this.closeEditModal());
@@ -332,6 +315,11 @@ class ExpenseTracker {
             const { mountCategoriesPage } = await import('./react/mount-categories.tsx');
             mountCategoriesPage(categoriesRoot);
         }
+        const budgetsRoot = document.getElementById('budgets-react-root');
+        if (budgetsRoot) {
+            const { mountBudgetsPage } = await import('./react/mount-budgets.tsx');
+            mountBudgetsPage(budgetsRoot);
+        }
     }
 
     showPage(pageId) {
@@ -344,8 +332,6 @@ class ExpenseTracker {
             t.tabIndex = selected ? 0 : -1;
         });
         document.getElementById(pageId)?.classList.add('active');
-
-        if (pageId === 'budgets') this.renderBudgetLimitsUI();
     }
 
     setTodayDate() {
@@ -373,7 +359,19 @@ class ExpenseTracker {
         const raw = (await API.getCategories()) || [];
         this.categories = raw.sort((a, b) => a.name.localeCompare(b.name));
         this.populateCategoryDropdowns();
-        this.renderBudgetLimitsUI();
+
+        // First-time giving-floor guess: used to happen inside the vanilla
+        // renderBudgetLimitsUI(), called unconditionally from here — so it
+        // ran at boot regardless of whether the user ever visited Budgets.
+        // BudgetsPage.tsx repeats this guess on its own mount too (belt and
+        // suspenders, idempotent), but Dashboard's giving-floor warning
+        // needs this to have already run even if Budgets is never opened.
+        if (!this.givingFloorCategory) {
+            const guess = this.categories.find(
+                c => c.type === 'expense' && /offering|tithe|giving|donation/i.test(c.name)
+            );
+            if (guess) this.givingFloorCategory = guess.name;
+        }
     }
 
     populateCategoryDropdowns() {
@@ -410,8 +408,8 @@ class ExpenseTracker {
     // Rendering + add for this page now live in
     // src/react/pages/CategoriesPage.tsx, mounted into
     // #categories-react-root by mountReactIslands(). loadCategories()
-    // above stays: populateCategoryDropdowns() and renderBudgetLimitsUI()
-    // are still needed by other pages.
+    // above stays: populateCategoryDropdowns() is still needed by other
+    // pages (the transaction form's category select).
 
     // ===============================
     // PAYMENT ACCOUNTS / CARDS
@@ -455,71 +453,14 @@ class ExpenseTracker {
     // ===============================
     // BUDGET LIMITS
     // ===============================
-    renderBudgetLimitsUI() {
-        const floorInput = document.getElementById('giving-floor-pct');
-        if (floorInput) floorInput.value = this.givingFloorPct;
-
-        const floorCategorySelect = document.getElementById('giving-floor-category');
-        if (floorCategorySelect) {
-            const expenseCats = this.categories.filter(c => c.type === 'expense');
-            // First time through with nothing saved yet: default to a category
-            // that looks like a giving/offering category, if one exists.
-            if (!this.givingFloorCategory) {
-                const guess = expenseCats.find(c => /offering|tithe|giving|donation/i.test(c.name));
-                if (guess) this.givingFloorCategory = guess.name;
-            }
-            floorCategorySelect.innerHTML =
-                '<option value="">None</option>' +
-                expenseCats
-                    .map(
-                        c =>
-                            `<option value="${this.escapeHtml(c.name)}">${this.escapeHtml(c.icon)} ${this.escapeHtml(c.name)}</option>`
-                    )
-                    .join('');
-            floorCategorySelect.value = this.givingFloorCategory;
-        }
-
-        const container = document.getElementById('budget-limits-container');
-        if (!container) return;
-
-        const expenseCategories = this.categories.filter(c => c.type === 'expense');
-        if (expenseCategories.length === 0) {
-            container.innerHTML =
-                '<p style="color: var(--text2); font-size: 0.9rem;">Add expense categories first.</p>';
-            return;
-        }
-
-        container.innerHTML = expenseCategories
-            .map(
-                c => `
-            <div class="budget-limit-row">
-                <label>${this.escapeHtml(c.icon)} ${this.escapeHtml(c.name)}</label>
-                <div class="budget-input-wrap">
-                    <span class="rupee-symbol">₹</span>
-                    <input type="number" min="0" step="1"
-                           class="budget-limit-input"
-                           data-category="${this.escapeHtml(c.name)}"
-                           placeholder="No limit"
-                           value="${this.budgetLimits[c.name] || ''}">
-                </div>
-            </div>
-        `
-            )
-            .join('');
-    }
-
-    saveBudgetLimits() {
-        const inputs = document.querySelectorAll('.budget-limit-input');
-        inputs.forEach(input => {
-            const cat = input.dataset.category;
-            const val = parseFloat(input.value);
-            if (val > 0) this.budgetLimits[cat] = val;
-            else delete this.budgetLimits[cat];
-        });
-        localStorage.setItem('budgetLimits', JSON.stringify(this.budgetLimits));
-        showNotification('Budget limits saved!');
-        if (this.currentCycleStart) this.updateDashboardStats(this.currentCycleStart, this.currentCycleEnd);
-    }
+    // Rendering + save for this page (budget limits + the Giving Floor
+    // form) now live in src/react/pages/BudgetsPage.tsx, mounted into
+    // #budgets-react-root by mountReactIslands(). That page writes
+    // budgetLimits/givingFloorPct/givingFloorCategory straight to
+    // localStorage and mutates this.* in place (there's no backend table
+    // for these — they were always localStorage-only), so
+    // checkBudgetWarnings()/checkOfferingFloor() below keep working
+    // unmodified.
 
     checkBudgetWarnings(cycleTxs) {
         const container = document.getElementById('budget-warnings');
