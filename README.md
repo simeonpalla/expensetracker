@@ -90,6 +90,7 @@ that **must** be applied (RLS policies, then accounts + tracker cleanup).
 |---|---|---|
 | `SUPABASE_URL` | Netlify env + local `.env` | Supabase project URL |
 | `SUPABASE_ANON_KEY` | Netlify env + local `.env` | Public anon key (RLS enforced) |
+| `SENTRY_DSN` | Netlify env only (optional) | Error tracking; unset in dev/CI so tests never contact Sentry. Only `fn`/`requestId`/`method` context is reported, never request bodies. |
 
 The service-role key is intentionally **not** used by this app.
 

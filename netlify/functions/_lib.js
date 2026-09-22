@@ -195,6 +195,7 @@ function withLogging(name, handler) {
                     stack: err && err.stack
                 })
             );
+            await reportError(err, { fn: name, requestId: id, method: event && event.httpMethod });
             throw err;
         } finally {
             console.log(
@@ -209,6 +210,39 @@ function withLogging(name, handler) {
             );
         }
     };
+}
+
+// ---------- error tracking ----------
+//
+// Sentry only activates when SENTRY_DSN is set (it's unset in dev/CI/tests,
+// so nothing here ever contacts Sentry or requires a DSN to run the suite).
+// Reporting is best-effort: a Sentry failure must never affect the response
+// already sent to the caller. Only fn/requestId context is attached — never
+// the raw event/body, to avoid shipping user data to a third party.
+
+let sentryClient = null;
+
+function getSentry() {
+    if (!process.env.SENTRY_DSN) return null;
+    if (sentryClient) return sentryClient;
+    sentryClient = require('@sentry/node');
+    sentryClient.init({
+        dsn: process.env.SENTRY_DSN,
+        environment: process.env.CONTEXT || process.env.NODE_ENV || 'production',
+        tracesSampleRate: 0
+    });
+    return sentryClient;
+}
+
+async function reportError(err, extra = {}) {
+    try {
+        const Sentry = getSentry();
+        if (!Sentry) return;
+        Sentry.captureException(err, { extra });
+        await Sentry.flush(2000);
+    } catch (reportErr) {
+        console.error('Sentry reporting failed:', reportErr && reportErr.message);
+    }
 }
 
 // ---------- validators ----------
@@ -249,6 +283,7 @@ module.exports = {
     readJsonBody,
     requestId,
     withLogging,
+    reportError,
     rateLimit,
     clientIp,
     isDateStr,
