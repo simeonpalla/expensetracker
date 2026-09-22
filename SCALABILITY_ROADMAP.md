@@ -202,8 +202,9 @@ CSS tokens, CSP, and the PWA setup carry over largely unchanged.
       bundle is byte-identical (`index-B2Bp6YsJ.js`, 16.03 kB gzip) to
       before this change — React ships zero bytes until a real page
       imports it.
-- [ ] **Follow-up, not yet decided**: wire `npm run typecheck` into CI
-      (currently local-only, like the other three checks before a push)
+- [x] Wire `npm run typecheck` into CI (2026-09-22) — added as its own
+      step in `.github/workflows/ci.yml` right after lint; README and the
+      local `codebase-map` skill doc updated to match
 
 ### Page ports
 Each ported page: own branch/PR, Playwright passing (including axe-core
