@@ -182,6 +182,17 @@ during the transition. TypeScript adopted from the start, not deferred.
 `src/main.js` (1774 lines) is the real migration effort — `src/engine/*`,
 CSS tokens, CSP, and the PWA setup carry over largely unchanged.
 
+**2026-09-23 finding**: `mountReactIslands()` eagerly mounts all 5 ported
+pages at boot (not lazily per-tab), which adds real concurrent work
+(5 dynamic imports + 5 React mounts) right when the app becomes
+interactive. This caused a real, reproducible E2E flake (`tests/e2e/
+a11y.spec.js`'s arrow-key nav test raced the app's own keydown handler
+before boot settled — fixed by waiting for the existing `#status-text`
+"Connected" readiness signal, same pattern already used elsewhere in that
+file). Worth reconsidering before porting more pages: either mount islands
+lazily per-tab-visit, or stagger them, rather than mounting all of them
+unconditionally on every boot regardless of which tab is active.
+
 ### Scaffolding
 **Status: Done** (2026-09-22)
 
