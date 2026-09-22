@@ -183,6 +183,7 @@ export default function AddTransactionPage() {
                             id="amount"
                             step="0.01"
                             min="0.01"
+                            inputMode="decimal"
                             placeholder="0.00"
                             required
                             value={form.amount}
