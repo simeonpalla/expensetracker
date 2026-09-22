@@ -26,7 +26,9 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Frontend | React + TS scaffolding | Done — proven via test, zero prod bundle cost until first page ports |
 | Frontend | Page port: Accounts | Done — proven via unit + E2E/a11y tests |
 | Frontend | Page port: Insights | Done — needs Simeon's manual spot-check of the numbers (financial-analysis logic) |
+| Frontend | Page port: Categories | Not started (found 2026-09-23: missing from the original 5-page plan) |
 | Frontend | Page port: Budgets | Not started |
+| Frontend | Page port: Add Transaction | Not started (found 2026-09-23: missing from the original plan — highest-usage page) |
 | Frontend | Page port: Dashboard | Not started |
 | Frontend | Page port: Auth/forms | Not started — do last, highest risk |
 
@@ -251,7 +253,18 @@ verified/committed incrementally as each page completes.
       `release-safety` not sufficient on their own for this kind of
       change; please compare a real analysis run against the pre-port
       version once before fully trusting it.
-- [ ] Budgets
+**2026-09-23 correction**: the original 5-page plan missed 2 of the app's 6
+actual tabs (`grep -n 'data-page=' index.html`: add-transaction, dashboard,
+budgets, categories, accounts, ai-insights) — **Categories** and
+**Add Transaction** weren't in it. Adding them here, ordered by risk.
+
+- [ ] Categories — simplest remaining page, same shape as Accounts
+      (list/add, though no delete in the vanilla version — check before
+      assuming parity)
+- [ ] Budgets — per-category limit form + the Giving Floor settings form
+- [ ] Add Transaction — the main entry form; highest-usage page even
+      though not highest-complexity, so real care on UX parity (mobile
+      users touch this multiple times daily)
 - [ ] Dashboard — highest value, highest complexity (projections, charts,
       giving-floor warnings)
 - [ ] Auth/forms — highest risk per `release-safety`: a broken login
