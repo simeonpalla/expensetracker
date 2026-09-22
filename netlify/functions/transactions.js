@@ -7,7 +7,7 @@
 // Uses the anon key + caller JWT: RLS is the enforcement boundary; the
 // explicit user_id filters are defence in depth.
 
-const { json, requireUser, readJsonBody, isDateStr, cleanString } = require('./_lib');
+const { json, requireUser, readJsonBody, isDateStr, cleanString, withLogging } = require('./_lib');
 
 const PAYMENT_SOURCES = ['upi', 'credit-card', 'debit-card', 'cash', 'salary'];
 const MAX_AMOUNT = 100000000; // ₹10 crore sanity cap
@@ -80,7 +80,7 @@ function buildPayload(body, requireAll) {
     return { payload, errors };
 }
 
-exports.handler = async function (event) {
+const handler = async function (event) {
     try {
         const auth = await requireUser(event);
         if (!auth) return json(401, { error: 'Not signed in' });
@@ -145,3 +145,5 @@ exports.handler = async function (event) {
         return json(500, { error: 'Internal server error' });
     }
 };
+
+exports.handler = withLogging('transactions', handler);

@@ -5,11 +5,11 @@
 //
 // Uses the anon key + caller JWT: RLS is the enforcement boundary.
 
-const { json, requireUser, readJsonBody, cleanString } = require('./_lib');
+const { json, requireUser, readJsonBody, cleanString, withLogging } = require('./_lib');
 
 const ACCOUNT_TYPES = ['upi', 'debit-card', 'credit-card', 'cash'];
 
-exports.handler = async function (event) {
+const handler = async function (event) {
     try {
         const auth = await requireUser(event);
         if (!auth) return json(401, { error: 'Not signed in' });
@@ -61,3 +61,5 @@ exports.handler = async function (event) {
         return json(500, { error: 'Internal server error' });
     }
 };
+
+exports.handler = withLogging('accounts', handler);

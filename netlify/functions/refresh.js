@@ -8,10 +8,11 @@ const {
     sessionCookies,
     clearSessionCookies,
     rateLimit,
-    clientIp
+    clientIp,
+    withLogging
 } = require('./_lib');
 
-exports.handler = async function (event) {
+const handler = async function (event) {
     if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
 
     const ip = clientIp(event);
@@ -43,3 +44,5 @@ exports.handler = async function (event) {
         }
     );
 };
+
+exports.handler = withLogging('refresh', handler);
