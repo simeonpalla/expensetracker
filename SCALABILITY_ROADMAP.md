@@ -19,7 +19,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Track | Phase | Status |
 |---|---|---|
 | Backend | 1. Module boundaries | Superseded — merged into Phase 2 |
-| Backend | 2. Service/repository layer | Not started (now includes former Phase 1's goal) |
+| Backend | 2. Service/repository layer | In progress — transactions + accounts done; categories/auth remain |
 | Backend | 3. Observability | Code complete — needs Simeon's manual Sentry DSN setup + a PR |
 | Backend | 4. Data-layer scaling readiness | Not started |
 | Backend | 5. Staging environment | Not started |
@@ -72,11 +72,24 @@ locations/names, so routing is untouched) to do auth/validation/response
 shaping and call the repository. Highest regression risk of the backend
 phases — do not start until handler tests cover current behavior.
 
-- [ ] Confirm handler test coverage per domain before touching code
-      (transactions.test.js, accounts.test.js, login.test.js, lib.test.js
-      already exist — check categories/signup/refresh/logout/me coverage)
-- [ ] Extract one domain's repository module at a time, verify tests after
-      each (start with transactions.js — largest, most logic)
+- [x] `transactions.js` → `lib/transactions-repo.js` (2026-09-22) — had
+      full test coverage already; all 96 tests pass unchanged, same
+      Supabase call chain/args preserved
+- [x] `accounts.js` → `lib/accounts-repo.js` (2026-09-22) — same pattern,
+      same result
+- [ ] `categories.js` — **needs handler tests added first** (none exist
+      yet), then extract `lib/categories-repo.js`
+- [ ] Auth domain (login/signup/refresh/logout/me) — lower priority: these
+      wrap Supabase Auth calls (signInWithPassword/signUp/refreshSession/
+      signOut), not table queries, so the "repository" extraction here is
+      thinner value. `requireUser`/`anonClient` in `_lib.js` already serve
+      as the shared auth layer. `me`, `logout`, `signup`, `refresh` have no
+      handler tests yet either.
+- [ ] Verify `netlify/functions/lib/` subfolder doesn't get misdetected as
+      functions by Netlify's bundler — **not yet confirmed on a real
+      deploy**, only inferred from `_lib.js`'s existing precedent (a
+      non-handler top-level file that doesn't become a spurious endpoint).
+      Add to Simeon's manual checklist: check a deploy preview.
 - [ ] PR(s) opened, CI green, merged
 
 ### Phase 3 — Observability
