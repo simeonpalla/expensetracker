@@ -28,8 +28,8 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Frontend | Page port: Insights | Done — needs Simeon's manual spot-check of the numbers (financial-analysis logic) |
 | Frontend | Page port: Categories | Done — also fixed a real pre-existing a11y bug found by properly extending the gate |
 | Frontend | Page port: Budgets | Done — caught and fixed a real regression before it shipped |
-| Frontend | Page port: Add Transaction | Not started (found 2026-09-23: missing from the original plan — highest-usage page) |
-| Frontend | Page port: Dashboard | Not started |
+| Frontend | Page port: Add Transaction | Done — form only, Dashboard stays vanilla (see note) |
+| Frontend | Page port: Dashboard | Not started — list/edit modal/charts/CSV/cycle selection, deliberately not combined with Add Transaction |
 | Frontend | Page port: Auth/forms | Not started — do last, highest risk |
 
 ---
@@ -287,11 +287,32 @@ budgets, categories, accounts, ai-insights) — **Categories** and
       floor") caught it failing. Fixed by restoring the guess into
       `loadCategories()` itself. 144 tests (5 new), all 11 E2E/a11y tests
       green after the fix.
-- [ ] Add Transaction — the main entry form; highest-usage page even
-      though not highest-complexity, so real care on UX parity (mobile
-      users touch this multiple times daily)
-- [ ] Dashboard — highest value, highest complexity (projections, charts,
-      giving-floor warnings)
+- [x] **Add Transaction** (2026-09-23) — `src/react/pages/AddTransactionPage.tsx`,
+      the form only. **Scope correction**: originally planned combined with
+      Dashboard (they share the edit modal + cycle state), but on reading
+      the code the split turned out cleaner than expected — the form
+      doesn't need Dashboard's rendering ported, just two bridges:
+      `window.app.refreshTransactions()` (new helper, also deduped 2 other
+      call sites) for the React form to trigger the vanilla Dashboard's
+      refresh after save, and `window.__prefillAddTransactionForm` for the
+      Dashboard's "+ Log it" recurring-suggestion button to fill the React
+      form (native DOM `.value` assignment can't update React-controlled
+      inputs — this replaces that approach). Also added
+      `src/react/crossPageSync.ts`, a small pub/sub so this page and
+      BudgetsPage (same gap) refetch their independently-fetched
+      categories/accounts when Categories/Accounts pages mutate them
+      elsewhere — every React island mounts once at boot and stays
+      mounted, so without this their data goes stale until a full reload.
+      **Caught 2 real bugs via the E2E suite** before shipping: the form
+      lost its `id="transaction-form"` (one test referenced it directly),
+      and the cross-page staleness gap above (the accounts E2E test
+      expected a newly-added account to show up in this form's Bank/Card
+      dropdown without a reload). 152 tests (8 new), all 11 E2E/a11y tests
+      green.
+- [ ] Dashboard — transaction list, edit modal, 2 Chart.js charts, CSV
+      export, cycle selection, budget/giving-floor warnings. Deliberately
+      NOT combined with Add Transaction (see above) — still the largest
+      remaining piece by far.
 - [ ] Auth/forms — highest risk per `release-safety`: a broken login
       screen locks Simeon out of his own app; do this one carefully and
       last, once the pattern is well-proven elsewhere
