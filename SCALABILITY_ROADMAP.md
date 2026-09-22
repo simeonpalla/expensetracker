@@ -19,7 +19,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Track | Phase | Status |
 |---|---|---|
 | Backend | 1. Module boundaries | Superseded — merged into Phase 2 |
-| Backend | 2. Service/repository layer | In progress — transactions + accounts done; categories/auth remain |
+| Backend | 2. Service/repository layer | Core CRUD domains done (transactions, accounts, categories); auth domain deprioritized |
 | Backend | 3. Observability | Code complete — needs Simeon's manual Sentry DSN setup + a PR |
 | Backend | 4. Data-layer scaling readiness | Not started |
 | Backend | 5. Staging environment | Not started |
@@ -77,14 +77,16 @@ phases — do not start until handler tests cover current behavior.
       Supabase call chain/args preserved
 - [x] `accounts.js` → `lib/accounts-repo.js` (2026-09-22) — same pattern,
       same result
-- [ ] `categories.js` — **needs handler tests added first** (none exist
-      yet), then extract `lib/categories-repo.js`
-- [ ] Auth domain (login/signup/refresh/logout/me) — lower priority: these
-      wrap Supabase Auth calls (signInWithPassword/signUp/refreshSession/
-      signOut), not table queries, so the "repository" extraction here is
-      thinner value. `requireUser`/`anonClient` in `_lib.js` already serve
-      as the shared auth layer. `me`, `logout`, `signup`, `refresh` have no
-      handler tests yet either.
+- [x] `categories.js` — had no handler tests; added 11 (auth, GET scoping,
+      POST validation/mass-assignment/icon default, method rejection,
+      error masking), then extracted `lib/categories-repo.js` (2026-09-22)
+- [ ] **Deliberately deprioritized**: auth domain (login/signup/refresh/
+      logout/me) repository extraction. These wrap Supabase Auth calls
+      (signInWithPassword/signUp/refreshSession/signOut), not table
+      queries, so the "repository" extraction here is thinner value.
+      `requireUser`/`anonClient` in `_lib.js` already serve as the shared
+      auth layer. `me`, `logout`, `signup`, `refresh` have no handler
+      tests yet either — revisit if/when this actually matters.
 - [ ] Verify `netlify/functions/lib/` subfolder doesn't get misdetected as
       functions by Netlify's bundler — **not yet confirmed on a real
       deploy**, only inferred from `_lib.js`'s existing precedent (a
