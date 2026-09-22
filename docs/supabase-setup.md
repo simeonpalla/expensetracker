@@ -52,10 +52,14 @@ create table public.payment_accounts (
 );
 ```
 
-Useful indexes:
+Useful indexes — on a fresh project, create these directly; on an existing
+one, run [`supabase/migrations/0003_indexes.sql`](../supabase/migrations/0003_indexes.sql)
+instead (idempotent, purely additive):
 
 ```sql
 create index if not exists transactions_user_date_idx on public.transactions (user_id, transaction_date desc);
+create index if not exists categories_user_id_idx on public.categories (user_id);
+create index if not exists payment_accounts_user_id_idx on public.payment_accounts (user_id);
 ```
 
 > **Time Tracker and Workout Tracker were removed** (they used to live in
@@ -72,9 +76,12 @@ Run [`supabase/migrations/0001_rls_policies.sql`](../supabase/migrations/0001_rl
 in the SQL editor, then
 [`supabase/migrations/0002_accounts_and_tracker_removal.sql`](../supabase/migrations/0002_accounts_and_tracker_removal.sql)
 (only needed once, or on a fresh project you can just create `payment_accounts`
-directly from the DDL above and skip the tracker-table drops). Both are
-idempotent to re-run. Together they enable RLS on all current tables and
-create select/insert/update/delete policies scoped to `auth.uid() = user_id`.
+directly from the DDL above and skip the tracker-table drops), then
+[`supabase/migrations/0003_indexes.sql`](../supabase/migrations/0003_indexes.sql).
+All three are idempotent to re-run. Together they enable RLS on all current
+tables, create select/insert/update/delete policies scoped to
+`auth.uid() = user_id`, and add the indexes those policies (and every list
+query) rely on.
 
 Verify under **Authentication → Policies**: every table should show RLS
 enabled with policies for select/insert/update/delete (payment_accounts has
