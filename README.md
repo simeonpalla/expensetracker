@@ -1,9 +1,10 @@
 # Personal OS — Salary-Cycle Expense Tracker
 
 > A personal finance tracker that thinks in **salary cycles**, not calendar
-> months. Vanilla JS + Vite, Supabase (Postgres + Auth), Netlify Functions
-> as a BFF. The insights/projection engine runs entirely locally — no
-> external AI APIs.
+> months. Vite frontend (migrating page-by-page from vanilla JS to
+> React/TypeScript — see [Frontend migration](#frontend-migration) below),
+> Supabase (Postgres + Auth), Netlify Functions as a BFF. The
+> insights/projection engine runs entirely locally — no external AI APIs.
 
 ## Features
 
@@ -41,7 +42,8 @@
 
 ```
 Browser (Vite-built ES modules, installable PWA)
-  src/main.js          app controller + auth + dashboard rendering
+  src/main.js          app controller + auth + dashboard rendering (vanilla)
+  src/react/pages/     React/TS pages, mounted as lazy islands (see below)
   src/engine/          PURE logic: dates, salary cycles, projections (tested)
   src/api.js           BFF client (HttpOnly-cookie session, auto-refresh)
   src/fonts.css        self-hosted @font-face (CSP-safe, no external fetch)
@@ -51,10 +53,24 @@ Browser (Vite-built ES modules, installable PWA)
 Netlify Functions (BFF) — netlify/functions/
   login/signup/refresh/logout/me   session management (HttpOnly cookies)
   transactions/categories/accounts money data (validated, whitelisted)
-  _lib.js                          shared: cookies, validation, rate limits
+  lib/*-repo.js                    Supabase queries, split from the handlers
+  _lib.js                          shared: cookies, validation, rate limits,
+                                    structured logging, Sentry reporting
         ▼
 Supabase (Postgres + Auth) — Row Level Security enforces per-user access
 ```
+
+### Frontend migration
+
+The app is being ported page-by-page from vanilla JS to React + TypeScript,
+so both coexist during the transition — vanilla and React pages are mounted
+side by side, not a single rewrite. **Done**: Accounts, Insights, Categories,
+Budgets, Add Transaction (`src/react/pages/`, each lazy-loaded only after
+login, so the login screen never downloads React). **Still vanilla**:
+Dashboard (transaction list, charts, cycle selection — the app's
+coordination spine, not an independently portable page) and Auth. Full
+status and the reasoning behind each decision: see
+[SCALABILITY_ROADMAP.md](SCALABILITY_ROADMAP.md).
 
 **Security model**: tokens never reach JavaScript. Sessions live in HttpOnly,
 Secure, SameSite=Strict cookies scoped to the functions path. Every function
@@ -82,7 +98,8 @@ npm run dev               # netlify dev: Vite + functions on http://localhost:88
 
 Database: follow [docs/supabase-setup.md](docs/supabase-setup.md) — it
 contains the table reference and the migrations in `supabase/migrations/`
-that **must** be applied (RLS policies, then accounts + tracker cleanup).
+that **must** be applied (RLS policies, then accounts + tracker cleanup,
+then indexes).
 
 ### Environment variables
 
@@ -100,7 +117,8 @@ The service-role key is intentionally **not** used by this app.
 |---|---|
 | `npm run dev` | Netlify dev: Vite dev server + functions, one origin |
 | `npm run build` | Production build to `dist/` (hashed assets + PWA service worker) |
-| `npm test` | Vitest: engine unit tests + function integration tests |
+| `npm test` | Vitest: engine unit tests + function integration tests + React component tests |
+| `npm run typecheck` | `tsc --noEmit` over the React/TS pages |
 | `npm run test:e2e` | Playwright browser flows against the built app (stubbed BFF) |
 | `npm run lint` / `format` | ESLint / Prettier |
 
@@ -111,6 +129,8 @@ The service-role key is intentionally **not** used by this app.
   non-30-day cycles, and calendar-month arithmetic for recurring due dates
 - `tests/functions/` — handler-level tests with a stubbed Supabase client:
   auth paths, validation rejections, mass-assignment stripping, rate limits
+- `tests/react/` — component tests (Vitest + Testing Library, jsdom) for
+  the React-ported pages
 - `tests/e2e/` — Playwright: login flow, add-transaction → dashboard,
   accounts add/remove, the giving-floor warning, and recurring-suggestion
   due-date gating. The BFF is stubbed via route interception, so no
