@@ -162,6 +162,89 @@ function clientIp(event) {
     );
 }
 
+// ---------- logging ----------
+//
+// One structured JSON line per request via console.log/error, which Netlify
+// captures as function logs. requestId lets a single request be traced
+// across the log even if the handler itself logs more lines.
+
+function requestId() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// Wraps a handler so every invocation logs one line: fn name, request id,
+// method, status, duration. Errors are logged (with stack) and rethrown so
+// existing handler behavior (Netlify's default 500) is unchanged.
+function withLogging(name, handler) {
+    return async function (event, context) {
+        const id = requestId();
+        const start = Date.now();
+        let statusCode;
+        try {
+            const result = await handler(event, context);
+            statusCode = result && result.statusCode;
+            return result;
+        } catch (err) {
+            statusCode = 500;
+            console.error(
+                JSON.stringify({
+                    level: 'error',
+                    fn: name,
+                    requestId: id,
+                    message: err && err.message,
+                    stack: err && err.stack
+                })
+            );
+            await reportError(err, { fn: name, requestId: id, method: event && event.httpMethod });
+            throw err;
+        } finally {
+            console.log(
+                JSON.stringify({
+                    level: 'info',
+                    fn: name,
+                    requestId: id,
+                    method: event && event.httpMethod,
+                    statusCode,
+                    durationMs: Date.now() - start
+                })
+            );
+        }
+    };
+}
+
+// ---------- error tracking ----------
+//
+// Sentry only activates when SENTRY_DSN is set (it's unset in dev/CI/tests,
+// so nothing here ever contacts Sentry or requires a DSN to run the suite).
+// Reporting is best-effort: a Sentry failure must never affect the response
+// already sent to the caller. Only fn/requestId context is attached — never
+// the raw event/body, to avoid shipping user data to a third party.
+
+let sentryClient = null;
+
+function getSentry() {
+    if (!process.env.SENTRY_DSN) return null;
+    if (sentryClient) return sentryClient;
+    sentryClient = require('@sentry/node');
+    sentryClient.init({
+        dsn: process.env.SENTRY_DSN,
+        environment: process.env.CONTEXT || process.env.NODE_ENV || 'production',
+        tracesSampleRate: 0
+    });
+    return sentryClient;
+}
+
+async function reportError(err, extra = {}) {
+    try {
+        const Sentry = getSentry();
+        if (!Sentry) return;
+        Sentry.captureException(err, { extra });
+        await Sentry.flush(2000);
+    } catch (reportErr) {
+        console.error('Sentry reporting failed:', reportErr && reportErr.message);
+    }
+}
+
 // ---------- validators ----------
 
 function isDateStr(v) {
@@ -198,6 +281,9 @@ module.exports = {
     anonClient,
     requireUser,
     readJsonBody,
+    requestId,
+    withLogging,
+    reportError,
     rateLimit,
     clientIp,
     isDateStr,

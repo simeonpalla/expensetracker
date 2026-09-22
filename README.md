@@ -90,6 +90,7 @@ that **must** be applied (RLS policies, then accounts + tracker cleanup).
 |---|---|---|
 | `SUPABASE_URL` | Netlify env + local `.env` | Supabase project URL |
 | `SUPABASE_ANON_KEY` | Netlify env + local `.env` | Public anon key (RLS enforced) |
+| `SENTRY_DSN` | Netlify env only (optional) | Error tracking; unset in dev/CI so tests never contact Sentry. Only `fn`/`requestId`/`method` context is reported, never request bodies. |
 
 The service-role key is intentionally **not** used by this app.
 
@@ -115,8 +116,9 @@ The service-role key is intentionally **not** used by this app.
   due-date gating. The BFF is stubbed via route interception, so no
   credentials are needed (this is what lets E2E run in CI)
 
-CI (GitHub Actions) runs lint → format check → tests → build → E2E on every
-PR; Netlify builds a deploy preview for every PR via its Git integration.
+CI (GitHub Actions) runs lint → type check → format check → tests → build →
+E2E on every PR; Netlify builds a deploy preview for every PR via its Git
+integration.
 
 ## Deployment
 

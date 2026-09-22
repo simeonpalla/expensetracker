@@ -2,9 +2,18 @@
 // If Supabase email confirmation is enabled, returns { needsConfirmation: true };
 // otherwise sets session cookies so the user is signed in immediately.
 
-const { json, anonClient, readJsonBody, sessionCookies, rateLimit, clientIp, isEmail } = require('./_lib');
+const {
+    json,
+    anonClient,
+    readJsonBody,
+    sessionCookies,
+    rateLimit,
+    clientIp,
+    isEmail,
+    withLogging
+} = require('./_lib');
 
-exports.handler = async function (event) {
+const handler = async function (event) {
     if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
 
     const ip = clientIp(event);
@@ -44,3 +53,5 @@ exports.handler = async function (event) {
 
     return json(200, { needsConfirmation: true });
 };
+
+exports.handler = withLogging('signup', handler);

@@ -1,9 +1,18 @@
 // login.js — POST { email, password } -> sets HttpOnly session cookies.
 // Tokens are never returned in the response body.
 
-const { json, anonClient, readJsonBody, sessionCookies, rateLimit, clientIp, isEmail } = require('./_lib');
+const {
+    json,
+    anonClient,
+    readJsonBody,
+    sessionCookies,
+    rateLimit,
+    clientIp,
+    isEmail,
+    withLogging
+} = require('./_lib');
 
-exports.handler = async function (event) {
+const handler = async function (event) {
     if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
 
     const ip = clientIp(event);
@@ -35,3 +44,5 @@ exports.handler = async function (event) {
         }
     );
 };
+
+exports.handler = withLogging('login', handler);

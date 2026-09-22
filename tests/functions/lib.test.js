@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { createRequire } from 'node:module';
 import lib from '../../netlify/functions/_lib.js';
+
+const require = createRequire(import.meta.url);
 
 describe('_lib validators', () => {
     it('isDateStr accepts real dates only', () => {
@@ -87,6 +90,100 @@ describe('_lib readJsonBody', () => {
 
     it('empty body -> empty object', () => {
         expect(lib.readJsonBody({ body: '' }).body).toEqual({});
+    });
+});
+
+describe('_lib logging', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('requestId returns a non-empty, distinct string each call', () => {
+        const a = lib.requestId();
+        const b = lib.requestId();
+        expect(typeof a).toBe('string');
+        expect(a.length).toBeGreaterThan(0);
+        expect(a).not.toBe(b);
+    });
+
+    it('withLogging logs one line with requestId, method, status, duration on success', async () => {
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const handler = lib.withLogging('demo', async () => ({ statusCode: 200, body: '{}' }));
+
+        const result = await handler({ httpMethod: 'GET' }, {});
+
+        expect(result.statusCode).toBe(200);
+        expect(logSpy).toHaveBeenCalledTimes(1);
+        const line = JSON.parse(logSpy.mock.calls[0][0]);
+        expect(line).toMatchObject({ level: 'info', fn: 'demo', method: 'GET', statusCode: 200 });
+        expect(typeof line.requestId).toBe('string');
+        expect(typeof line.durationMs).toBe('number');
+    });
+
+    it('withLogging logs an error line and rethrows on failure', async () => {
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const handler = lib.withLogging('demo', async () => {
+            throw new Error('boom');
+        });
+
+        await expect(handler({ httpMethod: 'POST' }, {})).rejects.toThrow('boom');
+
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        const errLine = JSON.parse(errorSpy.mock.calls[0][0]);
+        expect(errLine).toMatchObject({ level: 'error', fn: 'demo', message: 'boom' });
+
+        expect(logSpy).toHaveBeenCalledTimes(1);
+        const line = JSON.parse(logSpy.mock.calls[0][0]);
+        expect(line.statusCode).toBe(500);
+    });
+});
+
+describe('_lib reportError (Sentry)', () => {
+    const captureException = vi.fn();
+    const flush = vi.fn().mockResolvedValue(true);
+    const init = vi.fn();
+    const sentryPath = require.resolve('@sentry/node');
+
+    afterEach(() => {
+        delete process.env.SENTRY_DSN;
+        vi.clearAllMocks();
+    });
+
+    it('is a no-op when SENTRY_DSN is unset (default in dev/CI/tests)', async () => {
+        delete process.env.SENTRY_DSN;
+        await expect(lib.reportError(new Error('boom'))).resolves.toBeUndefined();
+        expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it('reports to Sentry with only safe context when SENTRY_DSN is set', async () => {
+        require.cache[sentryPath] = {
+            id: sentryPath,
+            filename: sentryPath,
+            loaded: true,
+            exports: { init, captureException, flush }
+        };
+        process.env.SENTRY_DSN = 'https://fake@sentry.example/1';
+
+        const err = new Error('boom');
+        await lib.reportError(err, { fn: 'demo', requestId: 'abc123' });
+
+        expect(captureException).toHaveBeenCalledWith(err, { extra: { fn: 'demo', requestId: 'abc123' } });
+        expect(flush).toHaveBeenCalledWith(2000);
+    });
+
+    it('never throws even if Sentry itself fails', async () => {
+        // Relies on the previous test having already cached the Sentry
+        // client in _lib.js (module-level singleton, by design — avoids
+        // re-init per request) — reconfigure the same mock to throw rather
+        // than re-stubbing require.cache, since a re-stub wouldn't be
+        // picked up once the client is cached.
+        process.env.SENTRY_DSN = 'https://fake@sentry.example/1';
+        captureException.mockImplementationOnce(() => {
+            throw new Error('sentry is down');
+        });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        await expect(lib.reportError(new Error('boom'))).resolves.toBeUndefined();
+        expect(errorSpy).toHaveBeenCalled();
     });
 });
 

@@ -1,9 +1,9 @@
 // logout.js — POST -> revokes the session server-side (best effort) and
 // clears the session cookies.
 
-const { json, requireUser, clearSessionCookies } = require('./_lib');
+const { json, requireUser, clearSessionCookies, withLogging } = require('./_lib');
 
-exports.handler = async function (event) {
+const handler = async function (event) {
     if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
 
     try {
@@ -21,3 +21,5 @@ exports.handler = async function (event) {
         }
     );
 };
+
+exports.handler = withLogging('logout', handler);

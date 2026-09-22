@@ -1,8 +1,10 @@
-// ESLint flat config. Three environments live in this repo:
+// ESLint flat config. Four environments live in this repo:
 // browser ES modules (src/), Node CommonJS (netlify/functions/, e2e server),
-// and Node ES modules (vitest tests, vite config).
+// Node ES modules (vitest tests, vite config), and TypeScript/React (the
+// incoming frontend, src/**/*.{ts,tsx}, migrated in page-by-page).
 const js = require('@eslint/js');
 const globals = require('globals');
+const tseslint = require('typescript-eslint');
 
 module.exports = [
     {
@@ -39,11 +41,31 @@ module.exports = [
         }
     },
     {
-        files: ['tests/**/*.test.js', 'tests/e2e/*.spec.js', 'vite.config.js', 'vitest.config.js'],
+        files: ['tests/**/*.test.js', 'tests/e2e/*.spec.js', 'vite.config.mjs', 'vitest.config.mts'],
         languageOptions: {
             ecmaVersion: 2023,
             sourceType: 'module',
             globals: { ...globals.node, ...globals.browser }
+        }
+    },
+    ...tseslint.configs.recommended.map(config => ({
+        ...config,
+        files: ['src/**/*.{ts,tsx}', 'tests/react/**/*.tsx']
+    })),
+    {
+        files: ['src/**/*.{ts,tsx}'],
+        languageOptions: {
+            ecmaVersion: 2023,
+            sourceType: 'module',
+            globals: { ...globals.browser }
+        }
+    },
+    {
+        files: ['tests/react/**/*.tsx'],
+        languageOptions: {
+            ecmaVersion: 2023,
+            sourceType: 'module',
+            globals: { ...globals.browser, ...globals.node }
         }
     }
 ];

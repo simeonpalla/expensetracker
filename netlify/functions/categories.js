@@ -4,20 +4,17 @@
 //
 // Uses the anon key + caller JWT: RLS is the enforcement boundary.
 
-const { json, requireUser, readJsonBody, cleanString } = require('./_lib');
+const { json, requireUser, readJsonBody, cleanString, withLogging } = require('./_lib');
+const { listCategories, insertCategory } = require('./lib/categories-repo');
 
-exports.handler = async function (event) {
+const handler = async function (event) {
     try {
         const auth = await requireUser(event);
         if (!auth) return json(401, { error: 'Not signed in' });
         const { user, supabase } = auth;
 
         if (event.httpMethod === 'GET') {
-            const { data, error } = await supabase
-                .from('categories')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: true });
+            const { data, error } = await listCategories(supabase, user.id);
             if (error) throw error;
             return json(200, data || []);
         }
@@ -35,9 +32,12 @@ exports.handler = async function (event) {
             // Icons are emoji; grapheme clusters can span several UTF-16 units.
             const icon = cleanString(body.icon, 8) || '📁';
 
-            const { error } = await supabase
-                .from('categories')
-                .insert([{ user_id: user.id, name, type: body.type, icon }]);
+            const { error } = await insertCategory(supabase, {
+                user_id: user.id,
+                name,
+                type: body.type,
+                icon
+            });
             if (error) throw error;
             return json(200, { ok: true });
         }
@@ -48,3 +48,5 @@ exports.handler = async function (event) {
         return json(500, { error: 'Internal server error' });
     }
 };
+
+exports.handler = withLogging('categories', handler);

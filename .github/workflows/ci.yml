@@ -1,4 +1,4 @@
-# CI: lint -> format check -> unit/integration tests -> build -> E2E.
+# CI: lint -> type check -> format check -> unit/integration tests -> build -> E2E.
 # Deploy previews are handled by Netlify's Git integration (it builds every
 # PR with `npm run build` per netlify.toml), so this pipeline only gates
 # quality. The E2E suite stubs the BFF and needs no secrets.
@@ -25,6 +25,9 @@ jobs:
 
             - name: Lint
               run: npm run lint
+
+            - name: Type check
+              run: npm run typecheck
 
             - name: Format check
               run: npm run format:check

@@ -5,11 +5,12 @@
 //
 // Uses the anon key + caller JWT: RLS is the enforcement boundary.
 
-const { json, requireUser, readJsonBody, cleanString } = require('./_lib');
+const { json, requireUser, readJsonBody, cleanString, withLogging } = require('./_lib');
+const { listAccounts, insertAccount, deleteAccount } = require('./lib/accounts-repo');
 
 const ACCOUNT_TYPES = ['upi', 'debit-card', 'credit-card', 'cash'];
 
-exports.handler = async function (event) {
+const handler = async function (event) {
     try {
         const auth = await requireUser(event);
         if (!auth) return json(401, { error: 'Not signed in' });
@@ -17,11 +18,7 @@ exports.handler = async function (event) {
         const { id } = event.queryStringParameters || {};
 
         if (event.httpMethod === 'GET') {
-            const { data, error } = await supabase
-                .from('payment_accounts')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: true });
+            const { data, error } = await listAccounts(supabase, user.id);
             if (error) throw error;
             return json(200, data || []);
         }
@@ -37,20 +34,14 @@ exports.handler = async function (event) {
                 return json(400, { error: `type must be one of: ${ACCOUNT_TYPES.join(', ')}` });
             }
 
-            const { error } = await supabase
-                .from('payment_accounts')
-                .insert([{ user_id: user.id, name, type: body.type }]);
+            const { error } = await insertAccount(supabase, { user_id: user.id, name, type: body.type });
             if (error) throw error;
             return json(200, { ok: true });
         }
 
         if (event.httpMethod === 'DELETE') {
             if (!id) return json(400, { error: 'id query parameter required' });
-            const { error } = await supabase
-                .from('payment_accounts')
-                .delete()
-                .eq('id', id)
-                .eq('user_id', user.id);
+            const { error } = await deleteAccount(supabase, id, user.id);
             if (error) throw error;
             return json(200, { ok: true });
         }
@@ -61,3 +52,5 @@ exports.handler = async function (event) {
         return json(500, { error: 'Internal server error' });
     }
 };
+
+exports.handler = withLogging('accounts', handler);

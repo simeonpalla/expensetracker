@@ -1,9 +1,9 @@
 // me.js — GET -> { user } when the session cookie is valid, 401 otherwise.
 // Used by the frontend at boot to decide between the login screen and the app.
 
-const { json, requireUser } = require('./_lib');
+const { json, requireUser, withLogging } = require('./_lib');
 
-exports.handler = async function (event) {
+const handler = async function (event) {
     if (event.httpMethod !== 'GET') return json(405, { error: 'Method not allowed' });
 
     try {
@@ -15,3 +15,5 @@ exports.handler = async function (event) {
         return json(500, { error: 'Internal server error' });
     }
 };
+
+exports.handler = withLogging('me', handler);
