@@ -302,10 +302,11 @@ test('insights never flags the giving-floor category as an overspending anomaly'
     await page.goto('/');
     await expect(page.locator('.container')).toBeVisible();
 
+    // React-ported page (src/react/pages/InsightsPage.tsx).
     await page.click('.nav-tab[data-page="ai-insights"]');
-    await page.click('#generate-local-ai-btn');
+    await page.click('button:has-text("Analyze Historical Data")');
 
-    const result = page.locator('#local-ai-result');
+    const result = page.locator('#insights-react-root .ai-result');
     await expect(result).toBeVisible();
     await expect(result).toContainText('Food');
     await expect(result).not.toContainText('Offering');

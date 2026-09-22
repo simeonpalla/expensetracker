@@ -334,20 +334,9 @@
         <!-- INSIGHTS PAGE -->
         <div id="ai-insights" class="page" role="tabpanel" aria-labelledby="tab-ai-insights">
             <h2>✨ Financial Insights</h2>
-            <div class="ai-container">
-                <div class="ai-card">
-                    <div class="ai-card-icon">🤖</div>
-                    <h3>Analyze My Spending</h3>
-                    <p>Scans your historical transactions across 7 dimensions — anomalies, run-rate, leaks, macro analytics, weekend patterns, and month-over-month trends.</p>
-                    <button id="generate-local-ai-btn" class="btn btn-ai">
-                        🔍 Analyze Historical Data
-                    </button>
-                    <div id="local-ai-loading" class="ai-loading" style="display: none;">
-                        <span class="status-dot connecting"></span> Crunching your numbers...
-                    </div>
-                </div>
-                <div id="local-ai-result" class="ai-result" style="display: none;"></div>
-            </div>
+            <!-- React island (src/react/pages/InsightsPage.tsx), mounted from
+                 main.js after auth succeeds -->
+            <div id="insights-react-root"></div>
         </div>
 
         <footer role="contentinfo">
