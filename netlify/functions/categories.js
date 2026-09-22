@@ -32,7 +32,12 @@ const handler = async function (event) {
             // Icons are emoji; grapheme clusters can span several UTF-16 units.
             const icon = cleanString(body.icon, 8) || '📁';
 
-            const { error } = await insertCategory(supabase, { user_id: user.id, name, type: body.type, icon });
+            const { error } = await insertCategory(supabase, {
+                user_id: user.id,
+                name,
+                type: body.type,
+                icon
+            });
             if (error) throw error;
             return json(200, { ok: true });
         }
