@@ -26,7 +26,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Frontend | React + TS scaffolding | Done — proven via test, zero prod bundle cost until first page ports |
 | Frontend | Page port: Accounts | Done — proven via unit + E2E/a11y tests |
 | Frontend | Page port: Insights | Done — needs Simeon's manual spot-check of the numbers (financial-analysis logic) |
-| Frontend | Page port: Categories | Not started (found 2026-09-23: missing from the original 5-page plan) |
+| Frontend | Page port: Categories | Done — also fixed a real pre-existing a11y bug found by properly extending the gate |
 | Frontend | Page port: Budgets | Not started |
 | Frontend | Page port: Add Transaction | Not started (found 2026-09-23: missing from the original plan — highest-usage page) |
 | Frontend | Page port: Dashboard | Not started |
@@ -258,9 +258,20 @@ actual tabs (`grep -n 'data-page=' index.html`: add-transaction, dashboard,
 budgets, categories, accounts, ai-insights) — **Categories** and
 **Add Transaction** weren't in it. Adding them here, ordered by risk.
 
-- [ ] Categories — simplest remaining page, same shape as Accounts
-      (list/add, though no delete in the vanilla version — check before
-      assuming parity)
+- [x] **Categories** (2026-09-23) — `src/react/pages/CategoriesPage.tsx`,
+      list/add only (confirmed no delete in either the vanilla frontend or
+      the backend — didn't add capability that wasn't there). Same
+      `window.app.loadCategories()` resync pattern as Accounts.
+      **Important finding while doing this**: extended
+      `tests/e2e/a11y.spec.js`'s general a11y test to actually visit
+      accounts/insights/categories — it never had before, so the
+      "a11y-gate verified" claims for the Accounts and Insights ports
+      earlier in this file were overstated (the gate wasn't actually
+      running against them). Doing so caught a real, pre-existing bug:
+      the Type `<select>` on both Accounts and Categories forms had no
+      accessible name (only the main transaction form's had a proper
+      `<label>`) — fixed with `aria-label`. All 3 React pages are now
+      genuinely covered by the a11y gate.
 - [ ] Budgets — per-category limit form + the Giving Floor settings form
 - [ ] Add Transaction — the main entry form; highest-usage page even
       though not highest-complexity, so real care on UX parity (mobile
