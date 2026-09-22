@@ -116,8 +116,9 @@ The service-role key is intentionally **not** used by this app.
   due-date gating. The BFF is stubbed via route interception, so no
   credentials are needed (this is what lets E2E run in CI)
 
-CI (GitHub Actions) runs lint → format check → tests → build → E2E on every
-PR; Netlify builds a deploy preview for every PR via its Git integration.
+CI (GitHub Actions) runs lint → type check → format check → tests → build →
+E2E on every PR; Netlify builds a deploy preview for every PR via its Git
+integration.
 
 ## Deployment
 
