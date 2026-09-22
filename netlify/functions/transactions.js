@@ -8,6 +8,12 @@
 // explicit user_id filters are defence in depth.
 
 const { json, requireUser, readJsonBody, isDateStr, cleanString, withLogging } = require('./_lib');
+const {
+    listTransactions,
+    insertTransaction,
+    updateTransaction,
+    deleteTransaction
+} = require('./lib/transactions-repo');
 
 const PAYMENT_SOURCES = ['upi', 'credit-card', 'debit-card', 'cash', 'salary'];
 const MAX_AMOUNT = 100000000; // ₹10 crore sanity cap
@@ -88,11 +94,7 @@ const handler = async function (event) {
         const { id } = event.queryStringParameters || {};
 
         if (event.httpMethod === 'GET') {
-            const { data, error } = await supabase
-                .from('transactions')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('transaction_date', { ascending: false });
+            const { data, error } = await listTransactions(supabase, user.id);
             if (error) throw error;
             return json(200, data || []);
         }
@@ -105,7 +107,7 @@ const handler = async function (event) {
             if (errors.length) return json(400, { error: errors.join('; ') });
             payload.user_id = user.id;
 
-            const { error } = await supabase.from('transactions').insert([payload]);
+            const { error } = await insertTransaction(supabase, payload);
             if (error) throw error;
             return json(200, { ok: true });
         }
@@ -119,22 +121,14 @@ const handler = async function (event) {
             if (errors.length) return json(400, { error: errors.join('; ') });
             if (Object.keys(payload).length === 0) return json(400, { error: 'No valid fields to update' });
 
-            const { error } = await supabase
-                .from('transactions')
-                .update(payload)
-                .eq('id', id)
-                .eq('user_id', user.id);
+            const { error } = await updateTransaction(supabase, id, user.id, payload);
             if (error) throw error;
             return json(200, { ok: true });
         }
 
         if (event.httpMethod === 'DELETE') {
             if (!id) return json(400, { error: 'id query parameter required' });
-            const { error } = await supabase
-                .from('transactions')
-                .delete()
-                .eq('id', id)
-                .eq('user_id', user.id);
+            const { error } = await deleteTransaction(supabase, id, user.id);
             if (error) throw error;
             return json(200, { ok: true });
         }
