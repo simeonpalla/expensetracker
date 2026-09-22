@@ -142,6 +142,12 @@ test('tabs support arrow-key navigation', async ({ page }) => {
     await stubApi(page, true);
     await page.goto('/');
     await expect(page.locator('.container')).toBeVisible();
+    // Boot's async work (data loading + mounting the React-ported pages)
+    // isn't finished just because .container is visible — interacting
+    // before it settles raced against the app's own keydown handler
+    // often enough to flake (locally under parallel load, and in CI).
+    // Same readiness wait already used in the test above.
+    await expect(page.locator('#status-text')).toHaveText('Connected');
 
     await page.locator('#tab-add-transaction').focus();
     await page.keyboard.press('ArrowRight');

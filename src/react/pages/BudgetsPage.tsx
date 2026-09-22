@@ -148,6 +148,7 @@ export default function BudgetsPage() {
                                         type="number"
                                         min="0"
                                         step="1"
+                                        inputMode="numeric"
                                         className="budget-limit-input"
                                         placeholder="No limit"
                                         value={limits[c.name] ?? ''}
@@ -195,6 +196,7 @@ export default function BudgetsPage() {
                             min="0"
                             max="100"
                             step="0.5"
+                            inputMode="decimal"
                             value={floorPct}
                             onChange={e => setFloorPct(e.target.value)}
                         />
