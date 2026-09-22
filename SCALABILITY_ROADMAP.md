@@ -23,7 +23,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Backend | 3. Observability | Code complete — needs Simeon's manual Sentry DSN setup + a PR |
 | Backend | 4. Data-layer scaling readiness | Not started |
 | Backend | 5. Staging environment | Not started |
-| Frontend | React + TS scaffolding | Not started |
+| Frontend | React + TS scaffolding | Done — proven via test, zero prod bundle cost until first page ports |
 | Frontend | Page port: Dashboard | Not started |
 | Frontend | Page port: Budgets | Not started |
 | Frontend | Page port: Accounts | Not started |
@@ -159,12 +159,34 @@ during the transition. TypeScript adopted from the start, not deferred.
 CSS tokens, CSP, and the PWA setup carry over largely unchanged.
 
 ### Scaffolding
-**Status: Not started**
+**Status: Done** (2026-09-22)
 
-- [ ] Add React + TypeScript to the Vite build
-- [ ] Decide TS strictness/config, confirm vitest + Playwright still run
-- [ ] Confirm CSP (`script-src 'self'`) unaffected by React build output
-- [ ] One trivial React component rendered live as a smoke test
+- [x] Add React + TypeScript to the Vite build — react/react-dom 19,
+      typescript 5.9, `@vitejs/plugin-react` pinned to 5.2.0 (latest v6
+      needs Vite 8; this repo is pinned to Vite 6), typescript-eslint.
+      `vite.config.js`/`vitest.config.js` renamed to `.mjs`/`.mts` — Vite's
+      CJS config loader can't `require()` the ESM-only plugin-react
+      package, and this repo can't flip to `"type": "module"` globally
+      (would break the CJS Netlify functions).
+- [x] Decide TS strictness/config — strict mode, bundler resolution,
+      `react-jsx`, `tsconfig.json` at repo root, `npm run typecheck`
+      script added (not yet wired into CI — follow-up decision, noted
+      below). Confirmed vitest + Playwright still run (108 tests, 11 E2E).
+- [x] Confirm CSP (`script-src 'self'`) unaffected — self-hosted via Vite,
+      no CDN, same as the existing Chart.js/fonts pattern.
+- [x] Toolchain proof — **not** a live production mount. First attempt
+      mounted a no-op `SmokeTest` component into `index.html` and it
+      shipped React+ReactDOM to every real page load (~16KB → ~85KB
+      gzip) for zero user value — wrong tradeoff on a mobile-first app.
+      Reverted; proved instead via a Vitest component test
+      (`tests/react/SmokeTest.test.tsx`, jsdom environment — jsdom pinned
+      to v26, v30's `html-encoding-sniffer` dep is ESM-only and breaks
+      under `require()`). Confirmed via `npm run build` the production
+      bundle is byte-identical (`index-B2Bp6YsJ.js`, 16.03 kB gzip) to
+      before this change — React ships zero bytes until a real page
+      imports it.
+- [ ] **Follow-up, not yet decided**: wire `npm run typecheck` into CI
+      (currently local-only, like the other three checks before a push)
 
 ### Page ports
 Each ported page: own branch/PR, Playwright passing (including axe-core
