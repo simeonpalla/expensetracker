@@ -21,7 +21,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Backend | 1. Module boundaries | Superseded — merged into Phase 2 |
 | Backend | 2. Service/repository layer | Core CRUD domains done (transactions, accounts, categories); auth domain deprioritized |
 | Backend | 3. Observability | Code complete — needs Simeon's manual Sentry DSN setup + a PR |
-| Backend | 4. Data-layer scaling readiness | Not started |
+| Backend | 4. Data-layer scaling readiness | Indexes added, need Simeon to run migration; pagination needs a decision; pooler mode needs a manual check |
 | Backend | 5. Staging environment | Not started |
 | Frontend | React + TS scaffolding | Done — proven via test, zero prod bundle cost until first page ports |
 | Frontend | Page port: Dashboard | Not started |
@@ -130,14 +130,31 @@ risk worth de-risking first (see note above).
 - [ ] PR opened, CI green, merged
 
 ### Phase 4 — Data-layer scaling readiness
-**Status: Not started**
+**Status: In progress**
 
-- [ ] Review query patterns (cycle date ranges, category filters) for
-      missing indexes
-- [ ] Add pagination to list endpoints that currently return everything
+- [x] Review query patterns for missing indexes (2026-09-22) — every query
+      in `lib/*-repo.js` filters by `user_id` (transactions also sorts by
+      `transaction_date`), and none of it was indexed on the live DB.
+      `supabase/migrations/0003_indexes.sql` adds all three, idempotent,
+      purely additive. **Needs Simeon to run it manually** (see checklist).
+- [ ] **Needs a decision before implementing**: pagination on list
+      endpoints. Unlike the index migration, this changes the API
+      response shape (`transactions`/`categories`/`accounts` currently
+      return a full array) and requires matching frontend changes in
+      `src/main.js` (or the React port, once that endpoint's page is
+      ported) — not a safe drop-in change to make unilaterally on a live
+      app. Also worth weighing urgency: this is a single-user app: growth
+      here likely means more of Simeon's own transactions accumulating
+      over years, not concurrent users, so the real question is at what
+      row count this actually starts to matter (revisit with real numbers
+      rather than guessing).
 - [ ] Verify Supabase connection pooler mode (transaction vs session) is
-      correct for serverless functions — manual check in Supabase dashboard
-- [ ] PR opened (code changes), CI green, merged
+      correct for serverless functions — **manual check only Simeon can
+      do**, in the Supabase dashboard (Project Settings → Database →
+      Connection pooling). Netlify Functions are ephemeral/concurrent, so
+      the wrong pooler mode is a real (if currently low-probability)
+      outage mode as usage grows.
+- [ ] PR opened (0003_indexes.sql + docs), CI green, merged
 
 ### Phase 5 — Staging environment
 **Status: Not started**
