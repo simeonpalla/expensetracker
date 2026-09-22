@@ -169,6 +169,10 @@ class ExpenseTracker {
             this.setupEventListeners();
             this._listenersAttached = true;
         }
+        if (!this._reactMounted) {
+            this.mountReactIslands();
+            this._reactMounted = true;
+        }
         this.setTodayDate();
         this.syncSalaryAccountUI();
 
@@ -210,11 +214,6 @@ class ExpenseTracker {
 
         qs('transaction-form')?.addEventListener('submit', e => this.handleTransactionSubmit(e));
         qs('category-form')?.addEventListener('submit', e => this.handleCategorySubmit(e));
-        qs('account-form')?.addEventListener('submit', e => this.handleAccountSubmit(e));
-        qs('accounts-display')?.addEventListener('click', e => {
-            const btn = e.target.closest('.account-delete-btn');
-            if (btn) this.deleteAccount(btn.dataset.id);
-        });
         qs('type')?.addEventListener('change', () => {
             this.populateCategoryDropdowns();
             this.updateFormForSalary();
@@ -316,6 +315,17 @@ class ExpenseTracker {
         });
     }
 
+    // Mounts React-ported pages (see SCALABILITY_ROADMAP.md). Dynamically
+    // imported so React is only downloaded after auth succeeds — an
+    // unauthenticated visit (just the login screen) never pays for it.
+    async mountReactIslands() {
+        const accountsRoot = document.getElementById('accounts-react-root');
+        if (accountsRoot) {
+            const { mountAccountsPage } = await import('./react/mount-accounts.tsx');
+            mountAccountsPage(accountsRoot);
+        }
+    }
+
     showPage(pageId) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nav-tab').forEach(t => {
@@ -328,7 +338,6 @@ class ExpenseTracker {
         document.getElementById(pageId)?.classList.add('active');
 
         if (pageId === 'budgets') this.renderBudgetLimitsUI();
-        if (pageId === 'accounts') this.renderAccountsUI();
     }
 
     setTodayDate() {
@@ -439,7 +448,6 @@ class ExpenseTracker {
         });
 
         this.populateSalaryAccountOptions();
-        this.renderAccountsUI();
     }
 
     // The salary-default-account select draws from UPI + debit-card accounts,
@@ -460,71 +468,11 @@ class ExpenseTracker {
         this.syncSalaryAccountUI();
     }
 
-    renderAccountsUI() {
-        const container = document.getElementById('accounts-display');
-        if (!container) return;
-
-        if (this.accounts.length === 0) {
-            container.innerHTML =
-                '<p style="color: var(--text2); font-size: 0.9rem;">No accounts yet — add your first bank, UPI ID, or card above.</p>';
-            return;
-        }
-
-        const TYPE_LABELS = {
-            upi: '📲 UPI',
-            'debit-card': '💳 Debit Cards',
-            'credit-card': '💳 Credit Cards',
-            cash: '💵 Cash'
-        };
-
-        container.innerHTML = Object.keys(TYPE_LABELS)
-            .filter(type => this.accounts.some(a => a.type === type))
-            .map(type => {
-                const items = this.accounts
-                    .filter(a => a.type === type)
-                    .map(
-                        a => `
-                        <div class="category-item account-item">
-                            <span class="category-name">${this.escapeHtml(a.name)}</span>
-                            <button type="button" class="account-delete-btn" data-id="${a.id}" aria-label="Remove ${this.escapeHtml(a.name)}">×</button>
-                        </div>`
-                    )
-                    .join('');
-                return `
-                    <div class="category-group">
-                        <h4>${TYPE_LABELS[type]}</h4>
-                        <div class="category-grid">${items}</div>
-                    </div>`;
-            })
-            .join('');
-    }
-
-    async handleAccountSubmit(e) {
-        e.preventDefault();
-        const account = {
-            name: document.getElementById('account-name').value.trim(),
-            type: document.getElementById('account-type').value
-        };
-
-        try {
-            await API.addAccount(account);
-            await this.loadAccounts();
-            e.target.reset();
-            showNotification('Account added!');
-        } catch (error) {
-            showNotification('Error adding account: ' + error.message, 'error');
-        }
-    }
-
-    async deleteAccount(id) {
-        try {
-            await API.deleteAccount(id);
-            await this.loadAccounts();
-            showNotification('Account removed.');
-        } catch (error) {
-            showNotification('Error removing account: ' + error.message, 'error');
-        }
-    }
+    // Rendering + add/delete for this page now live in
+    // src/react/pages/AccountsPage.tsx, mounted into #accounts-react-root
+    // by mountReactIslands(). This method stays: it's the shared-state
+    // hydration other pages' dropdowns (payment source, salary account)
+    // depend on, via this.paymentSources / populateSalaryAccountOptions().
 
     // ===============================
     // BUDGET LIMITS

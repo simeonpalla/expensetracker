@@ -173,21 +173,27 @@ test('accounts page: add a card, use it on a transaction, then remove it', async
     await page.goto('/');
     await expect(page.locator('.container')).toBeVisible();
 
+    // React-ported page (src/react/pages/AccountsPage.tsx) — no ids on the
+    // form controls, so these use accessible-name locators scoped to the
+    // mount container instead.
+    const accountsRoot = page.locator('#accounts-react-root');
     await page.click('.nav-tab[data-page="accounts"]');
-    await page.fill('#account-name', 'HDFC Millennia');
-    await page.selectOption('#account-type', 'credit-card');
-    await page.click('#account-form button[type="submit"]');
-    await expect(page.locator('#accounts-display')).toContainText('HDFC Millennia');
+    await accountsRoot.getByPlaceholder('e.g., HDFC Millennia').fill('HDFC Millennia');
+    await accountsRoot.getByRole('combobox').selectOption('credit-card');
+    await accountsRoot.getByRole('button', { name: 'Add' }).click();
+    await expect(accountsRoot).toContainText('HDFC Millennia');
 
-    // The new card is available as a source-details option on the add form.
+    // The new card is available as a source-details option on the add form
+    // — proves the React island's resync call (window.app.loadAccounts())
+    // reaches the still-vanilla transaction form.
     await page.click('.nav-tab[data-page="add-transaction"]');
     await page.selectOption('#payment-source', 'credit-card');
     await expect(page.locator('#source-details')).toContainText('HDFC Millennia');
 
     // Remove it again.
     await page.click('.nav-tab[data-page="accounts"]');
-    await page.click('#accounts-display .account-delete-btn[aria-label="Remove HDFC Millennia"]');
-    await expect(page.locator('#accounts-display')).not.toContainText('HDFC Millennia');
+    await accountsRoot.getByRole('button', { name: 'Remove HDFC Millennia' }).click();
+    await expect(accountsRoot).not.toContainText('HDFC Millennia');
 });
 
 test('dashboard warns when the Offering category is under the giving floor', async ({ page }) => {

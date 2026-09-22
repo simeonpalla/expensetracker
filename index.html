@@ -326,27 +326,9 @@
         <div id="accounts" class="page" role="tabpanel" aria-labelledby="tab-accounts">
             <h2>🏦 Manage Accounts &amp; Cards</h2>
             <p class="page-subtitle">Add a bank, UPI account, or card so it shows up when logging a transaction — e.g. when you get a new credit card.</p>
-            <div class="categories-section">
-                <div class="add-category-form">
-                    <h3>Add New Account</h3>
-                    <form id="account-form">
-                        <div class="form-row">
-                            <input type="text" id="account-name" placeholder="e.g., HDFC Millennia" required maxlength="40">
-                            <select id="account-type" required>
-                                <option value="">Type</option>
-                                <option value="upi">UPI</option>
-                                <option value="debit-card">Debit Card</option>
-                                <option value="credit-card">Credit Card</option>
-                                <option value="cash">Cash</option>
-                            </select>
-                            <button type="submit" class="btn btn-primary">Add</button>
-                        </div>
-                    </form>
-                </div>
-                <div id="accounts-display" class="categories-display">
-                    <p class="loading">Loading accounts...</p>
-                </div>
-            </div>
+            <!-- React island (src/react/pages/AccountsPage.tsx), mounted from
+                 main.js after auth succeeds -->
+            <div class="categories-section" id="accounts-react-root"></div>
         </div>
 
         <!-- INSIGHTS PAGE -->
