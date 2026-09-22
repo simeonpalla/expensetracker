@@ -32,7 +32,7 @@
     "homepage": "https://github.com/simeonpalla/expensetracker#readme",
     "dependencies": {
         "@sentry/node": "^10.75.1",
-        "@supabase/supabase-js": "^2.112.4",
+        "@supabase/supabase-js": "^2.116.0",
         "chart.js": "^4.5.1",
         "react": "^19.3.0",
         "react-dom": "^19.3.0"
