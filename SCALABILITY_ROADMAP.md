@@ -27,7 +27,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Frontend | Page port: Accounts | Done — proven via unit + E2E/a11y tests |
 | Frontend | Page port: Insights | Done — needs Simeon's manual spot-check of the numbers (financial-analysis logic) |
 | Frontend | Page port: Categories | Done — also fixed a real pre-existing a11y bug found by properly extending the gate |
-| Frontend | Page port: Budgets | Not started |
+| Frontend | Page port: Budgets | Done — caught and fixed a real regression before it shipped |
 | Frontend | Page port: Add Transaction | Not started (found 2026-09-23: missing from the original plan — highest-usage page) |
 | Frontend | Page port: Dashboard | Not started |
 | Frontend | Page port: Auth/forms | Not started — do last, highest risk |
@@ -272,7 +272,21 @@ budgets, categories, accounts, ai-insights) — **Categories** and
       accessible name (only the main transaction form's had a proper
       `<label>`) — fixed with `aria-label`. All 3 React pages are now
       genuinely covered by the a11y gate.
-- [ ] Budgets — per-category limit form + the Giving Floor settings form
+- [x] **Budgets** (2026-09-23) — `src/react/pages/BudgetsPage.tsx`, both
+      the per-category limit form and the Giving Floor form. This page's
+      state is localStorage-only (no backend table), consumed by the
+      still-vanilla Dashboard, so saves write the same localStorage keys
+      as the original *and* mutate `window.app`'s in-memory copies, then
+      call `window.app.updateDashboardStats()` when a cycle is active.
+      **Caught a real regression before it shipped**: the giving-floor
+      auto-guess used to run unconditionally at app boot (via
+      `loadCategories()` → the old `renderBudgetLimitsUI()`), so
+      Dashboard's giving-floor warning worked even if Budgets was never
+      opened. Removing the old method broke that — the existing E2E test
+      ("dashboard warns when the Offering category is under the giving
+      floor") caught it failing. Fixed by restoring the guess into
+      `loadCategories()` itself. 144 tests (5 new), all 11 E2E/a11y tests
+      green after the fix.
 - [ ] Add Transaction — the main entry form; highest-usage page even
       though not highest-complexity, so real care on UX parity (mobile
       users touch this multiple times daily)
