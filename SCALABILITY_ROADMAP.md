@@ -6,7 +6,7 @@ React/TypeScript frontend migration, kept in git so nothing is lost between
 sessions or to a crash. See also `production-hardening-plan` in project
 memory for the earlier 5-phase hardening work this builds on.
 
-Last updated: 2026-09-22
+Last updated: 2026-09-22 (structured logging landed, see Phase 3 below)
 
 ## Goal
 
@@ -20,7 +20,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 |---|---|---|
 | Backend | 1. Module boundaries | Not started |
 | Backend | 2. Service/repository layer | Not started |
-| Backend | 3. Observability | Not started |
+| Backend | 3. Observability | In progress — logging infra landed, error tracking + rollout remain |
 | Backend | 4. Data-layer scaling readiness | Not started |
 | Backend | 5. Staging environment | Not started |
 | Frontend | React + TS scaffolding | Not started |
@@ -45,6 +45,17 @@ Reorganize `netlify/functions/*` and `src/api.js` into domain folders
 (expenses, budgets, accounts, auth) around the shared `_lib.js` kernel.
 Behavior-preserving; existing vitest/Playwright suites verify it.
 
+**2026-09-22 note**: nesting function files into subfolders
+(`functions/auth/login.js`) is riskier than it looks — Netlify's default
+bundler resolves endpoint routes from top-level files in the functions
+directory, so a naive move can silently break deployed routes. Verify
+Netlify's directory-as-function convention (or add explicit redirects)
+*before* moving files, and test on a deploy preview before merging. Given
+this, the fast win done instead this session was Phase 3 (logging), which
+has no routing risk. Only 9 function files / 643 lines total exist today, so
+this phase is small in scope once the routing approach is confirmed.
+
+- [ ] Confirm Netlify subfolder routing behavior (test on a deploy preview)
 - [ ] Inventory current functions and their domains
 - [ ] Move functions into domain folders, update imports
 - [ ] Reorganize `src/api.js` to mirror domains
@@ -63,14 +74,23 @@ backend phases — do not start until handler tests cover current behavior.
 - [ ] PR(s) opened, CI green, merged
 
 ### Phase 3 — Observability
-**Status: Not started**
+**Status: In progress**
 
 Structured logging (request ID, user ID, duration, status) via `_lib.js`,
 plus error tracking (e.g. Sentry) so production failures surface without
-manual noticing. Cheap, high payoff — can be pulled forward if a quick win
-is wanted.
+manual noticing. Cheap, high payoff — pulled forward as the first
+implementation step (2026-09-22) since Phase 1 turned out to have a routing
+risk worth de-risking first (see note above).
 
-- [ ] Add request-ID + structured log fields to `_lib.js`
+- [x] Add request-ID + structured log fields to `_lib.js` — `requestId()` +
+      `withLogging(name, handler)`, one JSON line per request via
+      console.log/error (fn, requestId, method, statusCode, durationMs;
+      errors logged with stack and rethrown so behavior is unchanged).
+      Tests in `tests/functions/lib.test.js`. Landed on branch
+      `chore/scalability-roadmap-tracking`, not yet merged.
+- [x] Proof-of-concept wiring: `health.js` wrapped with `withLogging`
+- [ ] Wire `withLogging` into the remaining 8 functions (login, logout, me,
+      refresh, signup, categories, accounts, transactions)
 - [ ] Wire an error-tracking service (decide: Sentry vs alternative)
 - [ ] Manual checklist item: add DSN/secret to Netlify env
 - [ ] PR opened, CI green, merged
