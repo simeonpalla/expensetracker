@@ -20,7 +20,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 |---|---|---|
 | Backend | 1. Module boundaries | Not started |
 | Backend | 2. Service/repository layer | Not started |
-| Backend | 3. Observability | In progress — logging live in all 9 functions; error-tracking service choice awaiting Simeon |
+| Backend | 3. Observability | Code complete — needs Simeon's manual Sentry DSN setup + a PR |
 | Backend | 4. Data-layer scaling readiness | Not started |
 | Backend | 5. Staging environment | Not started |
 | Frontend | React + TS scaffolding | Not started |
@@ -92,14 +92,20 @@ risk worth de-risking first (see note above).
 - [x] Wire `withLogging` into the remaining 8 functions (login, logout, me,
       refresh, signup, categories, accounts, transactions) — all 93 tests
       pass unchanged, confirming the wrapper is transparent to existing
-      handler behavior. Logging half of Phase 3 is now functionally done.
-- [ ] **Decision needed from Simeon**: wire an error-tracking service
-      (Sentry vs an alternative vs skip) — paused here rather than
-      unilaterally adding a third-party dependency that ships error
-      payloads (which can include request data) to an external service on
-      a security-conscious app. Needs an account/DSN provisioned by Simeon
-      either way.
-- [ ] Manual checklist item: add DSN/secret to Netlify env (once decided)
+      handler behavior.
+- [x] Wire an error-tracking service — Simeon chose Sentry. Added
+      `@sentry/node` (prod dependency, 0 vulnerabilities per
+      `npm audit --omit=dev`, `npm ci` verified fresh-clone-safe).
+      `reportError()` in `_lib.js` is gated entirely by `SENTRY_DSN` (unset
+      in dev/CI, so the test suite never contacts Sentry) and only ever
+      attaches `fn`/`requestId`/`method` — never raw request bodies — to
+      respect the app's no-third-party-data-leak posture. Best-effort:
+      Sentry failures are caught and logged, never affect the response
+      already sent. 3 new tests using the same require.cache stub pattern
+      as the Supabase stubs. Documented in README's env var table.
+- [ ] **Manual checklist item for Simeon**: create a Sentry account/project,
+      add `SENTRY_DSN` to Netlify env vars (not committed anywhere —
+      Netlify env only, per README).
 - [ ] PR opened, CI green, merged
 
 ### Phase 4 — Data-layer scaling readiness
