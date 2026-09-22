@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API } from '../../api.js';
 import { showNotification } from '../../ui.js';
+import { notifyAccountsChanged } from '../crossPageSync';
 
 type AccountType = 'upi' | 'debit-card' | 'credit-card' | 'cash';
 
@@ -52,6 +53,7 @@ export default function AccountsPage() {
             await API.addAccount({ name: name.trim(), type });
             await load();
             await window.app?.loadAccounts?.();
+            notifyAccountsChanged();
             setName('');
             setType('');
             showNotification('Account added!');
@@ -65,6 +67,7 @@ export default function AccountsPage() {
             await API.deleteAccount(id);
             await load();
             await window.app?.loadAccounts?.();
+            notifyAccountsChanged();
             showNotification('Account removed.');
         } catch (error) {
             showNotification('Error removing account: ' + (error as Error).message, 'error');

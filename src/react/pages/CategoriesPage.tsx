@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API } from '../../api.js';
 import { showNotification } from '../../ui.js';
+import { notifyCategoriesChanged } from '../crossPageSync';
 
 type CategoryType = 'income' | 'expense';
 
@@ -46,6 +47,7 @@ export default function CategoriesPage() {
             await API.addCategory({ name: name.trim(), type, icon: icon.trim() || '📁' });
             await load();
             await window.app?.loadCategories?.();
+            notifyCategoriesChanged();
             setName('');
             setType('');
             setIcon('');

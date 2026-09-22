@@ -11,9 +11,10 @@
 // calls window.app.updateDashboardStats() if a cycle is active — exactly
 // what the original inline handlers did. This coupling goes away once
 // Dashboard is ported and this settings state has a real single owner.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { API } from '../../api.js';
 import { showNotification } from '../../ui.js';
+import { onCategoriesChanged } from '../crossPageSync';
 
 interface Category {
     id: number;
@@ -40,36 +41,50 @@ export default function BudgetsPage() {
     const [floorCategory, setFloorCategory] = useState(
         () => window.app?.givingFloorCategory ?? localStorage.getItem('givingFloorCategory') ?? ''
     );
+    // A ref, not a useCallback dependency, so refreshCategories (below)
+    // stays a stable function reference (registered once with
+    // onCategoriesChanged) while still reading the latest floorCategory
+    // instead of a stale closure from whenever it was first created.
+    const floorCategoryRef = useRef(floorCategory);
+    useEffect(() => {
+        floorCategoryRef.current = floorCategory;
+    }, [floorCategory]);
+
+    const refreshCategories = useCallback(async () => {
+        const data: Category[] = (await API.getCategories()) || [];
+        setCategories(data);
+
+        const stored = readLocalStorageLimits();
+        const initial: Record<string, string> = {};
+        data.filter(c => c.type === 'expense').forEach(c => {
+            initial[c.name] = stored[c.name] ? String(stored[c.name]) : '';
+        });
+        setLimits(initial);
+
+        // Same first-time auto-guess as the original: only when nothing
+        // is saved yet, and it mutates window.app's in-memory value
+        // immediately (affects the Dashboard's giving-floor warning
+        // even before this form is explicitly saved).
+        if (!floorCategoryRef.current) {
+            const guess = data.find(
+                c => c.type === 'expense' && /offering|tithe|giving|donation/i.test(c.name)
+            );
+            if (guess) {
+                setFloorCategory(guess.name);
+                if (window.app) window.app.givingFloorCategory = guess.name;
+            }
+        }
+
+        setLoading(false);
+    }, []);
 
     useEffect(() => {
-        (async () => {
-            const data: Category[] = (await API.getCategories()) || [];
-            setCategories(data);
-
-            const stored = readLocalStorageLimits();
-            const initial: Record<string, string> = {};
-            data.filter(c => c.type === 'expense').forEach(c => {
-                initial[c.name] = stored[c.name] ? String(stored[c.name]) : '';
-            });
-            setLimits(initial);
-
-            // Same first-time auto-guess as the original: only when nothing
-            // is saved yet, and it mutates window.app's in-memory value
-            // immediately (affects the Dashboard's giving-floor warning
-            // even before this form is explicitly saved).
-            if (!floorCategory) {
-                const guess = data.find(
-                    c => c.type === 'expense' && /offering|tithe|giving|donation/i.test(c.name)
-                );
-                if (guess) {
-                    setFloorCategory(guess.name);
-                    if (window.app) window.app.givingFloorCategory = guess.name;
-                }
-            }
-
-            setLoading(false);
-        })();
-    }, []);
+        refreshCategories();
+        // CategoriesPage mounts once at boot too, so this needs to know
+        // when a category is added there — same reasoning as
+        // AddTransactionPage's onCategoriesChanged usage.
+        return onCategoriesChanged(refreshCategories);
+    }, [refreshCategories]);
 
     function resyncDashboard() {
         const start = window.app?.currentCycleStart;

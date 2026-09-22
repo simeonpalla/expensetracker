@@ -10,13 +10,30 @@ declare global {
         app?: {
             loadAccounts?: () => Promise<void>;
             loadCategories?: () => Promise<void>;
+            loadCycleHistory?: () => void;
+            refreshTransactions?: () => Promise<void>;
             budgetLimits?: Record<string, number>;
             givingFloorPct?: number;
             givingFloorCategory?: string;
+            salaryAccount?: string;
             currentCycleStart?: string | null;
             currentCycleEnd?: string | null;
             updateDashboardStats?: (start: string, end: string | null) => void;
         };
+        // Bridge for main.js's prefillFromRecurring() (the Dashboard-owned
+        // "+ Log it" recurring-suggestion button) to reach into the React
+        // form — see AddTransactionPage.tsx. Native DOM .value assignment
+        // can't update React-controlled input state, so this indirection
+        // is required rather than optional.
+        __prefillAddTransactionForm?: (tx: {
+            type: string;
+            category: string;
+            amount: number | string;
+            payment_to: string | null;
+            payment_source: string | null;
+            source_details: string | null;
+            description: string | null;
+        }) => void;
         showNotification?: (message: string, type?: 'success' | 'error') => void;
     }
 }

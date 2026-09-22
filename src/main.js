@@ -173,7 +173,6 @@ class ExpenseTracker {
             this.mountReactIslands();
             this._reactMounted = true;
         }
-        this.setTodayDate();
         this.syncSalaryAccountUI();
 
         document.getElementById('status-dot').className = 'status-dot connecting';
@@ -187,7 +186,6 @@ class ExpenseTracker {
             document.getElementById('status-dot').className = 'status-dot connected';
             document.getElementById('status-text').textContent = 'Connected';
 
-            this.updateSourceDetailsOptions();
             this.loadCycleHistory();
             this.showPage('add-transaction');
         } catch (error) {
@@ -212,17 +210,9 @@ class ExpenseTracker {
     setupEventListeners() {
         const qs = id => document.getElementById(id);
 
-        qs('transaction-form')?.addEventListener('submit', e => this.handleTransactionSubmit(e));
-        qs('type')?.addEventListener('change', () => {
-            this.populateCategoryDropdowns();
-            this.updateFormForSalary();
-        });
-        qs('category')?.addEventListener('change', () => this.updateFormForSalary());
-        qs('payment-source')?.addEventListener('change', () => this.updateSourceDetailsOptions());
         qs('filter-type')?.addEventListener('change', () => this.displayTransactions());
         qs('filter-category')?.addEventListener('change', () => this.displayTransactions());
         qs('cycle-history')?.addEventListener('change', () => this.handleCycleChange());
-        qs('clear-form-btn')?.addEventListener('click', () => this.resetForm());
         qs('logout-btn')?.addEventListener('click', handleLogout);
         qs('reset-chart-view-btn')?.addEventListener('click', () => this.renderChartBySource());
         qs('export-csv-btn')?.addEventListener('click', () => this.exportCSV());
@@ -320,6 +310,11 @@ class ExpenseTracker {
             const { mountBudgetsPage } = await import('./react/mount-budgets.tsx');
             mountBudgetsPage(budgetsRoot);
         }
+        const addTransactionRoot = document.getElementById('add-transaction-react-root');
+        if (addTransactionRoot) {
+            const { mountAddTransactionPage } = await import('./react/mount-add-transaction.tsx');
+            mountAddTransactionPage(addTransactionRoot);
+        }
     }
 
     showPage(pageId) {
@@ -334,22 +329,9 @@ class ExpenseTracker {
         document.getElementById(pageId)?.classList.add('active');
     }
 
-    setTodayDate() {
-        const el = document.getElementById('date');
-        if (el) el.value = PFDates.todayStr();
-    }
-
     syncSalaryAccountUI() {
         const sel = document.getElementById('salary-default-account');
         if (sel) sel.value = this.salaryAccount;
-    }
-
-    resetForm() {
-        document.getElementById('transaction-form')?.reset();
-        this.setTodayDate();
-        this.populateCategoryDropdowns();
-        this.updateSourceDetailsOptions();
-        this.updateFormForSalary();
     }
 
     // ===============================
@@ -572,65 +554,10 @@ class ExpenseTracker {
     // ===============================
     // FORM LOGIC
     // ===============================
-    updateFormForSalary() {
-        const typeSelect = document.getElementById('type');
-        const categorySelect = document.getElementById('category');
-        const paymentSourceSelect = document.getElementById('payment-source');
-        const sourceDetailsSelect = document.getElementById('source-details');
-
-        const isSalary =
-            typeSelect?.value === 'income' &&
-            (categorySelect?.value || '').trim().toLowerCase().includes('salary');
-
-        if (isSalary) {
-            if (paymentSourceSelect) {
-                paymentSourceSelect.innerHTML = '<option value="salary" selected>Salary Deposit</option>';
-                paymentSourceSelect.disabled = true;
-            }
-            if (sourceDetailsSelect) {
-                sourceDetailsSelect.innerHTML = `<option value="${this.salaryAccount}" selected>${this.salaryAccount}</option>`;
-                sourceDetailsSelect.disabled = true;
-                sourceDetailsSelect.closest('.form-group').style.display = 'block';
-            }
-        } else {
-            if (paymentSourceSelect && paymentSourceSelect.disabled) {
-                paymentSourceSelect.innerHTML = `
-                    <option value="">Select Source</option>
-                    <option value="upi">UPI</option>
-                    <option value="credit-card">Credit Card</option>
-                    <option value="debit-card">Debit Card</option>
-                    <option value="cash">Cash</option>
-                `;
-                paymentSourceSelect.disabled = false;
-            }
-            if (sourceDetailsSelect) sourceDetailsSelect.disabled = false;
-            this.updateSourceDetailsOptions();
-        }
-    }
-
-    updateSourceDetailsOptions() {
-        const source = document.getElementById('payment-source')?.value;
-        const details = document.getElementById('source-details');
-        if (!details) return;
-
-        details.innerHTML = '<option value="">Select Details</option>';
-        const sourceGroup = details.closest('.form-group');
-
-        if (this.paymentSources[source]) {
-            if (sourceGroup) sourceGroup.style.display = 'block';
-            details.required = true;
-            this.paymentSources[source].forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s;
-                opt.textContent = s;
-                details.appendChild(opt);
-            });
-        } else {
-            if (sourceGroup) sourceGroup.style.display = source ? 'block' : 'none';
-            details.required = false;
-        }
-    }
-
+    // updateFormForSalary()/updateSourceDetailsOptions() (the add-transaction
+    // form's own salary-toggle + source-details cascade) now live in
+    // src/react/pages/AddTransactionPage.tsx as derived state. This one
+    // stays: it's for the edit modal, which is still vanilla.
     updateEditSourceDetailsOptions() {
         const source = document.getElementById('edit-payment-source')?.value;
         const details = document.getElementById('edit-source-details');
@@ -659,34 +586,14 @@ class ExpenseTracker {
     // ===============================
     // TRANSACTIONS
     // ===============================
-    async handleTransactionSubmit(e) {
-        e.preventDefault();
-
-        const isRecurring = document.getElementById('is-recurring')?.checked || false;
-
-        const tx = {
-            type: document.getElementById('type').value,
-            amount: parseFloat(document.getElementById('amount').value),
-            category: document.getElementById('category').value,
-            transaction_date: document.getElementById('date').value,
-            description: document.getElementById('description').value || null,
-            payment_to: document.getElementById('payment-to').value,
-            payment_source: document.getElementById('payment-source').value || 'salary',
-            source_details: document.getElementById('source-details').value || this.salaryAccount,
-            is_recurring: isRecurring
-        };
-
-        await withBusy(e.submitter, '💾 Saving...', async () => {
-            try {
-                await API.addTransaction(tx);
-                this.resetForm();
-                this.transactions = (await API.getTransactions()) || [];
-                this.loadCycleHistory();
-                showNotification('Transaction saved!');
-            } catch (error) {
-                showNotification('Error saving transaction: ' + error.message, 'error');
-            }
-        });
+    // The add-transaction form itself now lives in
+    // src/react/pages/AddTransactionPage.tsx (mounted into
+    // #add-transaction-react-root), including its own submit handling.
+    // This helper is what it (and the edit modal, and delete) call after
+    // a mutation to refresh the still-vanilla Dashboard.
+    async refreshTransactions() {
+        this.transactions = (await API.getTransactions()) || [];
+        this.loadCycleHistory();
     }
 
     // ===============================
@@ -756,8 +663,7 @@ class ExpenseTracker {
         try {
             await API.updateTransaction(this.editingTransactionId, updated);
             this.closeEditModal();
-            this.transactions = (await API.getTransactions()) || [];
-            this.loadCycleHistory();
+            await this.refreshTransactions();
             showNotification('Transaction updated!');
         } catch (error) {
             showNotification('Error updating: ' + error.message, 'error');
@@ -784,8 +690,7 @@ class ExpenseTracker {
 
         try {
             await API.deleteTransaction(id);
-            this.transactions = (await API.getTransactions()) || [];
-            this.loadCycleHistory();
+            await this.refreshTransactions();
             showNotification('Transaction deleted.');
         } catch (error) {
             showNotification('Error deleting: ' + error.message, 'error');
@@ -989,27 +894,13 @@ class ExpenseTracker {
         this.prefillFromRecurring(tx);
     }
 
+    // The form itself is React now (AddTransactionPage.tsx) — native DOM
+    // .value assignment can't update React-controlled input state, so this
+    // goes through the window.__prefillAddTransactionForm bridge the
+    // component registers on mount instead of touching the DOM directly.
     prefillFromRecurring(tx) {
         this.showPage('add-transaction');
-        setTimeout(() => {
-            document.getElementById('type').value = tx.type;
-            this.populateCategoryDropdowns();
-            document.getElementById('category').value = tx.category;
-            document.getElementById('amount').value = tx.amount;
-            document.getElementById('payment-to').value = tx.payment_to || '';
-            document.getElementById('description').value = tx.description || '';
-            document.getElementById('is-recurring').checked = true;
-
-            const psEl = document.getElementById('payment-source');
-            psEl.value = tx.payment_source || '';
-            this.updateSourceDetailsOptions();
-            setTimeout(() => {
-                document.getElementById('source-details').value = tx.source_details || '';
-            }, 50);
-
-            this.updateFormForSalary();
-            showNotification('Form pre-filled from recurring transaction.');
-        }, 100);
+        window.__prefillAddTransactionForm?.(tx);
     }
 
     escapeHtml(str) {
