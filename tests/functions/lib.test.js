@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import lib from '../../netlify/functions/_lib.js';
 
 describe('_lib validators', () => {
@@ -87,6 +87,50 @@ describe('_lib readJsonBody', () => {
 
     it('empty body -> empty object', () => {
         expect(lib.readJsonBody({ body: '' }).body).toEqual({});
+    });
+});
+
+describe('_lib logging', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('requestId returns a non-empty, distinct string each call', () => {
+        const a = lib.requestId();
+        const b = lib.requestId();
+        expect(typeof a).toBe('string');
+        expect(a.length).toBeGreaterThan(0);
+        expect(a).not.toBe(b);
+    });
+
+    it('withLogging logs one line with requestId, method, status, duration on success', async () => {
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const handler = lib.withLogging('demo', async () => ({ statusCode: 200, body: '{}' }));
+
+        const result = await handler({ httpMethod: 'GET' }, {});
+
+        expect(result.statusCode).toBe(200);
+        expect(logSpy).toHaveBeenCalledTimes(1);
+        const line = JSON.parse(logSpy.mock.calls[0][0]);
+        expect(line).toMatchObject({ level: 'info', fn: 'demo', method: 'GET', statusCode: 200 });
+        expect(typeof line.requestId).toBe('string');
+        expect(typeof line.durationMs).toBe('number');
+    });
+
+    it('withLogging logs an error line and rethrows on failure', async () => {
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const handler = lib.withLogging('demo', async () => {
+            throw new Error('boom');
+        });
+
+        await expect(handler({ httpMethod: 'POST' }, {})).rejects.toThrow('boom');
+
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        const errLine = JSON.parse(errorSpy.mock.calls[0][0]);
+        expect(errLine).toMatchObject({ level: 'error', fn: 'demo', message: 'boom' });
+
+        expect(logSpy).toHaveBeenCalledTimes(1);
+        const line = JSON.parse(logSpy.mock.calls[0][0]);
+        expect(line.statusCode).toBe(500);
     });
 });
 

@@ -162,6 +162,55 @@ function clientIp(event) {
     );
 }
 
+// ---------- logging ----------
+//
+// One structured JSON line per request via console.log/error, which Netlify
+// captures as function logs. requestId lets a single request be traced
+// across the log even if the handler itself logs more lines.
+
+function requestId() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// Wraps a handler so every invocation logs one line: fn name, request id,
+// method, status, duration. Errors are logged (with stack) and rethrown so
+// existing handler behavior (Netlify's default 500) is unchanged.
+function withLogging(name, handler) {
+    return async function (event, context) {
+        const id = requestId();
+        const start = Date.now();
+        let statusCode;
+        try {
+            const result = await handler(event, context);
+            statusCode = result && result.statusCode;
+            return result;
+        } catch (err) {
+            statusCode = 500;
+            console.error(
+                JSON.stringify({
+                    level: 'error',
+                    fn: name,
+                    requestId: id,
+                    message: err && err.message,
+                    stack: err && err.stack
+                })
+            );
+            throw err;
+        } finally {
+            console.log(
+                JSON.stringify({
+                    level: 'info',
+                    fn: name,
+                    requestId: id,
+                    method: event && event.httpMethod,
+                    statusCode,
+                    durationMs: Date.now() - start
+                })
+            );
+        }
+    };
+}
+
 // ---------- validators ----------
 
 function isDateStr(v) {
@@ -198,6 +247,8 @@ module.exports = {
     anonClient,
     requireUser,
     readJsonBody,
+    requestId,
+    withLogging,
     rateLimit,
     clientIp,
     isDateStr,
