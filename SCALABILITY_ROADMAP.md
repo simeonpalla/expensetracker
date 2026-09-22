@@ -18,8 +18,8 @@ incrementally without breaking the live app. Decided 2026-09-22.
 
 | Track | Phase | Status |
 |---|---|---|
-| Backend | 1. Module boundaries | Not started |
-| Backend | 2. Service/repository layer | Not started |
+| Backend | 1. Module boundaries | Superseded — merged into Phase 2 |
+| Backend | 2. Service/repository layer | Not started (now includes former Phase 1's goal) |
 | Backend | 3. Observability | Code complete — needs Simeon's manual Sentry DSN setup + a PR |
 | Backend | 4. Data-layer scaling readiness | Not started |
 | Backend | 5. Staging environment | Not started |
@@ -39,38 +39,44 @@ its own): module boundaries → service/repository layer → observability →
 data-layer readiness → staging environment.
 
 ### Phase 1 — Module boundaries
-**Status: Not started**
+**Status: Superseded — merged into Phase 2 (see 2026-09-22 note)**
 
-Reorganize `netlify/functions/*` and `src/api.js` into domain folders
-(expenses, budgets, accounts, auth) around the shared `_lib.js` kernel.
-Behavior-preserving; existing vitest/Playwright suites verify it.
+Original plan: reorganize `netlify/functions/*` into domain folders
+(expenses, budgets, accounts, auth). **Confirmed not viable as originally
+scoped**: Netlify only treats a subdirectory as a function when its entry
+file is named `index` or matches the subdirectory name exactly (one
+function per directory — e.g. `functions/login/login.js`, not
+`functions/auth/login.js` grouped with other auth functions). Verified via
+Netlify's own docs on 2026-09-22, not just inferred — a naive multi-function
+subfolder move would have silently broken deployed routes.
 
-**2026-09-22 note**: nesting function files into subfolders
-(`functions/auth/login.js`) is riskier than it looks — Netlify's default
-bundler resolves endpoint routes from top-level files in the functions
-directory, so a naive move can silently break deployed routes. Verify
-Netlify's directory-as-function convention (or add explicit redirects)
-*before* moving files, and test on a deploy preview before merging. Given
-this, the fast win done instead this session was Phase 3 (logging), which
-has no routing risk. Only 9 function files / 643 lines total exist today, so
-this phase is small in scope once the routing approach is confirmed.
+**Revised approach**: domain boundaries are expressed as shared
+repository/service modules (e.g. `netlify/functions/lib/transactions-repo.js`)
+imported by the existing flat, top-level handler files — same clarity goal,
+zero routing risk, and it's the same work Phase 2 needed anyway. Phase 1 is
+retired as a separate phase; its goal is now folded into Phase 2 below.
 
-- [ ] Confirm Netlify subfolder routing behavior (test on a deploy preview)
-- [ ] Inventory current functions and their domains
-- [ ] Move functions into domain folders, update imports
-- [ ] Reorganize `src/api.js` to mirror domains
-- [ ] `npm run lint && npm test && npm run build` green
-- [ ] PR opened, CI green, merged
+- [x] Confirm Netlify subfolder routing behavior — confirmed not usable for
+      multi-function domain grouping (2026-09-22)
+- [x] Decide revised approach — merge into Phase 2 (repository modules,
+      not directory moves)
 
 ### Phase 2 — Service/repository layer
-**Status: Not started** (blocked on: handler tests existing first)
+**Status: Not started** (absorbs former Phase 1's goal — see above)
 
-Split each domain's HTTP handler (auth/validation/response shaping) from its
-Supabase queries (repository module). Highest regression risk of the 5
-backend phases — do not start until handler tests cover current behavior.
+Extract each domain's Supabase queries into a repository module under
+`netlify/functions/lib/` (e.g. `lib/transactions-repo.js`,
+`lib/accounts-repo.js`, `lib/categories-repo.js`), leaving the existing
+top-level handler files (`transactions.js`, `accounts.js`, etc. — unchanged
+locations/names, so routing is untouched) to do auth/validation/response
+shaping and call the repository. Highest regression risk of the backend
+phases — do not start until handler tests cover current behavior.
 
 - [ ] Confirm handler test coverage per domain before touching code
-- [ ] Split one domain at a time, verify tests after each
+      (transactions.test.js, accounts.test.js, login.test.js, lib.test.js
+      already exist — check categories/signup/refresh/logout/me coverage)
+- [ ] Extract one domain's repository module at a time, verify tests after
+      each (start with transactions.js — largest, most logic)
 - [ ] PR(s) opened, CI green, merged
 
 ### Phase 3 — Observability
