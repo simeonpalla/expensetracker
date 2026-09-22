@@ -24,11 +24,11 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Backend | 4. Data-layer scaling readiness | Indexes added, need Simeon to run migration; pagination needs a decision; pooler mode needs a manual check |
 | Backend | 5. Staging environment | Not started |
 | Frontend | React + TS scaffolding | Done — proven via test, zero prod bundle cost until first page ports |
-| Frontend | Page port: Dashboard | Not started |
-| Frontend | Page port: Budgets | Not started |
-| Frontend | Page port: Accounts | Not started |
+| Frontend | Page port: Accounts | Done — proven via unit + E2E/a11y tests |
 | Frontend | Page port: Insights | Not started |
-| Frontend | Page port: Auth/forms | Not started |
+| Frontend | Page port: Budgets | Not started |
+| Frontend | Page port: Dashboard | Not started |
+| Frontend | Page port: Auth/forms | Not started — do last, highest risk |
 
 ---
 
@@ -212,15 +212,36 @@ CSS tokens, CSP, and the PWA setup carry over largely unchanged.
       local `codebase-map` skill doc updated to match
 
 ### Page ports
-Each ported page: own branch/PR, Playwright passing (including axe-core
-a11y gate — must not regress WCAG AA), reviewed against the vanilla version
-before merge.
+Each ported page: Playwright passing (including axe-core a11y gate — must
+not regress WCAG AA), reviewed against the vanilla version before merge.
 
-- [ ] Dashboard — highest value, highest complexity (projections, charts)
+**2026-09-22 deviation from the original plan**: Simeon asked to work
+through all pages rather than one branch/PR per page — continuing on
+`chore/scalability-roadmap-tracking` instead of a fresh branch per page,
+verified/committed incrementally as each page completes.
+
+- [x] **Accounts** (2026-09-22) — `src/react/pages/AccountsPage.tsx`,
+      mounted into `#accounts-react-root` via a dynamic import (React only
+      downloads after auth succeeds; confirmed the login-screen bundle is
+      untouched). Removed the vanilla `renderAccountsUI`/
+      `handleAccountSubmit`/`deleteAccount`; `loadAccounts()` stays (other
+      pages' dropdowns depend on the `paymentSources` it builds) and the
+      React component calls `window.app.loadAccounts()` after add/delete
+      to keep those in sync — proven by the existing E2E test (updated to
+      accessible-name locators), which specifically checks a newly-added
+      account appears back on the still-vanilla transaction form. 133
+      tests (5 new), all 11 E2E/a11y tests, lint/typecheck/build all
+      green. Also fixed React Testing Library's auto-cleanup silently
+      no-op'ing (needs vitest's `afterEach` as a true global, which this
+      repo doesn't enable) via `tests/react/setup.ts`.
+- [ ] Insights — read-only, no forms, but renders the engine's projection
+      output
 - [ ] Budgets
-- [ ] Accounts
-- [ ] Insights
-- [ ] Auth/forms
+- [ ] Dashboard — highest value, highest complexity (projections, charts,
+      giving-floor warnings)
+- [ ] Auth/forms — highest risk per `release-safety`: a broken login
+      screen locks Simeon out of his own app; do this one carefully and
+      last, once the pattern is well-proven elsewhere
 
 ---
 
