@@ -20,7 +20,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 |---|---|---|
 | Backend | 1. Module boundaries | Not started |
 | Backend | 2. Service/repository layer | Not started |
-| Backend | 3. Observability | In progress — logging infra landed, error tracking + rollout remain |
+| Backend | 3. Observability | In progress — logging live in all 9 functions; error-tracking service choice awaiting Simeon |
 | Backend | 4. Data-layer scaling readiness | Not started |
 | Backend | 5. Staging environment | Not started |
 | Frontend | React + TS scaffolding | Not started |
@@ -89,10 +89,17 @@ risk worth de-risking first (see note above).
       Tests in `tests/functions/lib.test.js`. Landed on branch
       `chore/scalability-roadmap-tracking`, not yet merged.
 - [x] Proof-of-concept wiring: `health.js` wrapped with `withLogging`
-- [ ] Wire `withLogging` into the remaining 8 functions (login, logout, me,
-      refresh, signup, categories, accounts, transactions)
-- [ ] Wire an error-tracking service (decide: Sentry vs alternative)
-- [ ] Manual checklist item: add DSN/secret to Netlify env
+- [x] Wire `withLogging` into the remaining 8 functions (login, logout, me,
+      refresh, signup, categories, accounts, transactions) — all 93 tests
+      pass unchanged, confirming the wrapper is transparent to existing
+      handler behavior. Logging half of Phase 3 is now functionally done.
+- [ ] **Decision needed from Simeon**: wire an error-tracking service
+      (Sentry vs an alternative vs skip) — paused here rather than
+      unilaterally adding a third-party dependency that ships error
+      payloads (which can include request data) to an external service on
+      a security-conscious app. Needs an account/DSN provisioned by Simeon
+      either way.
+- [ ] Manual checklist item: add DSN/secret to Netlify env (once decided)
 - [ ] PR opened, CI green, merged
 
 ### Phase 4 — Data-layer scaling readiness
