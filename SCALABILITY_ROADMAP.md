@@ -309,10 +309,42 @@ budgets, categories, accounts, ai-insights) — **Categories** and
       expected a newly-added account to show up in this form's Bank/Card
       dropdown without a reload). 152 tests (8 new), all 11 E2E/a11y tests
       green.
-- [ ] Dashboard — transaction list, edit modal, 2 Chart.js charts, CSV
-      export, cycle selection, budget/giving-floor warnings. Deliberately
-      NOT combined with Add Transaction (see above) — still the largest
-      remaining piece by far.
+- [ ] Dashboard — **scoped in full on 2026-09-23, deliberately not started
+      this session.** Unlike every other page, Dashboard isn't
+      independently addressable: `loadCycleHistory()`/
+      `updateDashboardStats()` is the coordination spine every ported
+      page's `refreshTransactions()`/`updateDashboardStats()` bridge calls
+      into. Porting it means Dashboard becomes the *new owner* of that
+      spine — rewiring how the 5 already-shipped pages signal it, on top
+      of reimplementing 2 Chart.js charts and the mobile swipe-to-delete
+      gesture faithfully (real UX risk given Simeon's iPhone-primary
+      usage). This is categorically bigger than any single page done so
+      far — closer to a rewrite of the app's coordination layer than a
+      page port. Concrete scope for whoever picks this up:
+      - Transaction list: can likely reuse the *existing* vanilla
+        delegated click listener on `#transactions-list` unchanged (React
+        can own the list's rendering while mounting into that same
+        container — the listener is on the container, not the children,
+        so DOM event bubbling doesn't care who rendered them) — as long
+        as rendered items keep the same classNames/`data-id` attributes.
+        This means the edit modal and delete-confirm modal likely need
+        **zero changes** — worth verifying before assuming otherwise.
+      - Swipe-to-delete (`setupSwipeToDelete`): reimplement natively in
+        React (onTouchStart/Move/End) rather than bridging into the
+        vanilla DOM-transform version — safer long-term, but real gesture
+        parity risk; test on an actual phone, not just Playwright.
+      - Charts: `loadChart()` (src/charts.js) already lazy-loads Chart.js
+        as its own chunk — reuse it, own the canvas via a React ref +
+        useEffect, destroy/recreate on data change (matching the
+        vanilla `.destroy()` pattern already used).
+      - Stats/streak/run-rate/leak/budget-warnings/offering-warnings: pure
+        calculations already extracted cleanly in main.js
+        (`calculateRunRate`, `findTopLeak`, `checkBudgetWarnings`,
+        `checkOfferingFloor`) — portable to React following the same
+        "compute pure data, render JSX" pattern as InsightsPage.
+      - Cycle selection ownership needs to move to React (or stay
+        vanilla-owned with React reading it) — decide explicitly rather
+        than accidentally duplicating cycle state.
 - [ ] Auth/forms — highest risk per `release-safety`: a broken login
       screen locks Simeon out of his own app; do this one carefully and
       last, once the pattern is well-proven elsewhere
