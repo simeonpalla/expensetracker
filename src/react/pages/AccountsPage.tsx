@@ -89,7 +89,12 @@ export default function AccountsPage() {
                             value={name}
                             onChange={e => setName(e.target.value)}
                         />
-                        <select required value={type} onChange={e => setType(e.target.value as AccountType)}>
+                        <select
+                            required
+                            aria-label="Account type"
+                            value={type}
+                            onChange={e => setType(e.target.value as AccountType)}
+                        >
                             <option value="">Type</option>
                             <option value="upi">UPI</option>
                             <option value="debit-card">Debit Card</option>

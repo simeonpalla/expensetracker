@@ -293,33 +293,9 @@
         <!-- CATEGORIES PAGE -->
         <div id="categories" class="page" role="tabpanel" aria-labelledby="tab-categories">
             <h2>📁 Manage Categories</h2>
-            <div class="categories-section">
-                <div class="add-category-form">
-                    <h3>Add New Category</h3>
-                    <form id="category-form">
-                        <div class="form-row">
-                            <input type="text" id="category-name" placeholder="Category name" required>
-                            <select id="category-type" required>
-                                <option value="">Type</option>
-                                <option value="income">Income</option>
-                                <option value="expense">Expense</option>
-                            </select>
-                            <input type="text" id="category-icon" placeholder="Emoji" maxlength="2">
-                            <button type="submit" class="btn btn-primary">Add</button>
-                        </div>
-                    </form>
-                </div>
-                <div class="categories-display">
-                    <div class="category-group">
-                        <h4>💰 Income Categories</h4>
-                        <div id="income-categories" class="category-grid"></div>
-                    </div>
-                    <div class="category-group">
-                        <h4>💸 Expense Categories</h4>
-                        <div id="expense-categories" class="category-grid"></div>
-                    </div>
-                </div>
-            </div>
+            <!-- React island (src/react/pages/CategoriesPage.tsx), mounted
+                 from main.js after auth succeeds -->
+            <div class="categories-section" id="categories-react-root"></div>
         </div>
 
         <!-- ACCOUNTS PAGE -->

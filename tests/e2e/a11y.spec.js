@@ -99,6 +99,22 @@ test('app pages have no serious accessibility violations', async ({ page }) => {
 
     await page.click('.nav-tab[data-page="budgets"]');
     await expectNoSeriousViolations(page, 'budgets page');
+
+    // React-ported pages — not covered by this test until now, which meant
+    // their a11y wasn't actually gated despite being claimed as verified.
+    await page.click('.nav-tab[data-page="categories"]');
+    await expect(page.locator('#categories-react-root')).toContainText('Salary');
+    await expectNoSeriousViolations(page, 'categories page (React)');
+
+    await page.click('.nav-tab[data-page="accounts"]');
+    await expect(page.locator('#accounts-react-root')).toContainText('UBI');
+    await expectNoSeriousViolations(page, 'accounts page (React)');
+
+    await page.click('.nav-tab[data-page="ai-insights"]');
+    await expectNoSeriousViolations(page, 'insights page, before analyzing (React)');
+    await page.click('button:has-text("Analyze Historical Data")');
+    await expect(page.locator('#insights-react-root .ai-result')).toBeVisible();
+    await expectNoSeriousViolations(page, 'insights page, after analyzing (React)');
 });
 
 test('edit modal traps focus and closes on Escape', async ({ page }) => {

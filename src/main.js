@@ -213,7 +213,6 @@ class ExpenseTracker {
         const qs = id => document.getElementById(id);
 
         qs('transaction-form')?.addEventListener('submit', e => this.handleTransactionSubmit(e));
-        qs('category-form')?.addEventListener('submit', e => this.handleCategorySubmit(e));
         qs('type')?.addEventListener('change', () => {
             this.populateCategoryDropdowns();
             this.updateFormForSalary();
@@ -328,6 +327,11 @@ class ExpenseTracker {
             const { mountInsightsPage } = await import('./react/mount-insights.tsx');
             mountInsightsPage(insightsRoot);
         }
+        const categoriesRoot = document.getElementById('categories-react-root');
+        if (categoriesRoot) {
+            const { mountCategoriesPage } = await import('./react/mount-categories.tsx');
+            mountCategoriesPage(categoriesRoot);
+        }
     }
 
     showPage(pageId) {
@@ -369,7 +373,6 @@ class ExpenseTracker {
         const raw = (await API.getCategories()) || [];
         this.categories = raw.sort((a, b) => a.name.localeCompare(b.name));
         this.populateCategoryDropdowns();
-        this.displayCategories();
         this.renderBudgetLimitsUI();
     }
 
@@ -404,40 +407,11 @@ class ExpenseTracker {
         }
     }
 
-    displayCategories() {
-        const incomeDiv = document.getElementById('income-categories');
-        const expenseDiv = document.getElementById('expense-categories');
-        if (!incomeDiv || !expenseDiv) return;
-
-        incomeDiv.innerHTML = '';
-        expenseDiv.innerHTML = '';
-
-        this.categories.forEach(c => {
-            const div = document.createElement('div');
-            div.className = 'category-item';
-            div.innerHTML = `<span class="category-icon">${this.escapeHtml(c.icon)}</span><span class="category-name">${this.escapeHtml(c.name)}</span>`;
-            if (c.type === 'income') incomeDiv.appendChild(div);
-            else expenseDiv.appendChild(div);
-        });
-    }
-
-    async handleCategorySubmit(e) {
-        e.preventDefault();
-        const category = {
-            name: document.getElementById('category-name').value.trim(),
-            type: document.getElementById('category-type').value,
-            icon: document.getElementById('category-icon').value.trim() || '📁'
-        };
-
-        try {
-            await API.addCategory(category);
-            await this.loadCategories();
-            e.target.reset();
-            showNotification('Category added successfully!');
-        } catch (error) {
-            showNotification('Error adding category: ' + error.message, 'error');
-        }
-    }
+    // Rendering + add for this page now live in
+    // src/react/pages/CategoriesPage.tsx, mounted into
+    // #categories-react-root by mountReactIslands(). loadCategories()
+    // above stays: populateCategoryDropdowns() and renderBudgetLimitsUI()
+    // are still needed by other pages.
 
     // ===============================
     // PAYMENT ACCOUNTS / CARDS
