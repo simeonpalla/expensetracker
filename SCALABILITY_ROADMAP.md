@@ -25,7 +25,7 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Backend | 5. Staging environment | Not started |
 | Frontend | React + TS scaffolding | Done — proven via test, zero prod bundle cost until first page ports |
 | Frontend | Page port: Accounts | Done — proven via unit + E2E/a11y tests |
-| Frontend | Page port: Insights | Not started |
+| Frontend | Page port: Insights | Done — needs Simeon's manual spot-check of the numbers (financial-analysis logic) |
 | Frontend | Page port: Budgets | Not started |
 | Frontend | Page port: Dashboard | Not started |
 | Frontend | Page port: Auth/forms | Not started — do last, highest risk |
@@ -234,8 +234,23 @@ verified/committed incrementally as each page completes.
       green. Also fixed React Testing Library's auto-cleanup silently
       no-op'ing (needs vitest's `afterEach` as a true global, which this
       repo doesn't enable) via `tests/react/setup.ts`.
-- [ ] Insights — read-only, no forms, but renders the engine's projection
-      output
+- [x] **Insights** (2026-09-22) — `src/react/pages/InsightsPage.tsx`, the
+      7-section financial report (anomalies, run-rate, leak, macro,
+      weekend/weekday, month-over-month) ported field-for-field from
+      `generateLocalAIInsights()` — same formulas, same thresholds, same
+      `toFixed()` precision, not a rewrite. Read-only (no shared-state
+      resync needed, unlike Accounts), but reads the still-vanilla
+      Dashboard's cycle-selection state off `window.app` at analyze-time
+      — a coupling to revisit once Dashboard is ported. React/react-dom
+      now dedupes into one shared chunk across both islands (Vite), so
+      this added only ~9KB gzip on top of Accounts.
+      **Needs Simeon's manual spot-check**: this is financial-analysis
+      logic on live data — green tests (136 total, including the
+      existing real-fixture E2E test verifying the giving-floor category
+      is never flagged as an anomaly) are necessary but per
+      `release-safety` not sufficient on their own for this kind of
+      change; please compare a real analysis run against the pre-port
+      version once before fully trusting it.
 - [ ] Budgets
 - [ ] Dashboard — highest value, highest complexity (projections, charts,
       giving-floor warnings)
