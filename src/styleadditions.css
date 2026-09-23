@@ -55,6 +55,29 @@
     gap: 2px;
 }
 
+/* The closing line (Remaining) is the number that actually matters — a
+   real passbook emphasizes the closing balance as its last line, so this
+   moves it there (was previously mid-list, no visual distinction) and
+   gives it real weight instead of reading as one more equal-weight row.
+   Stays --text (not income/expense-colored or gold): those colors already
+   mean something specific elsewhere, so hierarchy comes from size/weight
+   only, matching typography.md's "adjust weight, size, and color... to
+   emphasize important information." */
+.summary-row--closing {
+    padding-top: 15px;
+    padding-bottom: 15px;
+}
+
+.summary-row--closing .k {
+    font-weight: 700;
+    color: var(--text);
+}
+
+.v--closing {
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
 .v-sub {
     font-size: 0.66rem;
     color: var(--text3);

@@ -366,7 +366,14 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.page > h2 {
+/* Descendant, not direct-child: BudgetsPage.tsx renders its own <h2>
+   nested one level deeper (inside its React mount div) than the other
+   pages, which still keep their <h2> as a direct child of .page in
+   index.html. A > combinator here silently dropped Budget Limits'
+   heading styling (serif/weight/color/spacing) — found while doing an
+   unrelated craft pass, not caught by any existing test since nothing
+   asserts on heading typography. */
+.page h2 {
   font-family: 'IBM Plex Serif', Georgia, serif;
   font-size: 1.15rem;
   font-weight: 600;
@@ -400,6 +407,10 @@ textarea {
   font-family: inherit;
   font-size: 0.9rem;
   outline: none;
+  /* Subtle resting depth (was flat) so fields read as recessed wells,
+     not just a color fill — the focus ring below already had real
+     presence, the resting state had none. */
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
   transition: border-color var(--t), box-shadow var(--t), background var(--t);
   appearance: none;
   -webkit-appearance: none;
@@ -410,7 +421,7 @@ input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
 textarea:focus {
   border-color: var(--violet);
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.14);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05), 0 0 0 3px rgba(59,130,246,0.14);
   background: var(--card);
 }
 
