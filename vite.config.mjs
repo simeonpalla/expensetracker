@@ -19,6 +19,20 @@ export default defineConfig({
                 // Precache the hashed build output; navigation falls back to
                 // the precached index.html so the PWA works offline.
                 globPatterns: ['**/*.{js,css,html,png,ico,json}'],
+                // The ~12 MB OCR runtime is fetched on first bill scan, not
+                // at install; cached on first use so scanning works offline.
+                globIgnores: ['ocr/**'],
+                runtimeCaching: [
+                    {
+                        urlPattern: ({ url }) => url.pathname.startsWith('/ocr/'),
+                        handler: 'CacheFirst',
+                        options: {
+                            cacheName: 'ocr-runtime',
+                            expiration: { maxEntries: 10 },
+                            cacheableResponse: { statuses: [200] }
+                        }
+                    }
+                ],
                 navigateFallback: '/index.html',
                 // Never intercept the BFF.
                 navigateFallbackDenylist: [/^\/\.netlify\//]

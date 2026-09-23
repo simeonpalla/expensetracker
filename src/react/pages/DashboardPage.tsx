@@ -122,7 +122,10 @@ export default function DashboardPage() {
     const balance = income - expenses;
 
     const streak = useMemo(
-        () => (cycle ? PFCycles.noSpendStreak(cycleTxs, cycle.start, today) : { currentStreak: 0, bestStreak: 0 }),
+        () =>
+            cycle
+                ? PFCycles.noSpendStreak(cycleTxs, cycle.start, today)
+                : { currentStreak: 0, bestStreak: 0 },
         [cycleTxs, cycle, today]
     );
 
@@ -141,7 +144,8 @@ export default function DashboardPage() {
         if (!cycle || historicalTxs.length === 0) return null;
         const currentSpend: Record<string, number> = {};
         cycleTxs.forEach(t => {
-            if (t.type === 'expense') currentSpend[t.category] = (currentSpend[t.category] || 0) + Number(t.amount);
+            if (t.type === 'expense')
+                currentSpend[t.category] = (currentSpend[t.category] || 0) + Number(t.amount);
         });
         const months = PFProjection.historicalMonths(transactions, cycle.start);
         const anomalies = PFProjection.computeAnomalies(
@@ -192,9 +196,10 @@ export default function DashboardPage() {
         // Last entry is the current, still-partial cycle — exclude it from
         // the regression basis so an in-progress cycle doesn't skew the
         // trend, but keep it for display context.
-        const completed = totals.length > 0 && totals[totals.length - 1]?.start === cycle?.start
-            ? totals.slice(0, -1)
-            : totals;
+        const completed =
+            totals.length > 0 && totals[totals.length - 1]?.start === cycle?.start
+                ? totals.slice(0, -1)
+                : totals;
         if (completed.length < 4) return null;
         const values = completed.map(c => c.total);
         const { slope, intercept } = PFProjection.linearRegression(values);
@@ -353,7 +358,8 @@ export default function DashboardPage() {
                 const byCategory = expenseTxs
                     .filter(t => (t.payment_source || 'Unknown') === source)
                     .reduce<Record<string, number>>((acc, t) => {
-                        acc[t.category || 'Uncategorized'] = (acc[t.category || 'Uncategorized'] || 0) + Number(t.amount);
+                        acc[t.category || 'Uncategorized'] =
+                            (acc[t.category || 'Uncategorized'] || 0) + Number(t.amount);
                         return acc;
                     }, {});
                 labels = Object.keys(byCategory);
@@ -371,7 +377,14 @@ export default function DashboardPage() {
                     datasets: [
                         {
                             data,
-                            backgroundColor: ['#0B1E3D', '#00d4aa', '#f5a623', '#ff5c72', '#3b82f6', '#c44dff'],
+                            backgroundColor: [
+                                '#0B1E3D',
+                                '#00d4aa',
+                                '#f5a623',
+                                '#ff5c72',
+                                '#3b82f6',
+                                '#c44dff'
+                            ],
                             borderWidth: 2,
                             borderColor: 'transparent'
                         }
@@ -479,7 +492,10 @@ export default function DashboardPage() {
             {budgetWarnings.length > 0 && (
                 <div className="budget-warnings-block">
                     {budgetWarnings.map(w => (
-                        <div className={`budget-warning-item ${w.over ? 'over-budget' : 'near-budget'}`} key={w.cat}>
+                        <div
+                            className={`budget-warning-item ${w.over ? 'over-budget' : 'near-budget'}`}
+                            key={w.cat}
+                        >
                             <div className="budget-warning-header">
                                 <span>
                                     {w.icon} {w.cat}
@@ -491,7 +507,10 @@ export default function DashboardPage() {
                             <div className="budget-bar-track">
                                 <div
                                     className="budget-bar-fill"
-                                    style={{ width: `${w.pct}%`, background: w.over ? 'var(--expense)' : 'var(--warning)' }}
+                                    style={{
+                                        width: `${w.pct}%`,
+                                        background: w.over ? 'var(--expense)' : 'var(--warning)'
+                                    }}
                                 />
                             </div>
                             <div className="budget-bar-labels">
@@ -511,7 +530,8 @@ export default function DashboardPage() {
                                 {givingFloorWarning.icon} {givingFloorWarning.cat}
                             </span>
                             <span className="budget-badge">
-                                ⚠️ {givingFloorWarning.pct.toFixed(0)}% of {givingFloorWarning.floorPct}% floor
+                                ⚠️ {givingFloorWarning.pct.toFixed(0)}% of {givingFloorWarning.floorPct}%
+                                floor
                             </span>
                         </div>
                         <div className="budget-bar-track">
@@ -573,7 +593,8 @@ export default function DashboardPage() {
                                 {leak && (
                                     <>
                                         {' '}
-                                        Watch <b>{leak.cat}</b> — already +₹{leak.diff.toFixed(0)} over your usual pace.
+                                        Watch <b>{leak.cat}</b> — already +₹{leak.diff.toFixed(0)} over your
+                                        usual pace.
                                     </>
                                 )}
                             </p>
@@ -590,8 +611,8 @@ export default function DashboardPage() {
                     <p className="page-subtitle">
                         Linear trend across your last {forecast.recent.length} full cycles projects roughly{' '}
                         <b>₹{forecast.predicted.toFixed(0)}</b> in total expenses next cycle
-                        {forecast.slope > 0 ? ', trending up' : forecast.slope < 0 ? ', trending down' : ''} — an
-                        estimate, not a guarantee.
+                        {forecast.slope > 0 ? ', trending up' : forecast.slope < 0 ? ', trending down' : ''} —
+                        an estimate, not a guarantee.
                     </p>
                     <canvas ref={forecastCanvasRef}></canvas>
                 </div>
@@ -621,7 +642,11 @@ export default function DashboardPage() {
                     <h3>📋 Transactions</h3>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <div className="filter-controls">
-                            <select aria-label="Filter by type" value={filterType} onChange={e => setFilterType(e.target.value)}>
+                            <select
+                                aria-label="Filter by type"
+                                value={filterType}
+                                onChange={e => setFilterType(e.target.value)}
+                            >
                                 <option value="">All Types</option>
                                 <option value="income">Income</option>
                                 <option value="expense">Expenses</option>
@@ -713,7 +738,10 @@ function TransactionRow({
             <div className={`transaction-swipe-wrapper ${swiped ? 'swiped' : ''}`}>
                 <div
                     className="transaction-content"
-                    style={{ transform: `translateX(${dx}px)`, transition: dragging.current ? 'none' : 'transform 0.2s ease' }}
+                    style={{
+                        transform: `translateX(${dx}px)`,
+                        transition: dragging.current ? 'none' : 'transform 0.2s ease'
+                    }}
                     onTouchStart={onTouchStart}
                     onTouchMove={onTouchMove}
                     onTouchEnd={onTouchEnd}

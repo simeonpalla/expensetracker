@@ -96,7 +96,12 @@ export default function AuthPage() {
                     Sign Up
                 </button>
             </div>
-            <div id="auth-error" className="auth-error" role="alert" style={{ display: error ? 'block' : 'none' }}>
+            <div
+                id="auth-error"
+                className="auth-error"
+                role="alert"
+                style={{ display: error ? 'block' : 'none' }}
+            >
                 {error}
             </div>
             <div
@@ -132,7 +137,12 @@ export default function AuthPage() {
                             onChange={e => setLoginPassword(e.target.value)}
                         />
                     </div>
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={busy}>
+                    <button
+                        type="submit"
+                        className="btn btn-primary"
+                        style={{ width: '100%' }}
+                        disabled={busy}
+                    >
                         {busy ? '⏳ Signing in...' : '🔓 Login'}
                     </button>
                 </form>
@@ -173,7 +183,12 @@ export default function AuthPage() {
                             onChange={e => setSignupConfirm(e.target.value)}
                         />
                     </div>
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={busy}>
+                    <button
+                        type="submit"
+                        className="btn btn-primary"
+                        style={{ width: '100%' }}
+                        disabled={busy}
+                    >
                         {busy ? '⏳ Creating account...' : '📝 Create Account'}
                     </button>
                 </form>

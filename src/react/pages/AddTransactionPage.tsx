@@ -22,6 +22,7 @@
 //    React-controlled inputs, so this explicit bridge replaces that.
 import { useCallback, useEffect, useState } from 'react';
 import PFDates from '../../engine/dates.js';
+import PFReceipt from '../../engine/receipt.js';
 import { API } from '../../api.js';
 import { showNotification } from '../../ui.js';
 import { onAccountsChanged, onCategoriesChanged } from '../crossPageSync';
@@ -54,6 +55,16 @@ export default function AddTransactionPage() {
     const [paymentSources, setPaymentSources] = useState<Record<string, string[]>>({});
     const [form, setForm] = useState(emptyForm);
     const [saving, setSaving] = useState(false);
+    const [scan, setScan] = useState<{
+        busy: boolean;
+        progress: number;
+        error: string;
+        result: null | {
+            total: number | null;
+            confidence: string;
+            candidates: { value: number; label: string }[];
+        };
+    }>({ busy: false, progress: 0, error: '', result: null });
 
     const refreshCategories = useCallback(async () => {
         const cats: Category[] = (await API.getCategories()) || [];
@@ -125,6 +136,43 @@ export default function AddTransactionPage() {
         setForm(f => ({ ...f, [key]: value }));
     }
 
+    async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        setScan({ busy: true, progress: 0, error: '', result: null });
+        try {
+            // Loaded on first use only: the OCR runtime is ~12 MB.
+            const { readBillText } = await import('../../ocr.js');
+            const text = await readBillText(file, (p: number) => setScan(s => ({ ...s, progress: p })));
+            const parsed = PFReceipt.parseReceipt(text);
+            if (parsed.total === null) {
+                setScan({
+                    busy: false,
+                    progress: 0,
+                    error: "Couldn't find an amount — try a clearer, flatter photo.",
+                    result: null
+                });
+                return;
+            }
+            setForm(f => ({
+                ...f,
+                type: 'expense',
+                amount: String(parsed.total),
+                date: parsed.date || f.date,
+                paymentTo: parsed.merchant || f.paymentTo
+            }));
+            setScan({ busy: false, progress: 1, error: '', result: parsed });
+        } catch (err) {
+            setScan({
+                busy: false,
+                progress: 0,
+                error: 'Scan failed: ' + (err as Error).message,
+                result: null
+            });
+        }
+    }
+
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         if (saving) return;
@@ -154,6 +202,47 @@ export default function AddTransactionPage() {
     return (
         <form id="transaction-form" className="transaction-form" onSubmit={handleSubmit}>
             <div className="form-stack">
+                <div className="scan-bill">
+                    <label className="btn btn-secondary scan-bill-btn">
+                        {scan.busy
+                            ? `⏳ Reading bill… ${Math.round(scan.progress * 100)}%`
+                            : '📷 Scan a bill'}
+                        <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="visually-hidden"
+                            disabled={scan.busy}
+                            onChange={handleScan}
+                        />
+                    </label>
+                    {scan.error && (
+                        <p className="form-help" role="alert">
+                            {scan.error}
+                        </p>
+                    )}
+                    {scan.result && (
+                        <div className="scan-result" role="status">
+                            <p className="form-help">
+                                Filled from your bill ({scan.result.confidence} confidence) — check the amount
+                                before saving. Not the right total? Tap another amount:
+                            </p>
+                            <div className="scan-chips">
+                                {scan.result.candidates.map(c => (
+                                    <button
+                                        type="button"
+                                        key={c.value}
+                                        className={`scan-chip ${String(c.value) === form.amount ? 'active' : ''}`}
+                                        title={c.label}
+                                        onClick={() => update('amount', String(c.value))}
+                                    >
+                                        ₹{c.value.toFixed(2)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
                 <div className="form-group">
                     <label htmlFor="type">Transaction Type</label>
                     <select

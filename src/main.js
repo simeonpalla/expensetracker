@@ -607,7 +607,6 @@ class ExpenseTracker {
     escapeHtml(str) {
         return escapeHtml(str);
     }
-
 }
 
 // ===============================

@@ -8,7 +8,14 @@ const tseslint = require('typescript-eslint');
 
 module.exports = [
     {
-        ignores: ['dist/**', 'node_modules/**', 'playwright-report/**', 'test-results/**', 'dev-dist/**']
+        ignores: [
+            'dist/**',
+            'node_modules/**',
+            'playwright-report/**',
+            'test-results/**',
+            'dev-dist/**',
+            'public/ocr/**'
+        ]
     },
     js.configs.recommended,
     {
