@@ -8,7 +8,7 @@ import './styleadditions.css';
 
 import PFDates from './engine/dates.js';
 import { API } from './api.js';
-import { escapeHtml, showNotification, withBusy, openModal, closeModal } from './ui.js';
+import { escapeHtml, showNotification, openModal, closeModal } from './ui.js';
 import { notifyTransactionsChanged } from './react/crossPageSync';
 
 // Make the toast available to the console / any stragglers.
@@ -17,73 +17,7 @@ window.showNotification = showNotification;
 // ===============================
 // AUTH HANDLERS
 // ===============================
-function showAuthError(message) {
-    const errorDiv = document.getElementById('auth-error');
-    errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
-    const successDiv = document.getElementById('auth-success');
-    if (successDiv) successDiv.style.display = 'none';
-}
-
-function showAuthSuccess(message) {
-    const successDiv = document.getElementById('auth-success');
-    if (successDiv) {
-        successDiv.textContent = message;
-        successDiv.style.display = 'block';
-    }
-    document.getElementById('auth-error').style.display = 'none';
-}
-
-async function handleLogin(e) {
-    e.preventDefault();
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    document.getElementById('auth-error').style.display = 'none';
-
-    await withBusy(e.submitter, '⏳ Signing in...', async () => {
-        try {
-            const data = await API.login(email, password);
-            if (!data || !data.user) throw new Error('Login failed. Please check your credentials.');
-            location.reload();
-        } catch (err) {
-            showAuthError(err.message || 'An error occurred during login.');
-        }
-    });
-}
-
-async function handleSignup(e) {
-    e.preventDefault();
-    const email = document.getElementById('signup-email').value;
-    const password = document.getElementById('signup-password').value;
-    const confirm = document.getElementById('signup-confirm').value;
-    document.getElementById('auth-error').style.display = 'none';
-
-    if (password !== confirm) {
-        showAuthError('Passwords do not match.');
-        return;
-    }
-    if (password.length < 8) {
-        showAuthError('Password must be at least 8 characters.');
-        return;
-    }
-
-    await withBusy(e.submitter, '⏳ Creating account...', async () => {
-        try {
-            const data = await API.signup(email, password);
-            if (data && data.needsConfirmation) {
-                showAuthSuccess('Account created! Check your email to confirm, then log in.');
-                document.getElementById('signup-form').reset();
-            } else if (data && data.user) {
-                location.reload();
-            } else {
-                throw new Error('Signup failed.');
-            }
-        } catch (err) {
-            showAuthError(err.message || 'An error occurred during signup.');
-        }
-    });
-}
-
+// Login/signup live in src/react/pages/AuthPage.tsx (mounted by boot()).
 async function handleLogout() {
     try {
         await API.logout();
@@ -688,27 +622,6 @@ async function boot() {
     // Tokens no longer live in localStorage; clean up the legacy key.
     localStorage.removeItem('session');
 
-    document.getElementById('login-form')?.addEventListener('submit', handleLogin);
-    document.getElementById('signup-form')?.addEventListener('submit', handleSignup);
-
-    document.getElementById('login-tab-btn')?.addEventListener('click', e => {
-        document.getElementById('login-form').style.display = 'block';
-        document.getElementById('signup-form').style.display = 'none';
-        e.target.classList.add('active');
-        document.getElementById('signup-tab-btn').classList.remove('active');
-        document.getElementById('auth-error').style.display = 'none';
-        document.getElementById('auth-success').style.display = 'none';
-    });
-
-    document.getElementById('signup-tab-btn')?.addEventListener('click', e => {
-        document.getElementById('login-form').style.display = 'none';
-        document.getElementById('signup-form').style.display = 'block';
-        e.target.classList.add('active');
-        document.getElementById('login-tab-btn').classList.remove('active');
-        document.getElementById('auth-error').style.display = 'none';
-        document.getElementById('auth-success').style.display = 'none';
-    });
-
     // Session check: the HttpOnly cookie decides. API.me() transparently
     // refreshes an expired access token before giving up.
     let user = null;
@@ -722,6 +635,11 @@ async function boot() {
     if (!user) {
         authContainer.style.display = 'flex';
         appContainer.style.display = 'none';
+        const authRoot = document.getElementById('auth-react-root');
+        if (authRoot) {
+            const { mountAuthPage } = await import('./react/mount-auth.tsx');
+            mountAuthPage(authRoot);
+        }
         return;
     }
 

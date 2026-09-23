@@ -16,43 +16,9 @@
 
     <!-- AUTH -->
     <div id="auth-container" class="auth-container" style="display: none;" role="main">
-        <div class="auth-form">
-            <h2>💰 Expense Tracker</h2>
-            <div class="auth-tabs" role="tablist">
-                <button class="auth-tab active" role="tab" id="login-tab-btn">Login</button>
-                <button class="auth-tab" role="tab" id="signup-tab-btn">Sign Up</button>
-            </div>
-            <div id="auth-error" class="auth-error" style="display: none;" role="alert"></div>
-            <div id="auth-success" class="auth-success" style="display: none;" role="status"></div>
-
-            <form id="login-form" style="display: block;">
-                <div class="form-group">
-                    <label for="login-email">Email Address</label>
-                    <input type="email" id="login-email" required autocomplete="email">
-                </div>
-                <div class="form-group">
-                    <label for="login-password">Password</label>
-                    <input type="password" id="login-password" required autocomplete="current-password">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">🔓 Login</button>
-            </form>
-
-            <form id="signup-form" style="display: none;">
-                <div class="form-group">
-                    <label for="signup-email">Email Address</label>
-                    <input type="email" id="signup-email" required autocomplete="email">
-                </div>
-                <div class="form-group">
-                    <label for="signup-password">Password</label>
-                    <input type="password" id="signup-password" required minlength="8" autocomplete="new-password">
-                </div>
-                <div class="form-group">
-                    <label for="signup-confirm">Confirm Password</label>
-                    <input type="password" id="signup-confirm" required minlength="8" autocomplete="new-password">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">📝 Create Account</button>
-            </form>
-        </div>
+        <!-- React island (src/react/pages/AuthPage.tsx), mounted from
+             main.js boot() only when there is no session -->
+        <div id="auth-react-root"></div>
     </div>
 
     <!-- MAIN APP -->

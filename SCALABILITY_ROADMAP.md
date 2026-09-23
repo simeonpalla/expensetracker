@@ -29,8 +29,8 @@ incrementally without breaking the live app. Decided 2026-09-22.
 | Frontend | Page port: Categories | Done — also fixed a real pre-existing a11y bug found by properly extending the gate |
 | Frontend | Page port: Budgets | Done — caught and fixed a real regression before it shipped |
 | Frontend | Page port: Add Transaction | Done — form only, Dashboard stays vanilla (see note) |
-| Frontend | Page port: Dashboard | Not started — list/edit modal/charts/CSV/cycle selection, deliberately not combined with Add Transaction |
-| Frontend | Page port: Auth/forms | Not started — do last, highest risk |
+| Frontend | Page port: Dashboard | Done (2026-09-23) — React-owned; edit/delete modals + Salary Settings stay vanilla. Adds OLS next-cycle spending forecast |
+| Frontend | Page port: Auth/forms | Done (2026-09-23) — AuthPage.tsx, only loaded when signed out; E2E login flow passes |
 
 ---
 
