@@ -376,7 +376,7 @@ Branch `feat/user-settings-onboarding` (stacked on `feat/dashboard-auth-insights
 - [x] On-device bill scanning (Tesseract WASM, self-hosted, CSP-compatible).
 - [x] Documentation: README, `docs/` (deployment, health, scanning, account & privacy).
 - [ ] **Deferred by decision:** data encryption (server-side field encryption, then
-      optional end-to-end private vault) — see `docs/future-scope.md` §6.
+      optional end-to-end private vault) — see `docs/future-scope.md` §5.
 - [ ] Billing + plan enforcement, landing/pricing page, staging env, backups/PITR
       (checklist in `docs/deployment.md`).
 
