@@ -7,7 +7,7 @@
         "node": ">=20"
     },
     "scripts": {
-        "build": "vite build",
+        "build": "node scripts/copy-ocr-assets.mjs && vite build",
         "preview": "vite preview",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
@@ -17,7 +17,7 @@
         "test:watch": "vitest",
         "test:e2e": "playwright test",
         "dev": "netlify dev",
-        "dev:vite": "vite"
+        "dev:vite": "node scripts/copy-ocr-assets.mjs && vite"
     },
     "repository": {
         "type": "git",
@@ -33,9 +33,11 @@
     "dependencies": {
         "@sentry/node": "^10.75.1",
         "@supabase/supabase-js": "^2.112.4",
+        "@tesseract.js-data/eng": "^1.0.0",
         "chart.js": "^4.5.1",
         "react": "^19.3.0",
-        "react-dom": "^19.3.0"
+        "react-dom": "^19.3.0",
+        "tesseract.js": "^7.0.0"
     },
     "devDependencies": {
         "@axe-core/playwright": "^4.13.0",

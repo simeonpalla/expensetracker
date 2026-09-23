@@ -10,15 +10,29 @@ declare global {
         app?: {
             loadAccounts?: () => Promise<void>;
             loadCategories?: () => Promise<void>;
-            loadCycleHistory?: () => void;
             refreshTransactions?: () => Promise<void>;
+            transactions?: Array<{
+                id: number | string;
+                type: 'income' | 'expense';
+                amount: number | string;
+                category: string;
+                transaction_date: string;
+                payment_to?: string | null;
+                payment_source?: string | null;
+                source_details?: string | null;
+                description?: string | null;
+                is_recurring?: boolean;
+            }>;
+            categories?: Array<{ name: string; icon?: string }>;
             budgetLimits?: Record<string, number>;
             givingFloorPct?: number;
             givingFloorCategory?: string;
             salaryAccount?: string;
             currentCycleStart?: string | null;
             currentCycleEnd?: string | null;
-            updateDashboardStats?: (start: string, end: string | null) => void;
+            updateDashboardStats?: (start?: string, end?: string | null) => void;
+            openEditModalById?: (id: string | number) => void;
+            deleteTransaction?: (id: string | number) => void;
         };
         // Bridge for main.js's prefillFromRecurring() (the Dashboard-owned
         // "+ Log it" recurring-suggestion button) to reach into the React

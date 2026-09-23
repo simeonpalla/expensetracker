@@ -255,6 +255,12 @@ function InsightsResult({ insights }: { insights: Insights }) {
     const prev = cycleExpenses.length > 1 ? (cycleExpenses[cycleExpenses.length - 2]?.total ?? 0) : 0;
     const momChange = prev > 0 ? (((recent - prev) / prev) * 100).toFixed(1) : '0';
     const isUp = recent > prev;
+    // cycleExpenses is oldest-first (needed for the recent/prev trend math
+    // above, unchanged). With ~a year of cycles the bar chart used to open
+    // on the oldest month with no way to scroll to anything recent —
+    // reversing only the display order puts the current/most-recent
+    // cycles first, so they're visible without scrolling.
+    const chartCycles = [...cycleExpenses].reverse();
 
     return (
         <div className="insights-body">
@@ -425,8 +431,11 @@ function InsightsResult({ insights }: { insights: Insights }) {
                             (₹
                             {recent.toFixed(0)} vs ₹{prev.toFixed(0)})
                         </div>
+                        <p className="insight-muted" style={{ marginBottom: 8 }}>
+                            Most recent cycle first — scroll to see further back.
+                        </p>
                         <div className="insight-bar-chart">
-                            {cycleExpenses.map(c => {
+                            {chartCycles.map(c => {
                                 const barHeight =
                                     maxCycleVal > 0 ? Math.max(4, (c.total / maxCycleVal) * 70) : 4;
                                 const isCurrent = c.start === currentStart;
@@ -437,7 +446,10 @@ function InsightsResult({ insights }: { insights: Insights }) {
                                             className={`insight-bar-fill ${isCurrent ? 'insight-bar-fill--active' : ''}`}
                                             style={{ height: `${barHeight}px` }}
                                         ></div>
-                                        <div className="insight-bar-label">{c.label}</div>
+                                        <div className="insight-bar-label">
+                                            {c.label}
+                                            {isCurrent && <span className="insight-bar-current-dot" />}
+                                        </div>
                                     </div>
                                 );
                             })}

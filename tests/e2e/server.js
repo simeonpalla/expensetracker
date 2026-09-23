@@ -6,6 +6,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..', '..', 'dist');
+// Serve the production Content-Security-Policy so E2E catches anything the
+// real headers would block (e.g. the OCR wasm runtime).
+const CSP = (fs
+    .readFileSync(path.join(__dirname, '..', '..', 'netlify.toml'), 'utf8')
+    .match(/Content-Security-Policy\s*=\s*"([^"]+)"/) || [])[1];
+
 const PORT = process.env.PORT || 4173;
 
 const TYPES = {
@@ -31,7 +37,9 @@ http.createServer((req, res) => {
             res.writeHead(404).end('Not found');
             return;
         }
-        res.writeHead(200, { 'Content-Type': TYPES[path.extname(filePath)] || 'application/octet-stream' });
+        const headers = { 'Content-Type': TYPES[path.extname(filePath)] || 'application/octet-stream' };
+        if (CSP) headers['Content-Security-Policy'] = CSP;
+        res.writeHead(200, headers);
         res.end(data);
     });
 }).listen(PORT, () => console.log(`e2e static server on http://localhost:${PORT}`));

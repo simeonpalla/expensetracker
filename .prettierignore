@@ -11,3 +11,4 @@ package-lock.json
 *.html
 *.css
 *.md
+public/ocr

@@ -16,43 +16,9 @@
 
     <!-- AUTH -->
     <div id="auth-container" class="auth-container" style="display: none;" role="main">
-        <div class="auth-form">
-            <h2>💰 Expense Tracker</h2>
-            <div class="auth-tabs" role="tablist">
-                <button class="auth-tab active" role="tab" id="login-tab-btn">Login</button>
-                <button class="auth-tab" role="tab" id="signup-tab-btn">Sign Up</button>
-            </div>
-            <div id="auth-error" class="auth-error" style="display: none;" role="alert"></div>
-            <div id="auth-success" class="auth-success" style="display: none;" role="status"></div>
-
-            <form id="login-form" style="display: block;">
-                <div class="form-group">
-                    <label for="login-email">Email Address</label>
-                    <input type="email" id="login-email" required autocomplete="email">
-                </div>
-                <div class="form-group">
-                    <label for="login-password">Password</label>
-                    <input type="password" id="login-password" required autocomplete="current-password">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">🔓 Login</button>
-            </form>
-
-            <form id="signup-form" style="display: none;">
-                <div class="form-group">
-                    <label for="signup-email">Email Address</label>
-                    <input type="email" id="signup-email" required autocomplete="email">
-                </div>
-                <div class="form-group">
-                    <label for="signup-password">Password</label>
-                    <input type="password" id="signup-password" required minlength="8" autocomplete="new-password">
-                </div>
-                <div class="form-group">
-                    <label for="signup-confirm">Confirm Password</label>
-                    <input type="password" id="signup-confirm" required minlength="8" autocomplete="new-password">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">📝 Create Account</button>
-            </form>
-        </div>
+        <!-- React island (src/react/pages/AuthPage.tsx), mounted from
+             main.js boot() only when there is no session -->
+        <div id="auth-react-root"></div>
     </div>
 
     <!-- MAIN APP -->
@@ -93,49 +59,16 @@
 
         <!-- DASHBOARD PAGE -->
         <div id="dashboard" class="page" role="tabpanel" aria-labelledby="tab-dashboard">
-            <div class="dashboard-header">
-                <h2 id="dashboard-title">My Finances</h2>
-                <div class="cycle-select-wrap">
-                    <select id="cycle-history" aria-label="Salary cycle">
-                        <option value="">Loading...</option>
-                    </select>
-                </div>
-            </div>
+            <!-- React island (src/react/pages/DashboardPage.tsx), mounted
+                 from main.js after auth succeeds. Owns cycle selection,
+                 stats, warnings, charts (incl. the OLS spending forecast),
+                 and the transaction list (its own click delegation calls
+                 window.app.openEditModalById()/deleteTransaction()). -->
+            <div id="dashboard-react-root"></div>
 
-            <div id="budget-warnings"></div>
-            <div id="offering-warning"></div>
-
-            <div class="summary">
-                <div class="summary-row">
-                    <span class="k">Income this cycle</span>
-                    <span class="v income" id="total-income">₹0.00</span>
-                </div>
-                <div class="summary-row">
-                    <span class="k">Expenses this cycle</span>
-                    <span class="v expense" id="total-expenses">₹0.00</span>
-                </div>
-                <div class="summary-row">
-                    <span class="k">No-Spend Streak</span>
-                    <span class="v-stack">
-                        <span class="v" id="current-streak">0 Days</span>
-                        <small id="best-streak" class="v-sub">Best: 0 days</small>
-                    </span>
-                </div>
-                <div class="summary-row summary-row--closing">
-                    <span class="k">Remaining</span>
-                    <span class="v v--closing" id="net-balance">₹0.00</span>
-                </div>
-            </div>
-
-            <div class="predictive" id="risk-card">
-                <span class="predictive-dot"></span>
-                <div class="predictive-body">
-                    <p id="run-rate" class="predictive-lead">Calculating...</p>
-                    <p id="run-rate-note" class="run-rate-note"></p>
-                </div>
-            </div>
-
-            <!-- Salary Settings -->
+            <!-- Salary Settings stays vanilla: main.js's
+                 populateSalaryAccountOptions()/syncSalaryAccountUI() write
+                 to #salary-default-account by id directly. -->
             <div class="chart-container">
                 <h3>🏦 Salary Account Settings</h3>
                 <form id="salary-settings-form" class="transaction-form">
@@ -148,40 +81,6 @@
                     </div>
                     <button type="submit" class="btn btn-secondary">Save Setting</button>
                 </form>
-            </div>
-
-            <div class="chart-container">
-                <h3 id="line-chart-title">📈 Daily Breakdown</h3>
-                <canvas id="chart"></canvas>
-            </div>
-
-            <div class="chart-container" id="donut-chart-container">
-                <h3 id="donut-chart-title">📊 Expenses by Source</h3>
-                <canvas id="expense-donut-chart"></canvas>
-                <button id="reset-chart-view-btn" class="btn btn-secondary" style="display: none; margin-top: 15px;">⬅️ Back to Sources</button>
-            </div>
-
-            <!-- Transactions -->
-            <div class="transactions-section">
-                <div class="section-header">
-                    <h3>📋 Transactions</h3>
-                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <div class="filter-controls">
-                            <select id="filter-type" aria-label="Filter by type">
-                                <option value="">All Types</option>
-                                <option value="income">Income</option>
-                                <option value="expense">Expenses</option>
-                            </select>
-                            <select id="filter-category" aria-label="Filter by category">
-                                <option value="">All Categories</option>
-                            </select>
-                        </div>
-                        <button id="export-csv-btn" class="btn btn-secondary btn-sm">⬇️ Export CSV</button>
-                    </div>
-                </div>
-                <div id="transactions-list" class="transactions-list" aria-live="polite">
-                    <div class="loading">Loading transactions...</div>
-                </div>
             </div>
         </div>
 

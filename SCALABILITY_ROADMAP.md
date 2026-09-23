@@ -20,17 +20,17 @@ incrementally without breaking the live app. Decided 2026-09-22.
 |---|---|---|
 | Backend | 1. Module boundaries | Superseded — merged into Phase 2 |
 | Backend | 2. Service/repository layer | Core CRUD domains done (transactions, accounts, categories); auth domain deprioritized |
-| Backend | 3. Observability | Code complete — needs Simeon's manual Sentry DSN setup + a PR |
-| Backend | 4. Data-layer scaling readiness | Indexes added, need Simeon to run migration; pagination needs a decision; pooler mode needs a manual check |
-| Backend | 5. Staging environment | Not started |
+| Backend | 3. Observability | Done — Sentry DSN live in Netlify env (2026-09-24) |
+| Backend | 4. Data-layer scaling readiness | Done — Simeon confirmed migration run + pooler check (2026-09-24); pagination still just a future option, not urgent |
+| Backend | 5. Staging environment | Deprioritized — single-user, infrequent, mostly-additive migrations don't justify the overhead; revisit if that changes |
 | Frontend | React + TS scaffolding | Done — proven via test, zero prod bundle cost until first page ports |
 | Frontend | Page port: Accounts | Done — proven via unit + E2E/a11y tests |
 | Frontend | Page port: Insights | Done — needs Simeon's manual spot-check of the numbers (financial-analysis logic) |
 | Frontend | Page port: Categories | Done — also fixed a real pre-existing a11y bug found by properly extending the gate |
 | Frontend | Page port: Budgets | Done — caught and fixed a real regression before it shipped |
 | Frontend | Page port: Add Transaction | Done — form only, Dashboard stays vanilla (see note) |
-| Frontend | Page port: Dashboard | Not started — list/edit modal/charts/CSV/cycle selection, deliberately not combined with Add Transaction |
-| Frontend | Page port: Auth/forms | Not started — do last, highest risk |
+| Frontend | Page port: Dashboard | Done (2026-09-23) — React-owned; edit/delete modals + Salary Settings stay vanilla. Adds OLS next-cycle spending forecast |
+| Frontend | Page port: Auth/forms | Done (2026-09-23) — AuthPage.tsx, only loaded when signed out; E2E login flow passes |
 
 ---
 
@@ -102,7 +102,7 @@ phases — do not start until handler tests cover current behavior.
 - [ ] PR(s) opened, CI green, merged
 
 ### Phase 3 — Observability
-**Status: In progress**
+**Status: Done** (2026-09-24 — merged and live, `SENTRY_DSN` set)
 
 Structured logging (request ID, user ID, duration, status) via `_lib.js`,
 plus error tracking (e.g. Sentry) so production failures surface without
@@ -131,45 +131,31 @@ risk worth de-risking first (see note above).
       Sentry failures are caught and logged, never affect the response
       already sent. 3 new tests using the same require.cache stub pattern
       as the Supabase stubs. Documented in README's env var table.
-- [ ] **Manual checklist item for Simeon**: create a Sentry account/project,
-      add `SENTRY_DSN` to Netlify env vars (not committed anywhere —
-      Netlify env only, per README).
-- [ ] PR opened, CI green, merged
+- [x] Sentry account/project created, `SENTRY_DSN` added to Netlify env
+      (Simeon, 2026-09-24)
+- [x] PR opened, CI green, merged (PR #22, 2026-09-24)
 
 ### Phase 4 — Data-layer scaling readiness
-**Status: In progress**
+**Status: Done** (2026-09-24 — indexes migration run, pooler mode checked)
 
 - [x] Review query patterns for missing indexes (2026-09-22) — every query
       in `lib/*-repo.js` filters by `user_id` (transactions also sorts by
       `transaction_date`), and none of it was indexed on the live DB.
       `supabase/migrations/0003_indexes.sql` adds all three, idempotent,
-      purely additive. **Needs Simeon to run it manually** (see checklist).
-- [ ] **Needs a decision before implementing**: pagination on list
-      endpoints. Unlike the index migration, this changes the API
-      response shape (`transactions`/`categories`/`accounts` currently
-      return a full array) and requires matching frontend changes in
-      `src/main.js` (or the React port, once that endpoint's page is
-      ported) — not a safe drop-in change to make unilaterally on a live
-      app. Also worth weighing urgency: this is a single-user app: growth
-      here likely means more of Simeon's own transactions accumulating
-      over years, not concurrent users, so the real question is at what
-      row count this actually starts to matter (revisit with real numbers
-      rather than guessing).
-- [ ] Verify Supabase connection pooler mode (transaction vs session) is
-      correct for serverless functions — **manual check only Simeon can
-      do**, in the Supabase dashboard (Project Settings → Database →
-      Connection pooling). Netlify Functions are ephemeral/concurrent, so
-      the wrong pooler mode is a real (if currently low-probability)
-      outage mode as usage grows.
-- [ ] PR opened (0003_indexes.sql + docs), CI green, merged
+      purely additive.
+- [x] Simeon ran `0003_indexes.sql` in the Supabase SQL editor (2026-09-24)
+- [x] Simeon checked the Supabase connection pooler mode (2026-09-24)
+- [ ] **Still just an option, not a decision**: pagination on list
+      endpoints. Changes the API response shape and needs matching
+      frontend work — revisit only if row count actually starts to matter,
+      not preemptively.
+- [x] PR opened, CI green, merged (PR #22, 2026-09-24)
 
 ### Phase 5 — Staging environment
-**Status: Not started**
-
-- [ ] Create second Supabase project mirroring schema/RLS
-- [ ] Wire to a Netlify branch/preview deploy
-- [ ] Document migration workflow: staging first, then prod
-- [ ] Manual verification, no PR needed (infra only)
+**Status: Deprioritized** (2026-09-24) — single-user app, infrequent and
+mostly-additive migrations (indexes, new tables) don't justify a second
+Supabase project + parallel deploy pipeline right now. Revisit if migration
+frequency/risk changes (e.g. more users, more destructive schema changes).
 
 ---
 
