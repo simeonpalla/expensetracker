@@ -35,7 +35,7 @@ export default defineConfig({
                 ],
                 navigateFallback: '/index.html',
                 // Never intercept the BFF.
-                navigateFallbackDenylist: [/^\/\.netlify\//]
+                navigateFallbackDenylist: [/^\/\.netlify\//, /^\/(privacy|terms)\.html$/]
             }
         })
     ]

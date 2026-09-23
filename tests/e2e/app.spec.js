@@ -74,7 +74,47 @@ async function stubApi(page, state) {
             }
             return json(route, { error: 'Invalid email or password.' }, 401);
         }
-        if (fn === 'categories') return json(route, CATEGORIES);
+        if (fn === 'settings') {
+            state.settings = state.settings || {
+                exists: false,
+                salary_account: 'UBI',
+                budget_limits: {},
+                giving_floor_pct: 5,
+                giving_floor_category: '',
+                onboarded_at: null
+            };
+            if (method === 'PUT') {
+                Object.assign(state.settings, route.request().postDataJSON(), { exists: true });
+                return json(route, { ok: true });
+            }
+            return json(route, state.settings);
+        }
+        if (fn === 'onboarding') {
+            state.categories = [
+                { id: 1, name: 'Salary', type: 'income', icon: '💰' },
+                { id: 2, name: 'Groceries', type: 'expense', icon: '🛒' }
+            ];
+            state.accounts = [{ id: 1, name: 'Cash', type: 'cash' }];
+            state.onboardCalls = (state.onboardCalls || 0) + 1;
+            return json(route, { ok: true, seeded: true });
+        }
+        if (fn === 'account') {
+            if (method === 'DELETE') {
+                state.deleted = route.request().postDataJSON();
+                state.loggedIn = false;
+                return json(route, { ok: true });
+            }
+            return json(route, { exported_at: 'now', transactions: state.transactions });
+        }
+        if (fn === 'forgot-password') {
+            state.forgot = route.request().postDataJSON();
+            return json(route, { ok: true });
+        }
+        if (fn === 'reset-password') {
+            state.reset = route.request().postDataJSON();
+            return json(route, { ok: true });
+        }
+        if (fn === 'categories') return json(route, state.categories || CATEGORIES);
         if (fn === 'transactions') {
             if (method === 'POST') {
                 const tx = route.request().postDataJSON();
@@ -399,4 +439,113 @@ test('the giving-floor category never gets a fixed recurring due-date, even if m
 
     await expect(page.locator('#recurring-suggestions')).not.toContainText('Offering');
     await expect(page.locator('#recurring-suggestions')).not.toContainText('Church');
+});
+
+test('settings live on the account: a new browser sees budgets saved elsewhere, and legacy local values are imported once', async ({
+    page
+}) => {
+    const state = {
+        loggedIn: true,
+        transactions: fixtureTransactions(),
+        settings: {
+            exists: true,
+            salary_account: 'UBI',
+            budget_limits: { Food: 1000 },
+            giving_floor_pct: 5,
+            giving_floor_category: '',
+            onboarded_at: 'x'
+        }
+    };
+    await stubApi(page, state);
+    await page.goto('/');
+    await expect(page.locator('.container')).toBeVisible();
+    await expect(page.locator('#status-text')).toHaveText('Connected');
+    // Food spend 1200 vs limit 1000 -> over budget, driven purely by server settings.
+    await page.click('.nav-tab[data-page="dashboard"]');
+    await expect(page.locator('.budget-warning-item', { hasText: 'Over budget' })).toBeVisible();
+
+    // Legacy localStorage values are uploaded once when the account has no row.
+    const state2 = { loggedIn: true, transactions: fixtureTransactions() };
+    const page2 = await page.context().newPage();
+    await page2.addInitScript(() => {
+        localStorage.setItem('budgetLimits', JSON.stringify({ Food: 900 }));
+        localStorage.setItem('salaryAccount', 'ICICI');
+    });
+    await stubApi(page2, state2);
+    await page2.goto('/');
+    await expect(page2.locator('#status-text')).toHaveText('Connected');
+    await expect.poll(() => state2.settings && state2.settings.exists).toBe(true);
+    expect(state2.settings.budget_limits).toEqual({ Food: 900 });
+    expect(state2.settings.salary_account).toBe('ICICI');
+});
+
+test('a brand-new account sees onboarding, seeds defaults once, and existing users never see it', async ({
+    page
+}) => {
+    const state = { loggedIn: true, transactions: [], categories: [], accounts: [] };
+    await stubApi(page, state);
+    await page.goto('/');
+    await expect(page.locator('.onboarding-card')).toBeVisible();
+    await page.fill('#onboarding-bank', 'HDFC');
+    await page.click('text=Set up with defaults');
+    await expect(page.locator('.onboarding-card')).toBeHidden();
+    expect(state.onboardCalls).toBe(1);
+    expect(state.settings.salary_account).toBe('HDFC');
+
+    const existing = await page.context().newPage();
+    const state2 = { loggedIn: true, transactions: fixtureTransactions() };
+    await stubApi(existing, state2);
+    await existing.goto('/');
+    await expect(existing.locator('#status-text')).toHaveText('Connected');
+    await expect(existing.locator('.onboarding-card')).toHaveCount(0);
+});
+
+test('account page: export downloads a file; delete needs DELETE and signs the user out', async ({
+    page
+}) => {
+    const state = { loggedIn: true, transactions: fixtureTransactions() };
+    await stubApi(page, state);
+    await page.goto('/');
+    await expect(page.locator('#status-text')).toHaveText('Connected');
+    await page.click('#account-btn');
+    await expect(page.locator('#account.active')).toBeVisible();
+
+    const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.click('text=Download my data')
+    ]);
+    expect(download.suggestedFilename()).toBe('expense-tracker-export.json');
+
+    const del = page.getByRole('button', { name: /Delete my account/ });
+    await expect(del).toBeDisabled();
+    await page.fill('#delete-confirm', 'DELETE');
+    await del.click();
+    await expect(page.locator('#auth-container')).toBeVisible();
+    expect(state.deleted).toEqual({ confirm: 'DELETE' });
+});
+
+test('password reset: forgot-password request, then a recovery link sets a new password', async ({
+    page
+}) => {
+    const state = { loggedIn: false, transactions: [] };
+    await stubApi(page, state);
+    await page.goto('/');
+    await page.click('#forgot-link');
+    await page.fill('#forgot-email', 'e2e@example.com');
+    await page.click('#forgot-form button[type="submit"]');
+    await expect(page.locator('#auth-success')).toContainText('reset link is on its way');
+    expect(state.forgot).toEqual({ email: 'e2e@example.com' });
+
+    await page.goto('/#access_token=recovery.token.value.that.is.long&type=recovery');
+    await page.reload();
+    await expect(page.locator('#reset-form')).toBeVisible();
+    await page.fill('#reset-password', 'new-password-123');
+    await page.fill('#reset-confirm', 'new-password-123');
+    await page.click('#reset-form button[type="submit"]');
+    await expect(page.locator('#auth-success')).toContainText('Password updated');
+    expect(state.reset).toEqual({
+        access_token: 'recovery.token.value.that.is.long',
+        password: 'new-password-123'
+    });
+    expect(page.url()).not.toContain('access_token');
 });

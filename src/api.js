@@ -4,7 +4,7 @@
 
 import { showAuthScreen } from './ui.js';
 
-const AUTH_PATHS = ['login', 'signup', 'refresh', 'logout'];
+const AUTH_PATHS = ['login', 'signup', 'refresh', 'logout', 'forgot-password', 'reset-password'];
 
 export const API = {
     _refreshPromise: null,
@@ -69,6 +69,32 @@ export const API = {
     },
     logout() {
         return this.request('logout', { method: 'POST' });
+    },
+    forgotPassword(email) {
+        return this.request('forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+    },
+    resetPassword(accessToken, password) {
+        return this.request('reset-password', {
+            method: 'POST',
+            body: JSON.stringify({ access_token: accessToken, password })
+        });
+    },
+
+    // ---- settings / onboarding / account lifecycle ----
+    getSettings() {
+        return this.request('settings');
+    },
+    saveSettings(patch) {
+        return this.request('settings', { method: 'PUT', body: JSON.stringify(patch) });
+    },
+    onboard() {
+        return this.request('onboarding', { method: 'POST' });
+    },
+    exportAccount() {
+        return this.request('account');
+    },
+    deleteMyAccount() {
+        return this.request('account', { method: 'DELETE', body: JSON.stringify({ confirm: 'DELETE' }) });
     },
 
     // ---- money ----

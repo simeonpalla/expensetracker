@@ -357,3 +357,27 @@ budgets, categories, accounts, ai-insights) — **Categories** and
   to matter").
 - This file is the source of truth for *what's left*; project memory
   (`scalability_roadmap.md`) holds the *why* behind the original decisions.
+
+## Production readiness (started 2026-09-24)
+
+Branch `feat/user-settings-onboarding` (stacked on `feat/dashboard-auth-insights-upgrade`).
+
+- [x] Per-user settings in the DB (`user_settings`, migration 0004) replacing
+      localStorage budgets / giving floor / salary account. One-time upload of
+      legacy local values; falls back to local if the endpoint is unavailable.
+- [x] First-run onboarding (default categories + Cash account, idempotent,
+      never touches existing users).
+- [x] Password reset (`forgot-password`, `reset-password`, recovery-link flow).
+- [x] Data rights: JSON export and self-service deletion (`delete_my_account()`
+      SECURITY DEFINER SQL function — no service-role key), Account & privacy page.
+- [x] Privacy Policy / Terms drafts (`public/privacy.html`, `terms.html`) —
+      **placeholders must be filled and lawyer-reviewed before launch.**
+- [ ] Billing + plan enforcement, landing/pricing page, staging env, backups/PITR.
+
+**Outside-the-repo steps for this deploy (in order):**
+1. Run `supabase/migrations/0004_user_settings_and_account.sql` in the Supabase SQL editor.
+2. Supabase Dashboard → Authentication → URL Configuration: set Site URL to the
+   production URL and add it to Redirect URLs (password-reset links land there).
+3. Optional: set `SITE_URL` in Netlify env (falls back to Netlify's `URL`).
+4. Configure a real SMTP provider in Supabase (the built-in mailer is rate-limited).
+5. Fill the `[PLACEHOLDERS]` in `public/privacy.html` and `public/terms.html`.

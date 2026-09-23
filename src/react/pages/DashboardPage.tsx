@@ -23,7 +23,7 @@ import PFCycles from '../../engine/cycles.js';
 import PFProjection from '../../engine/projection.js';
 import { loadChart } from '../../charts.js';
 import { showNotification } from '../../ui.js';
-import { onCategoriesChanged, onTransactionsChanged } from '../crossPageSync';
+import { onCategoriesChanged, onSettingsChanged, onTransactionsChanged } from '../crossPageSync';
 
 interface Transaction {
     id: number | string;
@@ -88,9 +88,11 @@ export default function DashboardPage() {
     useEffect(() => {
         const offTx = onTransactionsChanged(refresh);
         const offCat = onCategoriesChanged(refresh);
+        const offSettings = onSettingsChanged(refresh);
         return () => {
             offTx();
             offCat();
+            offSettings();
         };
     }, [refresh]);
 

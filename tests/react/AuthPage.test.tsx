@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import AuthPage from '../../src/react/pages/AuthPage';
 
 vi.mock('../../src/api.js', () => ({
-    API: { login: vi.fn(), signup: vi.fn() }
+    API: { login: vi.fn(), signup: vi.fn(), forgotPassword: vi.fn(), resetPassword: vi.fn() }
 }));
 import { API } from '../../src/api.js';
 
@@ -63,5 +63,39 @@ describe('AuthPage', () => {
         await user.click(screen.getByRole('button', { name: /Create Account/ }));
         await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Check your email'));
         expect(reload).not.toHaveBeenCalled();
+    });
+});
+
+describe('AuthPage password reset', () => {
+    it('sends a reset link request and shows a neutral confirmation', async () => {
+        const user = userEvent.setup();
+        vi.mocked(API.forgotPassword).mockResolvedValue({ ok: true });
+        render(<AuthPage />);
+        await user.click(screen.getByRole('button', { name: 'Forgot password?' }));
+        await user.type(screen.getByLabelText('Email Address'), 'a@b.co');
+        await user.click(screen.getByRole('button', { name: /Send reset link/ }));
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('reset link is on its way'));
+        expect(API.forgotPassword).toHaveBeenCalledWith('a@b.co');
+    });
+
+    it('opens the new-password form from a recovery link and strips the token from the URL', async () => {
+        const user = userEvent.setup();
+        vi.mocked(API.resetPassword).mockResolvedValue({ ok: true });
+        const replaceState = vi.spyOn(history, 'replaceState').mockImplementation(() => {});
+        Object.defineProperty(window, 'location', {
+            value: { reload, hash: '#access_token=abc.def.ghi&type=recovery', pathname: '/', search: '' },
+            writable: true
+        });
+
+        render(<AuthPage />);
+        expect(replaceState).toHaveBeenCalledWith(null, '', '/');
+        await user.type(screen.getByLabelText('New Password'), 'brand-new-pass');
+        await user.type(screen.getByLabelText('Confirm New Password'), 'brand-new-pass');
+        await user.click(screen.getByRole('button', { name: /Set new password/ }));
+
+        await waitFor(() => expect(API.resetPassword).toHaveBeenCalledWith('abc.def.ghi', 'brand-new-pass'));
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Password updated'));
+        expect(screen.getByRole('button', { name: /Login$/ })).toBeInTheDocument();
+        replaceState.mockRestore();
     });
 });

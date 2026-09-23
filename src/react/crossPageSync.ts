@@ -7,6 +7,7 @@
 const categoryListeners = new Set<() => void>();
 const accountListeners = new Set<() => void>();
 const transactionListeners = new Set<() => void>();
+const settingsListeners = new Set<() => void>();
 
 export function onCategoriesChanged(fn: () => void): () => void {
     categoryListeners.add(fn);
@@ -36,4 +37,15 @@ export function notifyAccountsChanged() {
 
 export function notifyTransactionsChanged() {
     transactionListeners.forEach(fn => fn());
+}
+
+// Fired after the per-user settings (budgets, giving floor, salary account,
+// onboarding state) load from or change on the server.
+export function onSettingsChanged(fn: () => void): () => void {
+    settingsListeners.add(fn);
+    return () => settingsListeners.delete(fn);
+}
+
+export function notifySettingsChanged() {
+    settingsListeners.forEach(fn => fn());
 }

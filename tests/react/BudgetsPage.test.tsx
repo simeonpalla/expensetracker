@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import BudgetsPage from '../../src/react/pages/BudgetsPage';
 
 vi.mock('../../src/api.js', () => ({
-    API: { getCategories: vi.fn() }
+    API: { getCategories: vi.fn(), saveSettings: vi.fn() }
 }));
 vi.mock('../../src/ui.js', () => ({
     showNotification: vi.fn()
@@ -22,8 +22,8 @@ const mockCategories = [
 
 beforeEach(() => {
     vi.mocked(API.getCategories).mockReset().mockResolvedValue(mockCategories);
+    vi.mocked(API.saveSettings).mockReset().mockResolvedValue({ ok: true });
     vi.mocked(showNotification).mockReset();
-    localStorage.clear();
     window.app = undefined;
 });
 
@@ -35,13 +35,13 @@ describe('BudgetsPage', () => {
         expect(screen.queryByLabelText(/Salary/)).not.toBeInTheDocument();
     });
 
-    it('pre-fills limits already saved in localStorage', async () => {
-        localStorage.setItem('budgetLimits', JSON.stringify({ Food: 5000 }));
+    it('pre-fills limits already saved on the account', async () => {
+        window.app = { budgetLimits: { Food: 5000 } };
         render(<BudgetsPage />);
         await waitFor(() => expect(screen.getByLabelText('🍔 Food')).toHaveValue(5000));
     });
 
-    it('saves budget limits to localStorage, drops non-positive values, and resyncs the dashboard', async () => {
+    it('saves budget limits to the server, updates the app, and resyncs the dashboard', async () => {
         const user = userEvent.setup();
         const updateDashboardStats = vi.fn();
         window.app = { currentCycleStart: '2026-09-01', currentCycleEnd: '2026-09-30', updateDashboardStats };
@@ -52,8 +52,9 @@ describe('BudgetsPage', () => {
         await user.type(screen.getByLabelText('🍔 Food'), '4000');
         await user.click(screen.getByRole('button', { name: '💾 Save Budget Limits' }));
 
-        expect(JSON.parse(localStorage.getItem('budgetLimits') || '{}')).toEqual({ Food: 4000 });
-        expect(showNotification).toHaveBeenCalledWith('Budget limits saved!');
+        await waitFor(() => expect(API.saveSettings).toHaveBeenCalledWith({ budget_limits: { Food: 4000 } }));
+        await waitFor(() => expect(showNotification).toHaveBeenCalledWith('Budget limits saved!'));
+        expect(window.app?.budgetLimits).toEqual({ Food: 4000 });
         expect(updateDashboardStats).toHaveBeenCalledWith('2026-09-01', '2026-09-30');
     });
 
@@ -86,8 +87,28 @@ describe('BudgetsPage', () => {
         await user.selectOptions(screen.getByLabelText('Category'), 'Rent');
         await user.click(screen.getByRole('button', { name: '💾 Save Floor' }));
 
-        expect(localStorage.getItem('givingFloorPct')).toBe('5');
-        expect(localStorage.getItem('givingFloorCategory')).toBe('Rent');
-        expect(showNotification).toHaveBeenCalledWith('Giving floor saved!');
+        await waitFor(() =>
+            expect(API.saveSettings).toHaveBeenCalledWith({
+                giving_floor_pct: 5,
+                giving_floor_category: 'Rent'
+            })
+        );
+        await waitFor(() => expect(showNotification).toHaveBeenCalledWith('Giving floor saved!'));
+    });
+});
+
+describe('BudgetsPage save failures', () => {
+    it('keeps the old limits and shows an error when the server rejects the save', async () => {
+        const user = userEvent.setup();
+        vi.mocked(API.saveSettings).mockRejectedValue(new Error('boom'));
+        window.app = { budgetLimits: { Food: 1000 } };
+        render(<BudgetsPage />);
+        await waitFor(() => expect(screen.getByLabelText('🍔 Food')).toBeInTheDocument());
+        await user.type(screen.getByLabelText('🍔 Food'), '9');
+        await user.click(screen.getByRole('button', { name: '💾 Save Budget Limits' }));
+        await waitFor(() =>
+            expect(showNotification).toHaveBeenCalledWith('Could not save budget limits: boom', 'error')
+        );
+        expect(window.app?.budgetLimits).toEqual({ Food: 1000 });
     });
 });
