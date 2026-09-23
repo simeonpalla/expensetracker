@@ -183,6 +183,7 @@ appears once one calendar month has passed since the last occurrence.
 - [docs/financial-health.md](docs/financial-health.md) — score, actions, pace, assumptions
 - [docs/bill-scanning.md](docs/bill-scanning.md) — on-device OCR and total detection
 - [docs/account-and-privacy.md](docs/account-and-privacy.md) — settings, onboarding, export, deletion, password reset
+- [docs/future-scope.md](docs/future-scope.md) — where the app is going: decision-support analytics and deferred encryption
 - [SCALABILITY_ROADMAP.md](SCALABILITY_ROADMAP.md) — architecture decisions and status
 
 ## Contributing
