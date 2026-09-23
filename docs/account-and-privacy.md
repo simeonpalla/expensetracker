@@ -55,7 +55,13 @@ export in `account.js`**, and add a test.
 
 ## Legal pages
 
-`public/privacy.html` and `public/terms.html` are drafts with bracketed
-placeholders (operator name, support email, region, retention, governing law,
-plans). Fill them and have them reviewed by a lawyer before launch. Signup
-links to both.
+`public/privacy.html` and `public/terms.html` are filled in for the current
+limited, invitation-based release: operator Simeon Palla (individual), database
+in Singapore (Supabase `ap-southeast-1`), India governing law, and no public
+contact email yet. They are still **not lawyer-reviewed**. Before a public launch:
+
+1. Publish a support/grievance email and add it to both pages.
+2. Update the Terms' "Plans and payment" section when billing exists.
+3. Have both pages reviewed by a lawyer, and re-date them when changed.
+
+Signup links to both pages.

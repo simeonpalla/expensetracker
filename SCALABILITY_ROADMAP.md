@@ -370,8 +370,8 @@ Branch `feat/user-settings-onboarding` (stacked on `feat/dashboard-auth-insights
 - [x] Password reset (`forgot-password`, `reset-password`, recovery-link flow).
 - [x] Data rights: JSON export and self-service deletion (`delete_my_account()`
       SECURITY DEFINER SQL function — no service-role key), Account & privacy page.
-- [x] Privacy Policy / Terms drafts (`public/privacy.html`, `terms.html`) —
-      **placeholders must be filled and lawyer-reviewed before launch.**
+- [x] Privacy Policy / Terms (`public/privacy.html`, `terms.html`) — filled for the
+      limited release; **add a public contact email and get lawyer review before a public launch.**
 - [x] Dashboard financial-health view (`src/engine/health.js`), Manrope headings.
 - [x] On-device bill scanning (Tesseract WASM, self-hosted, CSP-compatible).
 - [x] Documentation: README, `docs/` (deployment, health, scanning, account & privacy).
@@ -386,4 +386,4 @@ Branch `feat/user-settings-onboarding` (stacked on `feat/dashboard-auth-insights
    production URL and add it to Redirect URLs (password-reset links land there).
 3. Optional: set `SITE_URL` in Netlify env (falls back to Netlify's `URL`).
 4. Configure a real SMTP provider in Supabase (the built-in mailer is rate-limited).
-5. Fill the `[PLACEHOLDERS]` in `public/privacy.html` and `public/terms.html`.
+5. Legal pages are filled for a limited release (no public email yet); add one and get legal review before a public launch.

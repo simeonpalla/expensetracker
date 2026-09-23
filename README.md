@@ -52,8 +52,9 @@ How the score and actions are computed: [docs/financial-health.md](docs/financia
   accounts (never touches existing data)
 - Password reset by emailed link; **download all your data** (JSON) and
   **permanently delete your account** from *Account & privacy*
-- Privacy Policy and Terms drafts in `public/` (placeholders to fill and
-  have reviewed before launch)
+- Privacy Policy and Terms in `public/` (filled in for the current
+  invitation-only release; add a public contact email and get legal review
+  before a public launch)
 
 ## Architecture
 
