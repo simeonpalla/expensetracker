@@ -188,9 +188,9 @@ test('add transaction -> dashboard totals, list and charts update', async ({ pag
     // Dashboard reflects the new expense: 1200 + 450.
     await page.click('.nav-tab[data-page="dashboard"]');
     const summaryValue = label => page.locator('.summary-row', { hasText: label }).locator('.v').first();
-    await expect(summaryValue('Income this cycle')).toHaveText('₹50000.00');
-    await expect(summaryValue('Expenses this cycle')).toHaveText('₹1650.00');
-    await expect(summaryValue('Remaining')).toHaveText('₹48350.00');
+    await expect(summaryValue('Income this cycle')).toHaveText('₹50,000.00');
+    await expect(summaryValue('Expenses this cycle')).toHaveText('₹1,650.00');
+    await expect(summaryValue('Remaining')).toHaveText('₹48,350.00');
 
     // The new transaction is listed with its details.
     const list = page.locator('#transactions-list');

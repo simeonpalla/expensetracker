@@ -283,3 +283,102 @@
 }
 .onboarding-card h3 { margin-bottom: 8px; }
 footer[role="contentinfo"] { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+/* ==========================================================
+   TYPOGRAPHY — Manrope for headings and key figures. Sentence
+   case, tight tracking, no shouting: quiet, precise, modern.
+   ========================================================== */
+h1, h2, h3, h4 { font-family: var(--font-display); }
+.chart-container h3,
+.section-header h3 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: none;
+  text-align: left;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+.section-header h3 { margin-bottom: 0; }
+.summary-row .v { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.auth-form h2 { letter-spacing: -0.03em; }
+
+/* ==========================================================
+   DASHBOARD — financial health cards
+   ========================================================== */
+.dash-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 18px 16px;
+  margin-bottom: 14px;
+}
+.dash-title {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.dash-sub { font-size: 0.8rem; line-height: 1.55; color: var(--text2); margin: 0 0 12px; }
+.dash-sub b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.dash-fineprint { font-size: 0.7rem; line-height: 1.5; color: var(--text3); margin: 14px 0 0; }
+.dash-canvas { position: relative; height: 240px; }
+.tone-good { color: var(--income-text) !important; }
+.tone-bad { color: var(--expense-text) !important; }
+
+.health-top { display: flex; gap: 18px; align-items: center; margin-bottom: 14px; }
+.health-ring { width: 104px; height: 104px; flex-shrink: 0; }
+.health-ring-track { fill: none; stroke: var(--border); stroke-width: 9; }
+.health-ring-fill { fill: none; stroke-width: 9; stroke-linecap: round; transition: stroke-dasharray 0.6s var(--ease-out); }
+.health-ring--good .health-ring-fill { stroke: var(--income); }
+.health-ring--warn .health-ring-fill { stroke: var(--warning); }
+.health-ring--bad .health-ring-fill { stroke: var(--expense); }
+.health-ring-value { font-family: var(--font-display); font-size: 30px; font-weight: 800; fill: var(--text); letter-spacing: -0.03em; }
+.health-ring-of { font-size: 10px; fill: var(--text3); }
+.health-summary { min-width: 0; }
+.health-verdict { font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 4px; }
+.health-verdict--good { color: var(--income-text); }
+.health-verdict--warn { color: #9a5b00; }
+[data-theme="dark"] .health-verdict--warn { color: var(--warning); }
+.health-verdict--bad { color: var(--expense-text); }
+
+.health-list { list-style: none; display: grid; gap: 14px; }
+.health-item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.health-item-label { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+.health-item-figure { font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.health-bar { height: 5px; border-radius: 99px; background: var(--border); margin: 6px 0 6px; overflow: hidden; }
+.health-bar-fill { height: 100%; border-radius: 99px; }
+.health-bar-fill--good { background: var(--income); }
+.health-bar-fill--warn { background: var(--warning); }
+.health-bar-fill--bad { background: var(--expense); }
+.health-item-detail { font-size: 0.74rem; line-height: 1.5; color: var(--text2); margin: 0; }
+
+.action-list { list-style: none; display: grid; gap: 10px; margin-top: 4px; }
+.action { border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius-md); padding: 12px 14px; }
+.action--high { border-left-color: var(--expense); }
+.action--medium { border-left-color: var(--warning); }
+.action--info { border-left-color: var(--violet); }
+.action--good { border-left-color: var(--income); }
+.action-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.action-tag { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text2); }
+.action-impact { font-family: var(--font-display); font-size: 0.82rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.action-title { font-family: var(--font-display); font-size: 0.92rem; font-weight: 700; letter-spacing: -0.015em; color: var(--text); margin: 0 0 3px; }
+.action-detail { font-size: 0.78rem; line-height: 1.55; color: var(--text2); margin: 0; }
+
+.cat-list { list-style: none; display: grid; gap: 14px; }
+.cat-line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.cat-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.cat-amount { font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.cat-bar { position: relative; height: 5px; border-radius: 99px; background: var(--border); margin: 6px 0; }
+.cat-bar-fill { height: 100%; border-radius: 99px; background: var(--violet); }
+.cat-limit { position: absolute; top: -3px; width: 2px; height: 11px; background: var(--text); border-radius: 1px; }
+.cat-limit--over { background: var(--expense); }
+.cat-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.72rem; color: var(--text2); }
+.cat-flag--up { color: var(--expense-text); font-weight: 600; }
+.cat-flag--down { color: var(--income-text); font-weight: 600; }
+
+@media (max-width: 380px) {
+  .health-top { flex-direction: column; align-items: flex-start; }
+}
