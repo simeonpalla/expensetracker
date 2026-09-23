@@ -7,11 +7,9 @@ import './style.css';
 import './styleadditions.css';
 
 import PFDates from './engine/dates.js';
-import PFCycles from './engine/cycles.js';
-import PFProjection from './engine/projection.js';
 import { API } from './api.js';
 import { escapeHtml, showNotification, withBusy, openModal, closeModal } from './ui.js';
-import { loadChart } from './charts.js';
+import { notifyTransactionsChanged } from './react/crossPageSync';
 
 // Make the toast available to the console / any stragglers.
 window.showNotification = showNotification;
@@ -141,9 +139,6 @@ class ExpenseTracker {
         this.currentUser = user;
         this.transactions = [];
         this.categories = [];
-        this.chart = null;
-        this.expenseDonutChart = null;
-        this.currentChartView = 'source';
 
         this.salaryAccount = localStorage.getItem('salaryAccount') || 'UBI';
         this.currentCycleStart = null;
@@ -186,7 +181,9 @@ class ExpenseTracker {
             document.getElementById('status-dot').className = 'status-dot connected';
             document.getElementById('status-text').textContent = 'Connected';
 
-            this.loadCycleHistory();
+            this.suggestRecurringTransactions();
+            // React islands mount before this data finishes loading.
+            notifyTransactionsChanged();
             this.showPage('add-transaction');
         } catch (error) {
             console.error('Init Error:', error);
@@ -210,12 +207,7 @@ class ExpenseTracker {
     setupEventListeners() {
         const qs = id => document.getElementById(id);
 
-        qs('filter-type')?.addEventListener('change', () => this.displayTransactions());
-        qs('filter-category')?.addEventListener('change', () => this.displayTransactions());
-        qs('cycle-history')?.addEventListener('change', () => this.handleCycleChange());
         qs('logout-btn')?.addEventListener('click', handleLogout);
-        qs('reset-chart-view-btn')?.addEventListener('click', () => this.renderChartBySource());
-        qs('export-csv-btn')?.addEventListener('click', () => this.exportCSV());
 
         qs('salary-settings-form')?.addEventListener('submit', e => {
             e.preventDefault();
@@ -263,22 +255,11 @@ class ExpenseTracker {
             this.showPage(tabs[next].dataset.page);
         });
 
-        // Delegated clicks for list rows rendered via innerHTML (no inline
-        // handlers: they are blocked by the CSP).
-        qs('transactions-list')?.addEventListener('click', e => {
-            const editBtn = e.target.closest('.edit-btn');
-            if (editBtn) {
-                this.openEditModalById(editBtn.dataset.id);
-                return;
-            }
-            const deleteBtn = e.target.closest('.delete-btn');
-            if (deleteBtn) {
-                this.deleteTransaction(deleteBtn.dataset.id);
-                return;
-            }
-            const swipeBg = e.target.closest('.swipe-delete-bg');
-            if (swipeBg) this.deleteTransaction(swipeBg.dataset.id);
-        });
+        // #transactions-list is React-owned now (DashboardPage.tsx), which
+        // attaches its own delegated click handler in a useEffect and calls
+        // openEditModalById()/deleteTransaction() below directly — a
+        // listener attached here at boot, before React mounts, would be
+        // orphaned against React's freshly-created DOM node.
 
         qs('recurring-suggestions')?.addEventListener('click', e => {
             const btn = e.target.closest('[data-recurring-id]');
@@ -309,6 +290,11 @@ class ExpenseTracker {
     }
 
     async mountSecondaryReactIslands() {
+        const dashboardRoot = document.getElementById('dashboard-react-root');
+        if (dashboardRoot) {
+            const { mountDashboardPage } = await import('./react/mount-dashboard.tsx');
+            mountDashboardPage(dashboardRoot);
+        }
         const accountsRoot = document.getElementById('accounts-react-root');
         if (accountsRoot) {
             const { mountAccountsPage } = await import('./react/mount-accounts.tsx');
@@ -354,7 +340,6 @@ class ExpenseTracker {
     async loadCategories() {
         const raw = (await API.getCategories()) || [];
         this.categories = raw.sort((a, b) => a.name.localeCompare(b.name));
-        this.populateCategoryDropdowns();
 
         // First-time giving-floor guess: used to happen inside the vanilla
         // renderBudgetLimitsUI(), called unconditionally from here — so it
@@ -370,42 +355,11 @@ class ExpenseTracker {
         }
     }
 
-    populateCategoryDropdowns() {
-        const type = document.getElementById('type')?.value;
-        const select = document.getElementById('category');
-        const filter = document.getElementById('filter-category');
-
-        if (select) {
-            select.innerHTML = '<option value="">Select Category</option>';
-            this.categories
-                .filter(c => !type || c.type === type)
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c.name;
-                    opt.textContent = `${c.icon} ${c.name}`;
-                    select.appendChild(opt);
-                });
-        }
-
-        if (filter) {
-            filter.innerHTML = '<option value="">All Categories</option>';
-            this.categories
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c.name;
-                    opt.textContent = `${c.icon} ${c.name}`;
-                    filter.appendChild(opt);
-                });
-        }
-    }
-
     // Rendering + add for this page now live in
     // src/react/pages/CategoriesPage.tsx, mounted into
     // #categories-react-root by mountReactIslands(). loadCategories()
-    // above stays: populateCategoryDropdowns() is still needed by other
-    // pages (the transaction form's category select).
+    // above stays: this.categories still backs the giving-floor guess and
+    // window.app.categories (read by DashboardPage.tsx for icons).
 
     // ===============================
     // PAYMENT ACCOUNTS / CARDS
@@ -454,116 +408,11 @@ class ExpenseTracker {
     // #budgets-react-root by mountReactIslands(). That page writes
     // budgetLimits/givingFloorPct/givingFloorCategory straight to
     // localStorage and mutates this.* in place (there's no backend table
-    // for these — they were always localStorage-only), so
-    // checkBudgetWarnings()/checkOfferingFloor() below keep working
-    // unmodified.
-
-    checkBudgetWarnings(cycleTxs) {
-        const container = document.getElementById('budget-warnings');
-        if (!container) return;
-
-        const spendByCategory = {};
-        cycleTxs
-            .filter(t => t.type === 'expense')
-            .forEach(t => {
-                spendByCategory[t.category] = (spendByCategory[t.category] || 0) + Number(t.amount);
-            });
-
-        const warnings = [];
-        Object.entries(this.budgetLimits).forEach(([cat, limit]) => {
-            const spent = spendByCategory[cat] || 0;
-            const pct = (spent / limit) * 100;
-            if (pct >= 80) {
-                const catObj = this.categories.find(c => c.name === cat);
-                const icon = catObj ? catObj.icon : '📁';
-                warnings.push({
-                    cat,
-                    icon,
-                    spent,
-                    limit,
-                    pct: Math.min(pct, 100).toFixed(0),
-                    over: pct > 100
-                });
-            }
-        });
-
-        if (warnings.length === 0) {
-            container.innerHTML = '';
-            return;
-        }
-
-        container.innerHTML = `
-            <div class="budget-warnings-block">
-                ${warnings
-                    .map(
-                        w => `
-                    <div class="budget-warning-item ${w.over ? 'over-budget' : 'near-budget'}">
-                        <div class="budget-warning-header">
-                            <span>${this.escapeHtml(w.icon)} ${this.escapeHtml(w.cat)}</span>
-                            <span class="budget-badge">${w.over ? '🚨 Over budget' : '⚠️ ' + w.pct + '%'}</span>
-                        </div>
-                        <div class="budget-bar-track">
-                            <div class="budget-bar-fill" style="width: ${Math.min(parseFloat(w.pct), 100)}%; background: ${w.over ? 'var(--expense)' : 'var(--warning)'};"></div>
-                        </div>
-                        <div class="budget-bar-labels">
-                            <span>₹${w.spent.toFixed(0)} spent</span>
-                            <span>₹${w.limit} limit</span>
-                        </div>
-                    </div>
-                `
-                    )
-                    .join('')}
-            </div>
-        `;
-    }
-
-    // Warns when the chosen giving-floor category is tracking below
-    // givingFloorPct% of this cycle's income so far. Never blocks entry —
-    // informational only. The category is user-chosen (Budgets page), not
-    // hardcoded, since it's their own category name.
-    checkOfferingFloor(cycleTxs, income) {
-        const container = document.getElementById('offering-warning');
-        if (!container) return;
-
-        if (income <= 0 || !this.givingFloorCategory) {
-            container.innerHTML = '';
-            return;
-        }
-
-        const targetCategory = this.givingFloorCategory.trim().toLowerCase();
-        const given = cycleTxs
-            .filter(t => t.type === 'expense' && t.category.trim().toLowerCase() === targetCategory)
-            .reduce((s, t) => s + Number(t.amount), 0);
-
-        const floor = income * (this.givingFloorPct / 100);
-        if (given >= floor) {
-            container.innerHTML = '';
-            return;
-        }
-
-        const pct = floor > 0 ? (given / floor) * 100 : 100;
-        const shortBy = floor - given;
-        const catObj = this.categories.find(c => c.name === this.givingFloorCategory);
-        const icon = catObj ? catObj.icon : '🙏';
-
-        container.innerHTML = `
-            <div class="budget-warnings-block">
-                <div class="budget-warning-item near-budget">
-                    <div class="budget-warning-header">
-                        <span>${this.escapeHtml(icon)} ${this.escapeHtml(this.givingFloorCategory)}</span>
-                        <span class="budget-badge">⚠️ ${pct.toFixed(0)}% of ${this.givingFloorPct}% floor</span>
-                    </div>
-                    <div class="budget-bar-track">
-                        <div class="budget-bar-fill" style="width: ${Math.min(pct, 100)}%; background: var(--warning);"></div>
-                    </div>
-                    <div class="budget-bar-labels">
-                        <span>₹${given.toFixed(0)} given</span>
-                        <span>₹${shortBy.toFixed(0)} more to reach floor</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
+    // for these — they were always localStorage-only). The budget/giving-
+    // floor warnings that used to render here (checkBudgetWarnings()/
+    // checkOfferingFloor()) now live in src/react/pages/DashboardPage.tsx,
+    // reading these same this.budgetLimits/givingFloorPct/
+    // givingFloorCategory fields — same pattern InsightsPage already used.
 
     // ===============================
     // FORM LOGIC
@@ -604,10 +453,24 @@ class ExpenseTracker {
     // src/react/pages/AddTransactionPage.tsx (mounted into
     // #add-transaction-react-root), including its own submit handling.
     // This helper is what it (and the edit modal, and delete) call after
-    // a mutation to refresh the still-vanilla Dashboard.
+    // a mutation. Dashboard is React now too (DashboardPage.tsx), so this
+    // just refreshes the shared transaction list + notifies it — same
+    // crossPageSync pattern AccountsPage/CategoriesPage already use for
+    // AddTransactionPage's independently-fetched data.
     async refreshTransactions() {
         this.transactions = (await API.getTransactions()) || [];
-        this.loadCycleHistory();
+        this.suggestRecurringTransactions();
+        notifyTransactionsChanged();
+    }
+
+    // Kept as a compatibility shim: BudgetsPage.tsx calls
+    // window.app.updateDashboardStats(start, end) after saving budget
+    // limits/the giving floor, since those changes affect Dashboard's
+    // warnings but aren't a "transaction changed" event. Args are unused
+    // now (DashboardPage recomputes from its own cycle selection) but the
+    // call signature stays so BudgetsPage doesn't need to change.
+    updateDashboardStats() {
+        notifyTransactionsChanged();
     }
 
     // ===============================
@@ -711,123 +574,13 @@ class ExpenseTracker {
         }
     }
 
-    // ===============================
-    // CSV EXPORT
-    // ===============================
-    exportCSV() {
-        const cycleTxs = this.getTransactionsInCycle(this.currentCycleStart, this.currentCycleEnd);
-        if (!cycleTxs.length) {
-            showNotification('No transactions to export.', 'error');
-            return;
-        }
-
-        const headers = [
-            'Date',
-            'Type',
-            'Category',
-            'Amount',
-            'Payment To',
-            'Payment Source',
-            'Bank/Card',
-            'Description',
-            'Recurring'
-        ];
-        // RFC 4180: quote cells containing commas/quotes/newlines and double
-        // embedded quotes. Cells starting with formula characters get a
-        // leading apostrophe so spreadsheets treat them as text (CSV
-        // injection guard).
-        const cell = v => {
-            let s = v == null ? '' : String(v);
-            if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-            if (/[",\n\r]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
-            return s;
-        };
-
-        const rows = cycleTxs.map(t =>
-            [
-                t.transaction_date,
-                t.type,
-                t.category,
-                Number(t.amount),
-                t.payment_to || '',
-                t.payment_source || '',
-                t.source_details || '',
-                t.description || '',
-                t.is_recurring ? 'Yes' : 'No'
-            ]
-                .map(cell)
-                .join(',')
-        );
-
-        const csv = [headers.join(','), ...rows].join('\r\n');
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `expenses_${this.currentCycleStart}_to_${this.currentCycleEnd}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showNotification('CSV exported!');
-    }
-
-    // ===============================
-    // CYCLE MANAGEMENT
-    // ===============================
-    loadCycleHistory() {
-        const selector = document.getElementById('cycle-history');
-        if (!selector) return;
-
-        const today = PFDates.todayStr();
-        const cycles = PFCycles.deriveCycles(this.transactions, today);
-        const nice = d =>
-            PFDates.parseLocal(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-
-        selector.innerHTML = '';
-        cycles.forEach(c => {
-            const option = document.createElement('option');
-            option.value = `${c.start}|${c.end}`;
-            option.textContent = c.fallback
-                ? 'Current Month'
-                : c.isCurrent
-                  ? `Current: Since ${nice(c.start)}`
-                  : `${nice(c.start)} – ${nice(c.end)}`;
-            selector.appendChild(option);
-        });
-
-        selector.selectedIndex = 0;
-        this.handleCycleChange();
-    }
-
-    handleCycleChange() {
-        const selector = document.getElementById('cycle-history');
-        const value = selector.value;
-        if (!value || !value.includes('|')) return;
-        const [startDate, endDate] = value.split('|');
-        this.loadSpecificCycle(startDate, endDate);
-    }
-
-    loadSpecificCycle(startDate, endDate) {
-        this.currentCycleStart = startDate;
-        this.currentCycleEnd = endDate;
-
-        const chartTitle = document.getElementById('line-chart-title');
-        const s = PFDates.parseLocal(startDate).toLocaleDateString('en-IN', {
-            day: 'numeric',
-            month: 'short'
-        });
-        const e = PFDates.parseLocal(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-        if (chartTitle) chartTitle.innerHTML = `📈 Trends: ${s} to ${e}`;
-
-        this.updateDashboardStats(startDate, endDate);
-        this.displayTransactions();
-        this.renderLineChart(startDate, endDate);
-        this.renderChartBySource(startDate, endDate);
-        this.suggestRecurringTransactions();
-    }
-
-    getTransactionsInCycle(startDate, endDate) {
-        return PFCycles.transactionsInCycle(this.transactions, startDate, endDate);
-    }
+    // CSV export, cycle derivation/selection, dashboard stats/charts/
+    // transaction-list rendering, and swipe-to-delete all now live in
+    // src/react/pages/DashboardPage.tsx, mounted into #dashboard-react-
+    // root. It writes window.app.currentCycleStart/currentCycleEnd back
+    // (InsightsPage/BudgetsPage still read those) and owns its own click
+    // delegation for edit/delete, calling the unchanged
+    // openEditModalById()/deleteTransaction() below directly.
 
     // ===============================
     // RECURRING SUGGESTIONS
@@ -921,326 +674,6 @@ class ExpenseTracker {
         return escapeHtml(str);
     }
 
-    // ===============================
-    // DISPLAY TRANSACTIONS
-    // ===============================
-    displayTransactions() {
-        const list = document.getElementById('transactions-list');
-        const filterType = document.getElementById('filter-type')?.value;
-        const filterCategory = document.getElementById('filter-category')?.value;
-
-        if (!list) return;
-
-        let filtered = this.getTransactionsInCycle(this.currentCycleStart, this.currentCycleEnd);
-        if (filterType) filtered = filtered.filter(t => t.type === filterType);
-        if (filterCategory) filtered = filtered.filter(t => t.category === filterCategory);
-
-        if (!filtered.length) {
-            list.innerHTML = '<div class="loading">No transactions found</div>';
-            return;
-        }
-
-        list.innerHTML = filtered
-            .map(t => {
-                const cat = this.categories.find(c => c.name === t.category);
-                const icon = cat ? cat.icon : '📁';
-                return `
-            <div class="transaction-item" data-id="${this.escapeHtml(String(t.id))}">
-                <div class="transaction-swipe-wrapper">
-                    <div class="transaction-content">
-                        <div class="transaction-details">
-                            <strong>${this.escapeHtml(icon)} ${this.escapeHtml(t.category)}${t.is_recurring ? '<span class="recurring-badge">🔁 recurring</span>' : ''}</strong>
-                            <small>${this.escapeHtml(t.transaction_date)} · ${this.escapeHtml(t.payment_to || 'N/A')} · ${this.escapeHtml(t.payment_source || '')}</small>
-                        </div>
-                        <div class="transaction-right">
-                            <div class="${t.type === 'income' ? 'income' : 'expense'}">
-                                ${t.type === 'income' ? '+' : '−'}₹${Number(t.amount).toFixed(2)}
-                            </div>
-                            <div class="transaction-actions">
-                                <button class="tx-action-btn edit-btn" data-id="${this.escapeHtml(String(t.id))}" title="Edit" aria-label="Edit transaction">✏️</button>
-                                <button class="tx-action-btn delete-btn" data-id="${this.escapeHtml(String(t.id))}" title="Delete" aria-label="Delete transaction">🗑️</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="swipe-delete-bg" data-id="${this.escapeHtml(String(t.id))}">
-                        🗑️ Delete
-                    </div>
-                </div>
-            </div>
-        `;
-            })
-            .join('');
-
-        this.setupSwipeToDelete(list);
-    }
-
-    setupSwipeToDelete(list) {
-        list.querySelectorAll('.transaction-item').forEach(item => {
-            const wrapper = item.querySelector('.transaction-swipe-wrapper');
-            const content = item.querySelector('.transaction-content');
-            let startX = 0,
-                currentX = 0,
-                isDragging = false;
-
-            const onStart = x => {
-                startX = x;
-                isDragging = true;
-            };
-            const onMove = x => {
-                if (!isDragging) return;
-                currentX = x - startX;
-                if (currentX < 0) {
-                    content.style.transform = `translateX(${Math.max(currentX, -80)}px)`;
-                    content.style.transition = 'none';
-                }
-            };
-            const onEnd = () => {
-                if (!isDragging) return;
-                isDragging = false;
-                content.style.transition = 'transform 0.2s ease';
-                if (currentX < -60) {
-                    content.style.transform = 'translateX(-80px)';
-                    wrapper.classList.add('swiped');
-                } else {
-                    content.style.transform = 'translateX(0)';
-                    wrapper.classList.remove('swiped');
-                }
-                currentX = 0;
-            };
-
-            content.addEventListener('touchstart', e => onStart(e.touches[0].clientX), { passive: true });
-            content.addEventListener('touchmove', e => onMove(e.touches[0].clientX), { passive: true });
-            content.addEventListener('touchend', onEnd);
-        });
-    }
-
-    // ===============================
-    // DASHBOARD STATS
-    // ===============================
-    updateDashboardStats(startDate, endDate) {
-        const cycleTxs = this.getTransactionsInCycle(startDate, endDate);
-        let income = 0,
-            expenses = 0;
-
-        cycleTxs.forEach(t => {
-            if (t.type === 'income') income += Number(t.amount);
-            if (t.type === 'expense') expenses += Number(t.amount);
-        });
-
-        this.calculateRunRate(cycleTxs, startDate, income);
-        this.checkBudgetWarnings(cycleTxs);
-        this.checkOfferingFloor(cycleTxs, income);
-
-        const balance = income - expenses;
-        document.getElementById('total-income').textContent = `₹${income.toFixed(2)}`;
-        document.getElementById('total-expenses').textContent = `₹${expenses.toFixed(2)}`;
-        document.getElementById('net-balance').textContent = `₹${balance.toFixed(2)}`;
-
-        const streak = PFCycles.noSpendStreak(cycleTxs, startDate, PFDates.todayStr());
-        document.getElementById('current-streak').textContent = `${streak.currentStreak} Days`;
-        document.getElementById('best-streak').textContent = `Best: ${streak.bestStreak} days`;
-    }
-
-    calculateRunRate(cycleTxs, startDate, income) {
-        const proj = PFProjection.projectCycle(this.transactions, startDate, PFDates.todayStr());
-        const { projectedBalance, expensesSoFar, daysRemaining } = proj;
-
-        const runRateEl = document.getElementById('run-rate');
-        const riskCard = document.getElementById('risk-card');
-        const noteEl = document.getElementById('run-rate-note');
-        if (!runRateEl || income === 0) return;
-
-        const leak = this.findTopLeak(cycleTxs, startDate);
-        const leakHint = leak
-            ? ` Watch <b>${this.escapeHtml(leak.cat)}</b> — already +₹${leak.diff.toFixed(0)} over your usual pace.`
-            : '';
-
-        if (projectedBalance < 0) {
-            runRateEl.innerHTML = `<span style="color: var(--expense-text);">Short by ₹${Math.abs(projectedBalance).toFixed(0)}</span>`;
-            if (riskCard) riskCard.style.borderLeft = '4px solid var(--expense)';
-            const dailyCut = Math.abs(projectedBalance) / (daysRemaining || 1);
-            if (noteEl)
-                noteEl.innerHTML = `Cut spending to ₹${dailyCut > 0 ? dailyCut.toFixed(0) : 0}/day less than now to break even.${leakHint}`;
-        } else if (projectedBalance < income * 0.1) {
-            runRateEl.innerHTML = `<span style="color: var(--warning);">₹${projectedBalance.toFixed(0)} leftover (thin margin)</span>`;
-            if (riskCard) riskCard.style.borderLeft = '4px solid var(--warning)';
-            const safeDaily = (income * 0.9 - expensesSoFar) / (daysRemaining || 1);
-            if (noteEl)
-                noteEl.innerHTML = `Stay under ₹${safeDaily > 0 ? safeDaily.toFixed(0) : 0}/day for the rest of the cycle to keep a safety margin.${leakHint}`;
-        } else {
-            runRateEl.innerHTML = `<span style="color: var(--income-text);">+₹${projectedBalance.toFixed(0)} projected surplus</span>`;
-            if (riskCard) riskCard.style.borderLeft = '4px solid var(--income)';
-            if (noteEl)
-                noteEl.innerHTML = leak
-                    ? `On track overall.${leakHint}`
-                    : 'On track — no unusual spending detected this cycle.';
-        }
-    }
-
-    // A category deliberately pegged to a % of income (the giving floor) is
-    // *supposed* to grow when income grows — that's not an overspending
-    // anomaly, so anomaly detection should never look at it.
-    omitGivingCategory(spendMap) {
-        if (!this.givingFloorCategory || !(this.givingFloorCategory in spendMap)) return spendMap;
-        const rest = { ...spendMap };
-        delete rest[this.givingFloorCategory];
-        return rest;
-    }
-
-    // Biggest category currently running ahead of its historical average,
-    // reused by the dashboard's predictive note and the Insights audit.
-    findTopLeak(cycleTxs, startDate) {
-        const historicalTxs = this.transactions.filter(t => t.transaction_date < startDate);
-        if (historicalTxs.length === 0) return null;
-
-        const currentSpend = {};
-        cycleTxs.forEach(t => {
-            if (t.type === 'expense')
-                currentSpend[t.category] = (currentSpend[t.category] || 0) + Number(t.amount);
-        });
-
-        const months = PFProjection.historicalMonths(this.transactions, startDate);
-        const anomalies = PFProjection.computeAnomalies(
-            this.omitGivingCategory(currentSpend),
-            PFProjection.spendByCategory(historicalTxs),
-            months
-        );
-        return anomalies[0] || null;
-    }
-
-    // ===============================
-    // CHARTS
-    // ===============================
-    async renderLineChart(startDate, endDate) {
-        const cycleTxs = this.getTransactionsInCycle(startDate, endDate);
-
-        const today = PFDates.todayStr();
-        const chartEnd = endDate < today ? endDate : today;
-        const days = PFDates.eachDay(startDate, chartEnd);
-
-        const labels = days.map(d =>
-            PFDates.parseLocal(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-        );
-
-        const dailyData = {};
-        days.forEach(d => {
-            dailyData[d] = 0;
-        });
-        cycleTxs.forEach(t => {
-            if (t.type === 'expense' && dailyData[t.transaction_date] !== undefined) {
-                dailyData[t.transaction_date] += Number(t.amount);
-            }
-        });
-        const expenses = days.map(d => dailyData[d]);
-
-        const trendData = PFProjection.linearRegression(expenses).trend;
-
-        const canvas = document.getElementById('chart');
-        if (!canvas) return;
-        const Chart = await loadChart();
-        if (this.chart) this.chart.destroy();
-
-        this.chart = new Chart(canvas.getContext('2d'), {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: 'Daily Expenses',
-                        data: expenses,
-                        borderColor: '#ff5c72',
-                        backgroundColor: 'rgba(255,92,114,0.08)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 3,
-                        pointBackgroundColor: '#ff5c72'
-                    },
-                    {
-                        label: 'Trend',
-                        data: trendData,
-                        borderColor: '#f5a623',
-                        borderWidth: 2,
-                        borderDash: [6, 4],
-                        pointRadius: 0,
-                        fill: false,
-                        tension: 0
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: true, position: 'top' } },
-                scales: { y: { beginAtZero: true } }
-            }
-        });
-    }
-
-    renderChartBySource(startDate = this.currentCycleStart, endDate = this.currentCycleEnd) {
-        this.currentChartView = 'source';
-        document.getElementById('reset-chart-view-btn').style.display = 'none';
-
-        const cycleTxs = this.getTransactionsInCycle(startDate, endDate).filter(t => t.type === 'expense');
-        const sourceData = cycleTxs.reduce((acc, t) => {
-            const src = t.payment_source || 'Unknown';
-            acc[src] = (acc[src] || 0) + Number(t.amount);
-            return acc;
-        }, {});
-
-        this.renderDonutChart(Object.keys(sourceData), Object.values(sourceData), 'Expenses by Source');
-    }
-
-    renderChartByCategory(source) {
-        this.currentChartView = 'category';
-        document.getElementById('reset-chart-view-btn').style.display = 'inline-block';
-
-        const cycleTxs = this.getTransactionsInCycle(this.currentCycleStart, this.currentCycleEnd).filter(
-            t => t.type === 'expense' && (t.payment_source || 'Unknown') === source
-        );
-
-        const categoryData = cycleTxs.reduce((acc, t) => {
-            acc[t.category || 'Uncategorized'] = (acc[t.category || 'Uncategorized'] || 0) + Number(t.amount);
-            return acc;
-        }, {});
-
-        this.renderDonutChart(
-            Object.keys(categoryData),
-            Object.values(categoryData),
-            `Expenses via ${source}`
-        );
-    }
-
-    async renderDonutChart(labels, data, title) {
-        const canvas = document.getElementById('expense-donut-chart');
-        if (!canvas) return;
-        document.getElementById('donut-chart-title').textContent = title;
-        const Chart = await loadChart();
-        if (this.expenseDonutChart) this.expenseDonutChart.destroy();
-
-        this.expenseDonutChart = new Chart(canvas.getContext('2d'), {
-            type: 'doughnut',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        data,
-                        backgroundColor: ['#0B1E3D', '#00d4aa', '#f5a623', '#ff5c72', '#3b82f6', '#c44dff'],
-                        borderWidth: 2,
-                        borderColor: 'transparent'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                onClick: (evt, elements) => {
-                    if (elements.length > 0 && this.currentChartView === 'source') {
-                        this.renderChartByCategory(labels[elements[0].index]);
-                    }
-                }
-            }
-        });
-    }
 }
 
 // ===============================

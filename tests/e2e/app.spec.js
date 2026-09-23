@@ -147,9 +147,10 @@ test('add transaction -> dashboard totals, list and charts update', async ({ pag
 
     // Dashboard reflects the new expense: 1200 + 450.
     await page.click('.nav-tab[data-page="dashboard"]');
-    await expect(page.locator('#total-income')).toHaveText('₹50000.00');
-    await expect(page.locator('#total-expenses')).toHaveText('₹1650.00');
-    await expect(page.locator('#net-balance')).toHaveText('₹48350.00');
+    const summaryValue = label => page.locator('.summary-row', { hasText: label }).locator('.v').first();
+    await expect(summaryValue('Income this cycle')).toHaveText('₹50000.00');
+    await expect(summaryValue('Expenses this cycle')).toHaveText('₹1650.00');
+    await expect(summaryValue('Remaining')).toHaveText('₹48350.00');
 
     // The new transaction is listed with its details.
     const list = page.locator('#transactions-list');
@@ -157,14 +158,11 @@ test('add transaction -> dashboard totals, list and charts update', async ({ pag
     await expect(list).toContainText('450.00');
 
     // Charts rendered (Chart.js attaches to the canvases).
-    await expect(page.locator('#chart')).toBeVisible();
-    const hasCharts = await page.evaluate(() =>
-        Boolean(window.app && window.app.chart && window.app.expenseDonutChart)
-    );
-    expect(hasCharts).toBe(true);
+    await expect(page.locator('#dashboard-react-root canvas')).toHaveCount(2);
+    await expect(page.locator('#dashboard-react-root canvas').first()).toBeVisible();
 
     // Projection card computed something (engine ran without errors).
-    await expect(page.locator('#run-rate')).not.toHaveText('Calculating...');
+    await expect(page.locator('.predictive-lead')).not.toBeEmpty();
 });
 
 test('accounts page: add a card, use it on a transaction, then remove it', async ({ page }) => {
@@ -219,8 +217,8 @@ test('dashboard warns when the Offering category is under the giving floor', asy
 
     // No Offering spend yet against ₹50000 income -> floor warning shows.
     await page.click('.nav-tab[data-page="dashboard"]');
-    await expect(page.locator('#offering-warning')).toContainText('Offering');
-    await expect(page.locator('#offering-warning')).toContainText('more to reach floor');
+    const floorWarning = page.locator('.budget-warning-item', { hasText: 'more to reach floor' });
+    await expect(floorWarning).toContainText('Offering');
 });
 
 test('insights never flags the giving-floor category as an overspending anomaly', async ({ page }) => {
