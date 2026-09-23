@@ -372,7 +372,11 @@ Branch `feat/user-settings-onboarding` (stacked on `feat/dashboard-auth-insights
       SECURITY DEFINER SQL function — no service-role key), Account & privacy page.
 - [x] Privacy Policy / Terms drafts (`public/privacy.html`, `terms.html`) —
       **placeholders must be filled and lawyer-reviewed before launch.**
-- [ ] Billing + plan enforcement, landing/pricing page, staging env, backups/PITR.
+- [x] Dashboard financial-health view (`src/engine/health.js`), Manrope headings.
+- [x] On-device bill scanning (Tesseract WASM, self-hosted, CSP-compatible).
+- [x] Documentation: README, `docs/` (deployment, health, scanning, account & privacy).
+- [ ] Billing + plan enforcement, landing/pricing page, staging env, backups/PITR
+      (checklist in `docs/deployment.md`).
 
 **Outside-the-repo steps for this deploy (in order):**
 1. Run `supabase/migrations/0004_user_settings_and_account.sql` in the Supabase SQL editor.
