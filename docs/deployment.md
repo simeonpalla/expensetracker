@@ -21,7 +21,7 @@ must be sequenced with the deploy.
 3. Supabase → Authentication → SMTP: configure a real provider. The built-in
    mailer is heavily rate-limited and will fail under real use.
 4. Optional: set `SITE_URL` in Netlify (defaults to Netlify's `URL`).
-5. Fill the `[PLACEHOLDERS]` in `public/privacy.html` and `public/terms.html`.
+5. `public/privacy.html` and `public/terms.html` are filled in for a limited, invitation-only release (operator Simeon Palla, database in Singapore, India governing law, no public email). **Before opening to the public:** add a real support/grievance email to both pages and have them reviewed by a lawyer.
 6. Expect a one-time upload of each browser's old budget/giving-floor values
    on first load; verify Budgets shows the same numbers afterwards.
 7. The CSP now includes `'wasm-unsafe-eval'` and `blob:` images, and the
@@ -35,7 +35,7 @@ must be sequenced with the deploy.
 - A staging environment and Supabase backups/PITR (a bad migration now
   affects paying users)
 - Uptime monitoring alongside Sentry; analytics that respect privacy
-- Legal review of the policies and terms
+- A public support/grievance email in the Privacy Policy and Terms (DPDP expects a way to raise grievances), then legal review of both
 - Load and abuse review of the rate limits (they are per function instance)
 
 ## Rollback
