@@ -289,7 +289,26 @@ class ExpenseTracker {
     // Mounts React-ported pages (see SCALABILITY_ROADMAP.md). Dynamically
     // imported so React is only downloaded after auth succeeds — an
     // unauthenticated visit (just the login screen) never pays for it.
+    // Add Transaction is the page every session actually lands on, so its
+    // chunk gets loaded and mounted first — the other 4 pages' chunks used
+    // to load in an arbitrary order alongside it, competing for network/
+    // main-thread priority right when boot matters most (see
+    // SCALABILITY_ROADMAP.md's 2026-09-23 finding, which traced a real E2E
+    // flake to this). They now load afterward, while the user is already
+    // on and interacting with Add Transaction.
     async mountReactIslands() {
+        const addTransactionRoot = document.getElementById('add-transaction-react-root');
+        if (addTransactionRoot) {
+            const { mountAddTransactionPage } = await import('./react/mount-add-transaction.tsx');
+            mountAddTransactionPage(addTransactionRoot);
+        }
+
+        // Deliberately not awaited by the caller: these mount in the
+        // background once the primary page is up, not before.
+        this.mountSecondaryReactIslands();
+    }
+
+    async mountSecondaryReactIslands() {
         const accountsRoot = document.getElementById('accounts-react-root');
         if (accountsRoot) {
             const { mountAccountsPage } = await import('./react/mount-accounts.tsx');
@@ -309,11 +328,6 @@ class ExpenseTracker {
         if (budgetsRoot) {
             const { mountBudgetsPage } = await import('./react/mount-budgets.tsx');
             mountBudgetsPage(budgetsRoot);
-        }
-        const addTransactionRoot = document.getElementById('add-transaction-react-root');
-        if (addTransactionRoot) {
-            const { mountAddTransactionPage } = await import('./react/mount-add-transaction.tsx');
-            mountAddTransactionPage(addTransactionRoot);
         }
     }
 
