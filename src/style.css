@@ -1482,48 +1482,71 @@ footer {
 
 .insight-day-label { font-size: 0.7rem; color: var(--text2); }
 
-/* MoM bar chart */
+/* MoM bar chart — scrollable (was flex:1 columns that just compressed to
+   slivers once ~a year of cycles existed, with the oldest cycle shown
+   first and no way to reach recent ones). Columns now have a fixed width
+   and the container scrolls horizontally instead; the data itself is
+   reversed to recent-first before rendering (see InsightsPage.tsx), so
+   the current cycle is visible without scrolling at all. */
 .insight-bar-chart {
   display: flex;
   align-items: flex-end;
-  gap: 5px;
-  height: 90px;
-  padding: 0 2px;
+  gap: 10px;
+  height: 104px;
+  padding: 0 2px 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid var(--border);
+  scroll-snap-type: x proximity;
 }
 
 .insight-bar-col {
-  flex: 1;
+  flex: 0 0 auto;
+  width: 42px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
   justify-content: flex-end;
   height: 100%;
+  scroll-snap-align: start;
 }
 
 .insight-bar-val {
-  font-size: 0.6rem;
+  font-size: 0.62rem;
   color: var(--text3);
   font-family: 'JetBrains Mono', monospace;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .insight-bar-fill {
   width: 100%;
-  background: var(--border);
-  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--expense) 0%, var(--expense-soft) 100%);
+  border-radius: 6px 6px 2px 2px;
   transition: height 0.4s var(--ease-out);
 }
 
-.insight-bar-fill--active { background: var(--violet); }
+.insight-bar-fill--active {
+  background: linear-gradient(180deg, var(--violet) 0%, var(--violet-soft) 100%);
+  box-shadow: 0 0 0 1px var(--violet);
+}
 
 .insight-bar-label {
-  font-size: 0.58rem;
+  font-size: 0.6rem;
   color: var(--text3);
   text-align: center;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.insight-bar-current-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--violet);
+  flex-shrink: 0;
 }

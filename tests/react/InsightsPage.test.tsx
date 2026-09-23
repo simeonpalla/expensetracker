@@ -115,4 +115,34 @@ describe('InsightsPage', () => {
         expect(screen.getByText('+100%')).toBeInTheDocument();
         expect(screen.getByText(/Re-peg Food/)).toBeInTheDocument();
     });
+
+    it('renders the month-over-month chart most-recent-cycle first, with the current cycle marked', async () => {
+        const user = userEvent.setup();
+        vi.mocked(PFCycles.transactionsInCycle).mockReturnValue([
+            { id: 1, type: 'income', amount: 50000, category: 'Salary', transaction_date: '2026-09-01' },
+            { id: 2, type: 'expense', amount: 10000, category: 'Food', transaction_date: '2026-09-05' },
+            { id: 3, type: 'expense', amount: 5000, category: 'Transport', transaction_date: '2026-09-10' }
+        ]);
+        // Oldest-first, as PFProjection.cycleExpenseTotals actually returns
+        // it — the component must reverse this for display without
+        // touching the recent/prev trend math, which still needs the last
+        // element to be the current cycle.
+        vi.mocked(PFProjection.cycleExpenseTotals).mockReturnValue([
+            { start: '2026-07-01', end: '2026-07-31', total: 12000 },
+            { start: '2026-08-01', end: '2026-08-31', total: 18000 },
+            { start: '2026-09-01', end: '2026-09-30', total: 15000 }
+        ]);
+        window.app = baseApp as never;
+
+        const { container } = render(<InsightsPage />);
+        await user.click(screen.getByRole('button', { name: /Analyze Historical Data/ }));
+        await waitFor(() => expect(container.querySelector('.insight-bar-chart')).toBeInTheDocument());
+
+        const labels = [...container.querySelectorAll('.insight-bar-label')];
+        expect(labels).toHaveLength(3);
+        // The current cycle (2026-09-01, last in the oldest-first mock
+        // data) should render FIRST and carry the current-cycle dot.
+        expect(container.querySelector('.insight-bar-col:first-child .insight-bar-current-dot')).toBeTruthy();
+        expect(container.querySelector('.insight-bar-col:last-child .insight-bar-current-dot')).toBeFalsy();
+    });
 });
