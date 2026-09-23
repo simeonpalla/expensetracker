@@ -9,6 +9,8 @@ declare global {
         // React modules can load before it exists (or in tests).
         app?: {
             loadAccounts?: () => Promise<void>;
+            needsOnboarding?: boolean;
+            showPage?: (pageId: string) => void;
             loadCategories?: () => Promise<void>;
             refreshTransactions?: () => Promise<void>;
             transactions?: Array<{

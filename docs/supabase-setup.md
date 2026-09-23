@@ -1,6 +1,6 @@
 # Supabase setup
 
-The app needs a Supabase project with email/password auth, three tables, and
+The app needs a Supabase project with email/password auth, four tables, and
 Row Level Security. The Netlify functions call Supabase with the **anon key
 plus the signed-in user's JWT**, so RLS is the authorization boundary — if
 RLS is off, the (public) anon key can read everything. Do not skip step 3.
@@ -11,6 +11,15 @@ RLS is off, the (public) anon key can read everything. Do not skip step 3.
 - "Confirm email" is supported either way: with confirmation on, signup
   returns a "check your email" state; with it off, users are signed in
   immediately.
+- **Authentication → URL Configuration:** set **Site URL** to your production
+  URL and add it under **Redirect URLs**. Password-reset emails link back to
+  it (the app also passes `SITE_URL`, or Netlify's `URL`, as the redirect).
+- **Authentication → SMTP Settings:** configure a real provider (Resend,
+  SendGrid, SES…). The built-in mailer is limited to a handful of emails per
+  hour and will fail for real users (signup confirmation and password reset).
+- Authentication → Emails: review the *Confirm signup* and *Reset password*
+  templates. The reset link must keep `{{ .ConfirmationURL }}`; the app reads
+  the recovery token from the URL fragment it produces.
 
 ## 2. Tables
 
@@ -52,6 +61,21 @@ create table public.payment_accounts (
 );
 ```
 
+A fourth table holds per-user settings (created by migration 0004; on a fresh
+project run that migration rather than the DDL below):
+
+```sql
+create table public.user_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  salary_account text not null default 'UBI',
+  budget_limits jsonb not null default '{}'::jsonb,
+  giving_floor_pct numeric not null default 5 check (giving_floor_pct >= 0 and giving_floor_pct <= 100),
+  giving_floor_category text not null default '',
+  onboarded_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+```
+
 Useful indexes — on a fresh project, create these directly; on an existing
 one, run [`supabase/migrations/0003_indexes.sql`](../supabase/migrations/0003_indexes.sql)
 instead (idempotent, purely additive):
@@ -77,15 +101,24 @@ in the SQL editor, then
 [`supabase/migrations/0002_accounts_and_tracker_removal.sql`](../supabase/migrations/0002_accounts_and_tracker_removal.sql)
 (only needed once, or on a fresh project you can just create `payment_accounts`
 directly from the DDL above and skip the tracker-table drops), then
-[`supabase/migrations/0003_indexes.sql`](../supabase/migrations/0003_indexes.sql).
-All three are idempotent to re-run. Together they enable RLS on all current
+[`supabase/migrations/0003_indexes.sql`](../supabase/migrations/0003_indexes.sql),
+then
+[`supabase/migrations/0004_user_settings_and_account.sql`](../supabase/migrations/0004_user_settings_and_account.sql)
+(the `user_settings` table with RLS, and the `delete_my_account()` function
+behind self-service account deletion). All four are idempotent to re-run. Together they enable RLS on all current
 tables, create select/insert/update/delete policies scoped to
 `auth.uid() = user_id`, and add the indexes those policies (and every list
 query) rely on.
 
 Verify under **Authentication → Policies**: every table should show RLS
 enabled with policies for select/insert/update/delete (payment_accounts has
-no update policy — accounts are add/remove only, never edited in place).
+no update policy — accounts are add/remove only, never edited in place;
+user_settings has select/insert/update but no delete policy — its row is
+removed by `delete_my_account()`).
+
+Also confirm the function exists and is locked down: `delete_my_account` is
+executable by `authenticated` only (migration 0004 revokes it from `public` and
+`anon`). Details: [account-and-privacy.md](account-and-privacy.md).
 
 ## 4. Keys
 

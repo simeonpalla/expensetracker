@@ -1,12 +1,40 @@
-# Local Netlify folder
+# Secrets — never commit. .env.example is the shareable shape.
 .env
-node_modules
-.netlify
-.claude/
+.env.*
+!.env.example
 
-# Playwright artifacts
+# Dependencies
+node_modules
+
+# Build output and generated assets
+dist
+dev-dist
+public/ocr
+
+# Netlify / Supabase CLI local state (migrations in supabase/migrations
+# ARE tracked: they are the schema history and the deploy checklist)
+.netlify
+supabase/.temp
+supabase/.branches
+supabase/seed.sql
+
+# Test output
 test-results
 playwright-report
-# Vite build output
-dist
-public/ocr
+coverage
+*.lcov
+
+# Local tooling and editor state
+.claude/
+.vscode/
+.idea/
+*.swp
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*

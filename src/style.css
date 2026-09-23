@@ -26,6 +26,7 @@
   --ease:       cubic-bezier(.22,.68,0,1.2);
   --ease-out:   cubic-bezier(0,0,.28,1);
   --t:          0.22s;
+  --font-display: 'Manrope', 'IBM Plex Sans', system-ui, sans-serif;
 }
 
 /* ── LIGHT THEME ── */
@@ -261,11 +262,11 @@ body {
 .theme-btn.active { background: rgba(255,255,255,0.22); color: #fff; border-color: rgba(255,255,255,0.3); }
 
 .header h1 {
-  font-family: 'IBM Plex Serif', Georgia, serif;
-  font-size: 1.4rem;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 700;
   color: #fff;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.025em;
   margin-bottom: 3px;
   position: relative;
   z-index: 1;
@@ -374,12 +375,12 @@ body {
    unrelated craft pass, not caught by any existing test since nothing
    asserts on heading typography. */
 .page h2 {
-  font-family: 'IBM Plex Serif', Georgia, serif;
-  font-size: 1.15rem;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
   color: var(--text);
   margin-bottom: 18px;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.025em;
 }
 
 /* ── FORM ELEMENTS ── */

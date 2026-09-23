@@ -9,7 +9,7 @@ import './styleadditions.css';
 import PFDates from './engine/dates.js';
 import { API } from './api.js';
 import { escapeHtml, showNotification, openModal, closeModal } from './ui.js';
-import { notifyTransactionsChanged } from './react/crossPageSync';
+import { notifyTransactionsChanged, notifySettingsChanged } from './react/crossPageSync';
 
 // Make the toast available to the console / any stragglers.
 window.showNotification = showNotification;
@@ -74,13 +74,17 @@ class ExpenseTracker {
         this.transactions = [];
         this.categories = [];
 
-        this.salaryAccount = localStorage.getItem('salaryAccount') || 'UBI';
+        // Per-user settings live in the database (user_settings) and are
+        // filled in by loadSettings() during init(); these are just the
+        // defaults until then.
+        this.salaryAccount = 'UBI';
         this.currentCycleStart = null;
         this.currentCycleEnd = null;
 
-        this.budgetLimits = JSON.parse(localStorage.getItem('budgetLimits') || '{}');
-        this.givingFloorPct = parseFloat(localStorage.getItem('givingFloorPct')) || 5;
-        this.givingFloorCategory = localStorage.getItem('givingFloorCategory') || '';
+        this.budgetLimits = {};
+        this.givingFloorPct = 5;
+        this.givingFloorCategory = '';
+        this.needsOnboarding = false;
 
         this.accounts = [];
         // Grouped by type for the source-details dropdowns, e.g.
@@ -108,9 +112,18 @@ class ExpenseTracker {
         document.getElementById('status-text').textContent = 'Fetching data...';
 
         try {
+            await this.loadSettings();
             await this.loadCategories();
             await this.loadAccounts();
             this.transactions = (await API.getTransactions()) || [];
+            // Brand-new account: no settings stamp, no categories, no data.
+            // Existing users (any category or transaction) never see this.
+            this.needsOnboarding =
+                this._settingsLoaded &&
+                !this._onboardedAt &&
+                this.categories.length === 0 &&
+                this.transactions.length === 0;
+            notifySettingsChanged();
 
             document.getElementById('status-dot').className = 'status-dot connected';
             document.getElementById('status-text').textContent = 'Connected';
@@ -142,14 +155,18 @@ class ExpenseTracker {
         const qs = id => document.getElementById(id);
 
         qs('logout-btn')?.addEventListener('click', handleLogout);
+        qs('account-btn')?.addEventListener('click', () => this.showPage('account'));
 
         qs('salary-settings-form')?.addEventListener('submit', e => {
             e.preventDefault();
             const val = qs('salary-default-account')?.value;
             if (val) {
-                this.salaryAccount = val;
-                localStorage.setItem('salaryAccount', val);
-                showNotification('Salary account updated to ' + val);
+                API.saveSettings({ salary_account: val })
+                    .then(() => {
+                        this.salaryAccount = val;
+                        showNotification('Salary account updated to ' + val);
+                    })
+                    .catch(err => showNotification('Could not save: ' + err.message, 'error'));
             }
         });
 
@@ -217,6 +234,11 @@ class ExpenseTracker {
             const { mountAddTransactionPage } = await import('./react/mount-add-transaction.tsx');
             mountAddTransactionPage(addTransactionRoot);
         }
+        const onboardingRoot = document.getElementById('onboarding-react-root');
+        if (onboardingRoot) {
+            const { mountOnboardingCard } = await import('./react/mount-account.tsx');
+            mountOnboardingCard(onboardingRoot);
+        }
 
         // Deliberately not awaited by the caller: these mount in the
         // background once the primary page is up, not before.
@@ -244,6 +266,11 @@ class ExpenseTracker {
             const { mountCategoriesPage } = await import('./react/mount-categories.tsx');
             mountCategoriesPage(categoriesRoot);
         }
+        const accountRoot = document.getElementById('account-react-root');
+        if (accountRoot) {
+            const { mountAccountPage } = await import('./react/mount-account.tsx');
+            mountAccountPage(accountRoot);
+        }
         const budgetsRoot = document.getElementById('budgets-react-root');
         if (budgetsRoot) {
             const { mountBudgetsPage } = await import('./react/mount-budgets.tsx');
@@ -260,12 +287,76 @@ class ExpenseTracker {
             // Roving tabindex: only the active tab sits in the tab order.
             t.tabIndex = selected ? 0 : -1;
         });
+        // Pages reached outside the tab bar (Account) must not leave the
+        // tablist with no focusable tab.
+        if (!document.querySelector('.nav-tab.active')) {
+            const first = document.querySelector('.nav-tab');
+            if (first) first.tabIndex = 0;
+        }
         document.getElementById(pageId)?.classList.add('active');
     }
 
     syncSalaryAccountUI() {
         const sel = document.getElementById('salary-default-account');
         if (sel) sel.value = this.salaryAccount;
+    }
+
+    // ===============================
+    // USER SETTINGS
+    // ===============================
+    // Budgets, giving floor and salary account used to live in this
+    // browser's localStorage. They now live in the user_settings table so
+    // they follow the account. Two safety nets keep this deploy-order
+    // independent and lossless:
+    //  - if the settings endpoint fails (e.g. migration 0004 not yet run),
+    //    the app keeps working from the legacy localStorage copy;
+    //  - if the account has no row yet but this browser has legacy values,
+    //    they are uploaded once, so nothing set before this change is lost.
+    readLegacySettings() {
+        const payload = {};
+        const account = localStorage.getItem('salaryAccount');
+        if (account) payload.salary_account = account;
+        try {
+            const raw = localStorage.getItem('budgetLimits');
+            const limits = raw ? JSON.parse(raw) : null;
+            if (limits && Object.keys(limits).length) payload.budget_limits = limits;
+        } catch {
+            /* ignore corrupt legacy value */
+        }
+        const pct = parseFloat(localStorage.getItem('givingFloorPct'));
+        if (Number.isFinite(pct) && pct >= 0 && pct <= 100) payload.giving_floor_pct = pct;
+        const cat = localStorage.getItem('givingFloorCategory');
+        if (cat) payload.giving_floor_category = cat;
+        return payload;
+    }
+
+    async loadSettings() {
+        let remote = null;
+        try {
+            remote = await API.getSettings();
+        } catch (err) {
+            console.warn('Settings unavailable, using local copy:', err.message);
+        }
+        this._settingsLoaded = Boolean(remote);
+        this._onboardedAt = remote?.onboarded_at || null;
+
+        let effective = remote;
+        if (!remote?.exists) {
+            const legacy = this.readLegacySettings();
+            if (Object.keys(legacy).length) {
+                effective = { ...(remote || {}), ...legacy };
+                if (remote) API.saveSettings(legacy).catch(() => {});
+            }
+        }
+        if (!effective) return;
+        if (effective.salary_account) this.salaryAccount = effective.salary_account;
+        if (effective.budget_limits) this.budgetLimits = effective.budget_limits;
+        if (effective.giving_floor_pct != null) this.givingFloorPct = Number(effective.giving_floor_pct);
+        if (effective.giving_floor_category != null) {
+            this.givingFloorCategory = effective.giving_floor_category;
+        }
+        this.syncSalaryAccountUI();
+        notifySettingsChanged();
     }
 
     // ===============================

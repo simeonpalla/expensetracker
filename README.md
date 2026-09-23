@@ -1,105 +1,125 @@
 # Personal OS — Salary-Cycle Expense Tracker
 
 > A personal finance tracker that thinks in **salary cycles**, not calendar
-> months. Vite frontend (migrating page-by-page from vanilla JS to
-> React/TypeScript — see [Frontend migration](#frontend-migration) below),
-> Supabase (Postgres + Auth), Netlify Functions as a BFF. The
-> insights/projection engine runs entirely locally — no external AI APIs.
+> months, and tells you where your money is going and what to change. A Vite
+> + React/TypeScript PWA, Supabase (Postgres + Auth), Netlify Functions as a
+> BFF. Insights, projections and bill scanning all run **locally** — no
+> external AI APIs, and bill photos never leave the device.
 
 ## Features
 
+**Track**
+
 - Log income/expenses with categories, payment sources (UPI, credit/debit
-  card, cash), your own bank/card list, descriptions, and recurring flags
-- Salary-aware form — a salary transaction auto-locks to your configured
-  salary account
-- **Manage Accounts**: banks, UPI IDs, and cards are your own data (not a
-  hardcoded list) — add a new credit card the day you get it
-- **Salary-cycle dashboard**: cycles derive automatically from salary
-  transaction dates; switch between historical cycles; per-cycle income,
-  expenses, remaining budget, and no-spend streaks
-- **Predictive, not just analytical**: the Projected Month-End card names
-  what to actually do about it — the daily spend that would break even or
-  keep a safety margin, and which category is running ahead of its usual
-  pace — instead of only reporting a number
-- **Pattern-aware run-rate projection**: with ≥10 historical expenses, each
-  remaining cycle day is projected from that day-of-cycle's historical
-  average; otherwise a recency-weighted burn rate (last 7 days × 0.6 +
-  earlier × 0.4). Cycle length is the median gap between your salaries
-- **Giving floor**: set a category (e.g. "Offering") and a minimum % of
-  cycle income it should never fall below — a dashboard warning shows how
-  much more is needed, without ever blocking a transaction
-- **Recurring transactions, on their actual due date** — a subscription
-  billed on the 21st is only suggested once the 21st arrives, not from the
-  start of the cycle
-- Daily spend line chart with a least-squares trend line; payment-source
-  donut with category drill-down; budget limits with 80% warnings; CSV
-  export
-- **7-point insights audit**: category variance vs your historical baseline,
-  corrective limits, run-rate status, biggest leak, savings rate + Pareto
-  concentration, weekend vs weekday patterns, cycle-over-cycle trend
+  card, cash), your own bank/card list, descriptions and recurring flags
+- **Scan a bill** — take a photo of a printed bill and the amount, date and
+  merchant are read on-device (Tesseract WASM) and prefilled for you to
+  confirm; tap-to-swap candidates if it picked the wrong total. See
+  [docs/bill-scanning.md](docs/bill-scanning.md)
+- Salary-aware form — a salary transaction auto-locks to your salary account
+- **Manage Accounts**: banks, UPI IDs and cards are your own data
+- **Recurring transactions on their actual due date** — a subscription
+  billed on the 21st is suggested once the 21st arrives
+- Mobile-first: numeric keyboards for amounts, swipe-to-delete, installable PWA
+
+**Understand** (Dashboard)
+
+- **Financial health score (0–100)** with a transparent breakdown — savings
+  rate, spending stability, budget adherence, fixed-cost load, tracked
+  cushion. Parts without enough data are left out, never guessed
+- **What to do next** — up to five actions ranked by rupee impact, each with
+  its evidence (category running above your usual pace, projected overspend
+  and the daily spend to fix it, credit-card money already spent, weekend
+  skew, many small purchases, missing budgets)
+- **Pace chart** — cumulative spend this cycle against *your own* usual path
+- **Where your money goes** — per-category share, amount vs your usual at the
+  same day of the cycle, and budget limits
+- Income vs spending per cycle; **next-cycle spending forecast** (OLS
+  regression over completed cycles, shown once there are ≥4)
+- Pattern-aware **run-rate projection**, budget limits with 80% warnings, a
+  **giving floor** (minimum % of income for a category), no-spend streaks,
+  CSV export
+- **7-point Insights audit** (variance vs baseline, corrective limits,
+  run-rate, biggest leak, savings/Pareto, weekend vs weekday, cycle trend)
+
+How the score and actions are computed: [docs/financial-health.md](docs/financial-health.md).
+
+**Your account**
+
+- Settings (budgets, giving floor, salary account) are stored **per user in
+  the database**, so they follow you across devices
+- First-run onboarding seeds default categories and a Cash account for new
+  accounts (never touches existing data)
+- Password reset by emailed link; **download all your data** (JSON) and
+  **permanently delete your account** from *Account & privacy*
+- Privacy Policy and Terms drafts in `public/` (placeholders to fill and
+  have reviewed before launch)
 
 ## Architecture
 
 ```
 Browser (Vite-built ES modules, installable PWA)
-  src/main.js          app controller + auth + dashboard rendering (vanilla)
-  src/react/pages/     React/TS pages, mounted as lazy islands (see below)
-  src/engine/          PURE logic: dates, salary cycles, projections (tested)
+  src/main.js          app controller: boot, settings, shell, edit/delete modals
+  src/react/pages/     React/TS pages, lazy-loaded islands (Dashboard, Add
+                       Transaction, Budgets, Categories, Accounts, Insights,
+                       Auth, Account & privacy, Onboarding)
+  src/engine/          PURE logic (tested): dates, cycles, projection,
+                       health (score/actions/pace), receipt parsing
+  src/ocr.js           on-device bill OCR (lazy; self-hosted under /ocr)
   src/api.js           BFF client (HttpOnly-cookie session, auto-refresh)
-  src/fonts.css        self-hosted @font-face (CSP-safe, no external fetch)
-  charts               Chart.js, lazy-loaded as its own chunk
+  src/fonts.css        self-hosted fonts (CSP-safe, no external fetch)
         │  fetch /.netlify/functions/* (cookies, same-origin)
         ▼
 Netlify Functions (BFF) — netlify/functions/
-  login/signup/refresh/logout/me   session management (HttpOnly cookies)
-  transactions/categories/accounts money data (validated, whitelisted)
-  lib/*-repo.js                    Supabase queries, split from the handlers
-  _lib.js                          shared: cookies, validation, rate limits,
-                                    structured logging, Sentry reporting
+  login/signup/refresh/logout/me            session (HttpOnly cookies)
+  forgot-password/reset-password            password recovery
+  transactions/categories/accounts          money data (validated, whitelisted)
+  settings/onboarding/account               per-user settings, first run,
+                                            export + deletion
+  lib/*-repo.js                             Supabase queries split from handlers
+  _lib.js                                   cookies, validation, rate limits,
+                                            structured logging, Sentry
         ▼
 Supabase (Postgres + Auth) — Row Level Security enforces per-user access
 ```
 
-### Frontend migration
+### Frontend
 
-The app is being ported page-by-page from vanilla JS to React + TypeScript,
-so both coexist during the transition — vanilla and React pages are mounted
-side by side, not a single rewrite. **Done**: Accounts, Insights, Categories,
-Budgets, Add Transaction (`src/react/pages/`, each lazy-loaded only after
-login, so the login screen never downloads React). **Still vanilla**:
-Dashboard (transaction list, charts, cycle selection — the app's
-coordination spine, not an independently portable page) and Auth. Full
-status and the reasoning behind each decision: see
-[SCALABILITY_ROADMAP.md](SCALABILITY_ROADMAP.md).
+The app was migrated page-by-page from vanilla JS to React + TypeScript. All
+pages are now React islands, mounted after login so the login screen only
+loads the small Auth island. `src/main.js` remains the shell: boot, loading
+per-user settings, and the edit/delete transaction modals. Cross-page state
+uses a tiny pub/sub (`src/react/crossPageSync.ts`) plus `window.app`. History
+and reasoning: [SCALABILITY_ROADMAP.md](SCALABILITY_ROADMAP.md).
 
-**Security model**: tokens never reach JavaScript. Sessions live in HttpOnly,
-Secure, SameSite=Strict cookies scoped to the functions path. Every function
-uses the **anon key + the caller's JWT**, so Postgres RLS is the actual
-authorization boundary (the service-role key is not used at all). All inputs
-are validated and whitelisted server-side; login/signup/refresh are
-rate-limited per IP; CSP allows scripts, styles, and fonts from this origin
-only — no CDNs, which is why fonts are self-hosted in `public/fonts/`
-(loaded via `src/fonts.css`) rather than fetched from Google Fonts. See
-`netlify.toml` for headers and `supabase/migrations/` for RLS policies.
+### Security model
+
+Tokens never reach JavaScript. Sessions live in HttpOnly, Secure,
+SameSite=Strict cookies scoped to the functions path. Every function uses the
+**anon key + the caller's JWT**, so Postgres RLS is the authorization
+boundary; the service-role key is not used at all. Inputs are validated and
+whitelisted server-side; login/signup/forgot/reset are rate-limited per IP.
+Account deletion runs through a `SECURITY DEFINER` SQL function
+(`delete_my_account()`) callable only by the signed-in user, which is why no
+service-role key is needed. CSP allows scripts, styles, fonts and images from
+this origin only (no CDNs), plus `'wasm-unsafe-eval'` (needed for the OCR
+WebAssembly) and `blob:` images. See `netlify.toml`.
 
 ## Getting started
 
 ### Prerequisites
-- Node.js ≥ 20 (Node 22 recommended — CI uses 22)
-- A [Supabase](https://supabase.com) project (free tier is fine)
-- A [Netlify](https://netlify.com) site linked to your fork (for deploys)
+- Node.js ≥ 20 (CI uses 22)
+- A [Supabase](https://supabase.com) project and a [Netlify](https://netlify.com) site
 
 ### Setup
 ```bash
 npm ci
 cp .env.example .env      # fill in SUPABASE_URL and SUPABASE_ANON_KEY
-npm run dev               # netlify dev: Vite + functions on http://localhost:8888
+npm run dev               # netlify dev on http://localhost:8888
 ```
 
-Database: follow [docs/supabase-setup.md](docs/supabase-setup.md) — it
-contains the table reference and the migrations in `supabase/migrations/`
-that **must** be applied (RLS policies, then accounts + tracker cleanup,
-then indexes).
+Database, auth and email configuration: [docs/supabase-setup.md](docs/supabase-setup.md).
+**All four migrations in `supabase/migrations/` must be applied, in order.**
 
 ### Environment variables
 
@@ -107,69 +127,63 @@ then indexes).
 |---|---|---|
 | `SUPABASE_URL` | Netlify env + local `.env` | Supabase project URL |
 | `SUPABASE_ANON_KEY` | Netlify env + local `.env` | Public anon key (RLS enforced) |
-| `SENTRY_DSN` | Netlify env only (optional) | Error tracking; unset in dev/CI so tests never contact Sentry. Only `fn`/`requestId`/`method` context is reported, never request bodies. |
+| `SITE_URL` | Netlify env (optional) | Where password-reset links return to. Falls back to Netlify's `URL` |
+| `SENTRY_DSN` | Netlify env (optional) | Error tracking; unset in dev/CI. Only `fn`/`requestId`/`method` are reported, never request bodies |
 
-The service-role key is intentionally **not** used by this app.
+The service-role key is intentionally **not** used.
 
 ### Scripts
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Netlify dev: Vite dev server + functions, one origin |
-| `npm run build` | Production build to `dist/` (hashed assets + PWA service worker) |
-| `npm test` | Vitest: engine unit tests + function integration tests + React component tests |
-| `npm run typecheck` | `tsc --noEmit` over the React/TS pages |
-| `npm run test:e2e` | Playwright browser flows against the built app (stubbed BFF) |
+| `npm run dev` | Netlify dev: Vite + functions, one origin |
+| `npm run build` | Copies the OCR runtime into `public/ocr`, then builds to `dist/` (hashed assets + PWA service worker) |
+| `npm test` | Vitest: engine, function handlers, React components |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run test:e2e` | Playwright against the built app (stubbed BFF, production CSP applied) |
 | `npm run lint` / `format` | ESLint / Prettier |
 
 ## Testing
 
-- `tests/engine/` — the projection/cycle/date logic, including edge cases:
-  empty data, no salary, first cycle, <10 transactions, timezone boundaries,
-  non-30-day cycles, and calendar-month arithmetic for recurring due dates
-- `tests/functions/` — handler-level tests with a stubbed Supabase client:
-  auth paths, validation rejections, mass-assignment stripping, rate limits
-- `tests/react/` — component tests (Vitest + Testing Library, jsdom) for
-  the React-ported pages
-- `tests/e2e/` — Playwright: login flow, add-transaction → dashboard,
-  accounts add/remove, the giving-floor warning, and recurring-suggestion
-  due-date gating. The BFF is stubbed via route interception, so no
-  credentials are needed (this is what lets E2E run in CI)
+- `tests/engine/` — dates, cycles, projections, **health analysis**, **receipt parsing**
+- `tests/functions/` — handler tests with a stubbed Supabase client: auth,
+  validation, mass-assignment stripping, rate limits, settings, onboarding,
+  export/deletion, password reset
+- `tests/react/` — component tests (Testing Library, jsdom) for every page
+- `tests/e2e/` — Playwright: login, add-transaction → dashboard, accounts,
+  giving floor, recurring due dates, settings sync + legacy import,
+  onboarding, account export/delete, password reset, **real OCR of a rendered
+  receipt under the production CSP**, axe accessibility scans (WCAG AA)
 
-CI (GitHub Actions) runs lint → type check → format check → tests → build →
-E2E on every PR; Netlify builds a deploy preview for every PR via its Git
-integration.
+CI runs lint → typecheck → format check → tests → build → E2E on every PR.
 
 ## Deployment
 
 Pushing to `main` triggers Netlify: `npm run build`, publish `dist/`,
-functions from `netlify/functions/`. Security headers and caching rules are
-in `netlify.toml`. The PWA service worker auto-updates clients on deploy.
+functions from `netlify/functions/`. **Order matters for releases that add a
+migration:** run the migration in Supabase first, then deploy. The checklist
+for the current release is in [docs/deployment.md](docs/deployment.md).
 
-## Insights engine — how projections work
+## Insights engine
 
-**Pattern-aware mode** (≥10 historical expenses): each past expense maps to
-its day-of-cycle number (day 1 = salary day). Each remaining day of the
-current cycle is projected from that day number's historical average —
-capturing patterns like "groceries land on day 3" or "day 28 is near-zero."
+**Projection** — pattern-aware with ≥10 historical expenses (each remaining
+cycle day projected from that day-of-cycle's historical average), otherwise
+recency-weighted (last 7 days × 0.6 + earlier × 0.4). Cycle length is the
+median gap between salaries (clamped 20–45, default 30).
 
-**Weighted-recency mode** (thin history): burn rate = last-7-days rate × 0.6
-+ earlier-in-cycle rate × 0.4, times the remaining days — biased toward
-recent momentum, which is more predictive when habits shift mid-cycle.
+**Health, pace, actions** — see [docs/financial-health.md](docs/financial-health.md).
 
-The expected cycle length is the **median gap between salary dates**
-(clamped 20–45, default 30), so 31-day cycles project all the way out.
-This logic lives in `src/engine/` as pure functions with full test coverage.
+**Recurring transactions** are templates, not auto-charges: a suggestion
+appears once one calendar month has passed since the last occurrence.
 
-## Recurring transactions
+## Documentation
 
-Mark a transaction "recurring" and it becomes a template, not a repeating
-charge — you still add each month's occurrence yourself, just with less
-typing. The suggestion only appears once **one calendar month has passed
-since the last occurrence** (`PFDates.addMonths`, day-of-month overflow
-clamped to the target month's last day), so a subscription billed on the
-21st shows up as due on the 21st, not from the first day of your salary
-cycle.
+- [docs/supabase-setup.md](docs/supabase-setup.md) — tables, migrations, auth and email setup
+- [docs/deployment.md](docs/deployment.md) — release checklist and launch checklist
+- [docs/financial-health.md](docs/financial-health.md) — score, actions, pace, assumptions
+- [docs/bill-scanning.md](docs/bill-scanning.md) — on-device OCR and total detection
+- [docs/account-and-privacy.md](docs/account-and-privacy.md) — settings, onboarding, export, deletion, password reset
+- [SCALABILITY_ROADMAP.md](SCALABILITY_ROADMAP.md) — architecture decisions and status
 
 ## Contributing
 

@@ -1,20 +1,14 @@
 // BudgetsPage — React port of renderBudgetLimitsUI()/saveBudgetLimits()
 // and the Giving Floor form's inline handler.
 //
-// Unlike Accounts/Categories, this page's real state isn't a backend
-// table — budgetLimits/givingFloorPct/givingFloorCategory are
-// localStorage-only, read into window.app's instance fields at boot and
-// consumed by the still-vanilla Dashboard (checkBudgetWarnings(),
-// checkOfferingFloor()). So saving here writes localStorage directly
-// (same keys as the original: budgetLimits, givingFloorPct,
-// givingFloorCategory) *and* mutates window.app's copies in place, then
-// calls window.app.updateDashboardStats() if a cycle is active — exactly
-// what the original inline handlers did. This coupling goes away once
-// Dashboard is ported and this settings state has a real single owner.
+// Budget limits and the giving floor are per-user settings stored in the
+// user_settings table (see netlify/functions/settings.js), so they follow
+// the account across devices. Saving PUTs to the server, then mutates
+// window.app's copies (read by DashboardPage) and asks it to recompute.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API } from '../../api.js';
 import { showNotification } from '../../ui.js';
-import { onCategoriesChanged } from '../crossPageSync';
+import { onCategoriesChanged, onSettingsChanged } from '../crossPageSync';
 
 interface Category {
     id: number;
@@ -23,24 +17,16 @@ interface Category {
     icon: string;
 }
 
-function readLocalStorageLimits(): Record<string, number> {
-    try {
-        return JSON.parse(localStorage.getItem('budgetLimits') || '{}');
-    } catch {
-        return {};
-    }
+function currentLimits(): Record<string, number> {
+    return window.app?.budgetLimits ?? {};
 }
 
 export default function BudgetsPage() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [limits, setLimits] = useState<Record<string, string>>({});
-    const [floorPct, setFloorPct] = useState(() =>
-        String(window.app?.givingFloorPct ?? parseFloat(localStorage.getItem('givingFloorPct') || '5') ?? 5)
-    );
-    const [floorCategory, setFloorCategory] = useState(
-        () => window.app?.givingFloorCategory ?? localStorage.getItem('givingFloorCategory') ?? ''
-    );
+    const [floorPct, setFloorPct] = useState(() => String(window.app?.givingFloorPct ?? 5));
+    const [floorCategory, setFloorCategory] = useState(() => window.app?.givingFloorCategory ?? '');
     // A ref, not a useCallback dependency, so refreshCategories (below)
     // stays a stable function reference (registered once with
     // onCategoriesChanged) while still reading the latest floorCategory
@@ -54,7 +40,7 @@ export default function BudgetsPage() {
         const data: Category[] = (await API.getCategories()) || [];
         setCategories(data);
 
-        const stored = readLocalStorageLimits();
+        const stored = currentLimits();
         const initial: Record<string, string> = {};
         data.filter(c => c.type === 'expense').forEach(c => {
             initial[c.name] = stored[c.name] ? String(stored[c.name]) : '';
@@ -86,30 +72,50 @@ export default function BudgetsPage() {
         return onCategoriesChanged(refreshCategories);
     }, [refreshCategories]);
 
+    // Settings arrive from the server after this island mounts; pick them up.
+    useEffect(
+        () =>
+            onSettingsChanged(() => {
+                setFloorPct(String(window.app?.givingFloorPct ?? 5));
+                setFloorCategory(window.app?.givingFloorCategory ?? '');
+                refreshCategories();
+            }),
+        [refreshCategories]
+    );
+
     function resyncDashboard() {
         const start = window.app?.currentCycleStart;
         if (start) window.app?.updateDashboardStats?.(start, window.app?.currentCycleEnd ?? null);
     }
 
-    function handleSaveLimits(e: React.FormEvent<HTMLFormElement>) {
+    async function handleSaveLimits(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const next: Record<string, number> = {};
         Object.entries(limits).forEach(([cat, raw]) => {
             const val = parseFloat(raw);
             if (val > 0) next[cat] = val;
         });
-        localStorage.setItem('budgetLimits', JSON.stringify(next));
+        try {
+            await API.saveSettings({ budget_limits: next });
+        } catch (err) {
+            showNotification('Could not save budget limits: ' + (err as Error).message, 'error');
+            return;
+        }
         if (window.app) window.app.budgetLimits = next;
         showNotification('Budget limits saved!');
         resyncDashboard();
     }
 
-    function handleSaveFloor(e: React.FormEvent<HTMLFormElement>) {
+    async function handleSaveFloor(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const parsed = parseFloat(floorPct);
         const pct = parsed >= 0 ? parsed : 5;
-        localStorage.setItem('givingFloorPct', String(pct));
-        localStorage.setItem('givingFloorCategory', floorCategory);
+        try {
+            await API.saveSettings({ giving_floor_pct: pct, giving_floor_category: floorCategory });
+        } catch (err) {
+            showNotification('Could not save giving floor: ' + (err as Error).message, 'error');
+            return;
+        }
         if (window.app) {
             window.app.givingFloorPct = pct;
             window.app.givingFloorCategory = floorCategory;

@@ -47,3 +47,16 @@ CI runs exactly these steps; Netlify builds a deploy preview for every PR.
 - `netlify/functions/` — CommonJS; note that function tests stub Supabase
   through Node's `require.cache` (see `tests/functions/login.test.js`)
 - Database schema + RLS: `docs/supabase-setup.md`, `supabase/migrations/`
+
+## Adding things safely
+
+- **New per-user table:** add RLS policies in a new numbered migration, add it
+  to `delete_my_account()` and to the export in `netlify/functions/account.js`,
+  and add tests (see `docs/account-and-privacy.md`).
+- **New endpoint:** anon key + caller JWT only, validate and whitelist input,
+  add a handler test using the `require.cache` Supabase stub.
+- **Engine changes** (`src/engine/`) change what the user sees about their
+  money: add unit tests and mention it in the PR description.
+- **OCR assets** are generated into `public/ocr/` by `npm run build`/`dev:vite`
+  and are gitignored; do not commit them.
+- Docs live in `docs/`; update the relevant page when behavior changes.

@@ -61,9 +61,9 @@ describe('DashboardPage', () => {
         window.app = buildApp() as never;
         render(<DashboardPage />);
 
-        await waitFor(() => expect(screen.getByText('₹50000.00')).toBeInTheDocument());
-        expect(screen.getByText('₹8000.00')).toBeInTheDocument();
-        expect(screen.getByText('₹42000.00')).toBeInTheDocument();
+        await waitFor(() => expect(screen.getByText('₹50,000.00')).toBeInTheDocument());
+        expect(screen.getByText('₹8,000.00')).toBeInTheDocument();
+        expect(screen.getByText('₹42,000.00')).toBeInTheDocument();
     });
 
     it('shows a budget warning once spend crosses 80% of the category limit', async () => {
@@ -89,8 +89,8 @@ describe('DashboardPage', () => {
         window.app = buildApp() as never;
         render(<DashboardPage />);
 
-        await waitFor(() => expect(screen.getByText('📈 Daily Breakdown')).toBeInTheDocument());
-        expect(screen.queryByText('🔮 Spending Forecast')).not.toBeInTheDocument();
+        await waitFor(() => expect(screen.getByText('Daily spending')).toBeInTheDocument());
+        expect(screen.queryByText('Spending forecast')).not.toBeInTheDocument();
     });
 
     it('shows the spending forecast once at least 4 salary cycles exist', async () => {
@@ -109,7 +109,7 @@ describe('DashboardPage', () => {
         }) as never;
         render(<DashboardPage />);
 
-        await waitFor(() => expect(screen.getByText('🔮 Spending Forecast')).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText('Spending forecast')).toBeInTheDocument());
         expect(screen.getByText(/full cycles projects roughly/)).toBeInTheDocument();
     });
 
@@ -157,5 +157,41 @@ describe('DashboardPage', () => {
         await waitFor(() => expect(screen.getByText('No transactions found')).toBeInTheDocument());
         await user.click(screen.getByRole('button', { name: /Export CSV/ }));
         expect(showNotification).toHaveBeenCalledWith('No transactions to export.', 'error');
+    });
+
+    it('shows a health score, ranked actions and a where-your-money-goes list', async () => {
+        window.app = buildApp({
+            transactions: [
+                { id: 1, type: 'income', amount: 50000, category: 'Salary', transaction_date: '2026-06-01' },
+                { id: 2, type: 'expense', amount: 12000, category: 'Food', transaction_date: '2026-06-05' },
+                { id: 3, type: 'income', amount: 50000, category: 'Salary', transaction_date: '2026-07-01' },
+                { id: 4, type: 'expense', amount: 12000, category: 'Food', transaction_date: '2026-07-05' },
+                { id: 5, type: 'income', amount: 50000, category: 'Salary', transaction_date: '2026-08-01' },
+                { id: 6, type: 'expense', amount: 12000, category: 'Food', transaction_date: '2026-08-05' },
+                { id: 7, type: 'income', amount: 50000, category: 'Salary', transaction_date: '2026-09-01' },
+                {
+                    id: 8,
+                    type: 'expense',
+                    amount: 60000,
+                    category: 'Shopping',
+                    transaction_date: '2026-09-04'
+                }
+            ]
+        }) as never;
+        render(<DashboardPage />);
+
+        await waitFor(() => expect(screen.getByText('Financial health')).toBeInTheDocument());
+        expect(screen.getByRole('img', { name: /Health score \d+ out of 100/ })).toBeInTheDocument();
+        expect(screen.getByText('What to do next')).toBeInTheDocument();
+        expect(screen.getByText(/On track to overspend/)).toBeInTheDocument();
+        expect(screen.getByText('Where your money goes')).toBeInTheDocument();
+    });
+
+    it('shows a gentle placeholder instead of a score when there is no data', async () => {
+        window.app = buildApp({ transactions: [] }) as never;
+        render(<DashboardPage />);
+        await waitFor(() => expect(screen.getByText('Financial health')).toBeInTheDocument());
+        expect(screen.getByText(/this fills in with a score/)).toBeInTheDocument();
+        expect(screen.queryByText('What to do next')).not.toBeInTheDocument();
     });
 });

@@ -50,6 +50,10 @@
         <div id="add-transaction" class="page active" role="tabpanel" aria-labelledby="tab-add-transaction">
             <h2>Add Transaction</h2>
 
+            <!-- First-run setup card (src/react/pages/OnboardingCard.tsx);
+                 renders nothing unless the account is brand new -->
+            <div id="onboarding-react-root"></div>
+
             <div id="recurring-suggestions"></div>
 
             <!-- React island (src/react/pages/AddTransactionPage.tsx),
@@ -116,7 +120,14 @@
             <div id="insights-react-root"></div>
         </div>
 
+        <!-- ACCOUNT & PRIVACY PAGE (reached from the footer, not a tab) -->
+        <div id="account" class="page" role="region" aria-label="Account and privacy">
+            <!-- React island (src/react/pages/AccountPage.tsx) -->
+            <div id="account-react-root"></div>
+        </div>
+
         <footer role="contentinfo">
+            <button id="account-btn" class="logout-btn">🔐 Account &amp; privacy</button>
             <button id="logout-btn" class="logout-btn">🚪 Logout</button>
         </footer>
     </div>

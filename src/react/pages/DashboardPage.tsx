@@ -21,9 +21,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PFDates from '../../engine/dates.js';
 import PFCycles from '../../engine/cycles.js';
 import PFProjection from '../../engine/projection.js';
+import PFHealth from '../../engine/health.js';
+import {
+    ActionList,
+    CategoryTable,
+    HealthHero,
+    PaceChart,
+    TrendChart,
+    type Analysis
+} from './dashboard/HealthPanels';
 import { loadChart } from '../../charts.js';
 import { showNotification } from '../../ui.js';
-import { onCategoriesChanged, onTransactionsChanged } from '../crossPageSync';
+import { onCategoriesChanged, onSettingsChanged, onTransactionsChanged } from '../crossPageSync';
 
 interface Transaction {
     id: number | string;
@@ -66,6 +75,10 @@ function omitGivingCategory(
     return rest;
 }
 
+const money = (n: number) =>
+    `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money0 = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+
 function niceDate(d: string) {
     return PFDates.parseLocal(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
@@ -80,17 +93,25 @@ export default function DashboardPage() {
         mode: 'source'
     });
 
+    // Budgets/giving floor live on window.app and change without the
+    // transaction/category arrays changing; bumping this re-runs the memos
+    // that read them.
+    const [settingsVersion, setSettingsVersion] = useState(0);
+
     const refresh = useCallback(() => {
         setTransactions(window.app?.transactions ?? []);
         setCategories(window.app?.categories ?? []);
+        setSettingsVersion(v => v + 1);
     }, []);
 
     useEffect(() => {
         const offTx = onTransactionsChanged(refresh);
         const offCat = onCategoriesChanged(refresh);
+        const offSettings = onSettingsChanged(refresh);
         return () => {
             offTx();
             offCat();
+            offSettings();
         };
     }, [refresh]);
 
@@ -172,7 +193,7 @@ export default function DashboardPage() {
                 return { cat, icon, spent, limit, pct: Math.min(pct, 100), over: pct > 100 };
             })
             .filter((w): w is NonNullable<typeof w> => w !== null);
-    }, [cycleTxs, categories]);
+    }, [cycleTxs, categories, settingsVersion]);
 
     // ---- giving floor warning ----
     const givingFloorWarning = useMemo(() => {
@@ -188,7 +209,7 @@ export default function DashboardPage() {
         const pct = floor > 0 ? (given / floor) * 100 : 100;
         const icon = categories.find(c => c.name === cat)?.icon ?? '🙏';
         return { cat, icon, given, shortBy: floor - given, pct: Math.min(pct, 100), floorPct };
-    }, [cycleTxs, categories, income]);
+    }, [cycleTxs, categories, income, settingsVersion]);
 
     // ---- OLS spending forecast ----
     const forecast = useMemo(() => {
@@ -451,6 +472,17 @@ export default function DashboardPage() {
         };
     }, [forecast]);
 
+    const analysis = useMemo(
+        () =>
+            PFHealth.analyze({
+                transactions,
+                today,
+                cycleIndex: selectedIdx,
+                budgetLimits: window.app?.budgetLimits ?? {}
+            }) as unknown as Analysis,
+        [transactions, today, selectedIdx, settingsVersion]
+    );
+
     if (!cycle) return null;
 
     const runRateColor =
@@ -469,7 +501,7 @@ export default function DashboardPage() {
     return (
         <>
             <div className="dashboard-header">
-                <h2>My Finances</h2>
+                <h2>Your finances</h2>
                 <div className="cycle-select-wrap">
                     <select
                         aria-label="Salary cycle"
@@ -514,7 +546,7 @@ export default function DashboardPage() {
                                 />
                             </div>
                             <div className="budget-bar-labels">
-                                <span>₹{w.spent.toFixed(0)} spent</span>
+                                <span>{money0(w.spent)} spent</span>
                                 <span>₹{w.limit} limit</span>
                             </div>
                         </div>
@@ -541,32 +573,43 @@ export default function DashboardPage() {
                             />
                         </div>
                         <div className="budget-bar-labels">
-                            <span>₹{givingFloorWarning.given.toFixed(0)} given</span>
-                            <span>₹{givingFloorWarning.shortBy.toFixed(0)} more to reach floor</span>
+                            <span>{money0(givingFloorWarning.given)} given</span>
+                            <span>{money0(givingFloorWarning.shortBy)} more to reach floor</span>
                         </div>
                     </div>
                 </div>
             )}
 
+            <HealthHero
+                health={analysis.health}
+                priorCount={analysis.priorCount}
+                isCurrent={analysis.cycle.isCurrent}
+            />
+            <ActionList actions={analysis.actions} />
+
             <div className="summary">
                 <div className="summary-row">
                     <span className="k">Income this cycle</span>
-                    <span className="v income">₹{income.toFixed(2)}</span>
+                    <span className="v income">{money(income)}</span>
                 </div>
                 <div className="summary-row">
                     <span className="k">Expenses this cycle</span>
-                    <span className="v expense">₹{expenses.toFixed(2)}</span>
+                    <span className="v expense">{money(expenses)}</span>
                 </div>
                 <div className="summary-row">
                     <span className="k">No-Spend Streak</span>
                     <span className="v-stack">
-                        <span className="v">{streak.currentStreak} Days</span>
-                        <small className="v-sub">Best: {streak.bestStreak} days</small>
+                        <span className="v">
+                            {streak.currentStreak} {streak.currentStreak === 1 ? 'Day' : 'Days'}
+                        </span>
+                        <small className="v-sub">
+                            Best: {streak.bestStreak} {streak.bestStreak === 1 ? 'day' : 'days'}
+                        </small>
                     </span>
                 </div>
                 <div className="summary-row summary-row--closing">
                     <span className="k">Remaining</span>
-                    <span className="v v--closing">₹{balance.toFixed(2)}</span>
+                    <span className="v v--closing">{money(balance)}</span>
                 </div>
             </div>
 
@@ -577,24 +620,24 @@ export default function DashboardPage() {
                         <>
                             <p className="predictive-lead" style={{ color: runRateTextColor }}>
                                 {proj.projectedBalance < 0
-                                    ? `Short by ₹${Math.abs(proj.projectedBalance).toFixed(0)}`
+                                    ? `Short by ${money0(Math.abs(proj.projectedBalance))}`
                                     : proj.projectedBalance < income * 0.1
-                                      ? `₹${proj.projectedBalance.toFixed(0)} leftover (thin margin)`
-                                      : `+₹${proj.projectedBalance.toFixed(0)} projected surplus`}
+                                      ? `${money0(proj.projectedBalance)} leftover (thin margin)`
+                                      : `+${money0(proj.projectedBalance)} projected surplus`}
                             </p>
                             <p className="run-rate-note">
                                 {proj.projectedBalance < 0
-                                    ? `Cut spending to ₹${Math.max(0, Math.abs(proj.projectedBalance) / (proj.daysRemaining || 1)).toFixed(0)}/day less than now to break even.`
+                                    ? `Cut spending to ${money0(Math.max(0, Math.abs(proj.projectedBalance) / (proj.daysRemaining || 1)))}/day less than now to break even.`
                                     : proj.projectedBalance < income * 0.1
-                                      ? `Stay under ₹${Math.max(0, (income * 0.9 - proj.expensesSoFar) / (proj.daysRemaining || 1)).toFixed(0)}/day for the rest of the cycle to keep a safety margin.`
+                                      ? `Stay under ${money0(Math.max(0, (income * 0.9 - proj.expensesSoFar) / (proj.daysRemaining || 1)))}/day for the rest of the cycle to keep a safety margin.`
                                       : leak
                                         ? 'On track overall.'
                                         : 'On track — no unusual spending detected this cycle.'}
                                 {leak && (
                                     <>
                                         {' '}
-                                        Watch <b>{leak.cat}</b> — already +₹{leak.diff.toFixed(0)} over your
-                                        usual pace.
+                                        Watch <b>{leak.cat}</b> — already +{money0(leak.diff)} over your usual
+                                        pace.
                                     </>
                                 )}
                             </p>
@@ -605,12 +648,16 @@ export default function DashboardPage() {
                 </div>
             </div>
 
+            {analysis.pace && <PaceChart pace={analysis.pace} />}
+            <CategoryTable rows={analysis.rows} hasHistory={analysis.priorCount > 0} />
+            {analysis.trend && analysis.trend.length >= 2 && <TrendChart trend={analysis.trend} />}
+
             {forecast && (
                 <div className="chart-container">
-                    <h3>🔮 Spending Forecast</h3>
+                    <h3>Spending forecast</h3>
                     <p className="page-subtitle">
                         Linear trend across your last {forecast.recent.length} full cycles projects roughly{' '}
-                        <b>₹{forecast.predicted.toFixed(0)}</b> in total expenses next cycle
+                        <b>{money0(forecast.predicted)}</b> in total expenses next cycle
                         {forecast.slope > 0 ? ', trending up' : forecast.slope < 0 ? ', trending down' : ''} —
                         an estimate, not a guarantee.
                     </p>
@@ -619,12 +666,12 @@ export default function DashboardPage() {
             )}
 
             <div className="chart-container">
-                <h3>📈 Daily Breakdown</h3>
+                <h3>Daily spending</h3>
                 <canvas ref={lineCanvasRef}></canvas>
             </div>
 
             <div className="chart-container">
-                <h3 id="donut-chart-title-react">📊 Expenses by Source</h3>
+                <h3 id="donut-chart-title-react">Expenses by source</h3>
                 <canvas ref={donutCanvasRef}></canvas>
                 {chartView.mode === 'category' && (
                     <button
@@ -639,7 +686,7 @@ export default function DashboardPage() {
 
             <div className="transactions-section">
                 <div className="section-header">
-                    <h3>📋 Transactions</h3>
+                    <h3>Transactions</h3>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <div className="filter-controls">
                             <select
