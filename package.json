@@ -51,7 +51,7 @@
         "@vitejs/plugin-react": "^5.2.0",
         "eslint": "^10.9.1",
         "globals": "^17.12.0",
-        "jsdom": "^26.1.0",
+        "jsdom": "^30.1.1",
         "netlify-cli": "^27.4.2",
         "prettier": "^3.9.6",
         "typescript": "^5.9.3",
