@@ -31,7 +31,7 @@
     },
     "homepage": "https://github.com/simeonpalla/expensetracker#readme",
     "dependencies": {
-        "@sentry/node": "^10.75.1",
+        "@sentry/node": "^10.75.2",
         "@supabase/supabase-js": "^2.112.4",
         "@tesseract.js-data/eng": "^1.0.0",
         "chart.js": "^4.5.1",
